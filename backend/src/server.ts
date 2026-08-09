@@ -3,7 +3,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import pdfParse from 'pdf-parse';
+const pdfParse = require('pdf-parse');
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
@@ -90,7 +90,7 @@ app.post('/api/transactions', authMiddleware, async (req: Request, res: Response
 });
 
 app.patch('/api/transactions/:id/attach', authMiddleware, async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const { attachmentUrl } = req.body;
   try {
     const t = await prisma.transaction.update({ where: { id }, data: { attachmentUrl } });
@@ -99,7 +99,7 @@ app.patch('/api/transactions/:id/attach', authMiddleware, async (req: Request, r
 });
 
 app.patch('/api/transactions/:id/pay', authMiddleware, async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   try {
     const t = await prisma.transaction.update({ where: { id }, data: { status: 'PAID', paymentDate: new Date() } });
     res.json(t);
@@ -107,7 +107,7 @@ app.patch('/api/transactions/:id/pay', authMiddleware, async (req: Request, res:
 });
 
 app.delete('/api/transactions/:id', authMiddleware, async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   try {
     await prisma.transaction.delete({ where: { id } });
     res.json({ message: 'Excluído.' });
@@ -179,7 +179,7 @@ app.post('/api/categories', authMiddleware, async (req: Request, res: Response) 
   res.status(201).json(await prisma.category.create({ data: { name, type, color } }));
 });
 app.delete('/api/categories/:id', authMiddleware, async (req: Request, res: Response) => {
-  await prisma.category.delete({ where: { id: req.params.id } });
+  await prisma.category.delete({ where: { id: String(req.params.id) } });
   res.json({ message: 'Excluído.' });
 });
 
@@ -192,7 +192,7 @@ app.post('/api/entities', authMiddleware, async (req: Request, res: Response) =>
   res.status(201).json(await prisma.entity.create({ data: { name, document, type } }));
 });
 app.delete('/api/entities/:id', authMiddleware, async (req: Request, res: Response) => {
-  await prisma.entity.delete({ where: { id: req.params.id } });
+  await prisma.entity.delete({ where: { id: String(req.params.id) } });
   res.json({ message: 'Excluído.' });
 });
 
