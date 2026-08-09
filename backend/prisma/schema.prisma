@@ -61,4 +61,8 @@ model Transaction {
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([dueDate])
+  @@index([status])
+  @@index([type])
 }

@@ -98,6 +98,21 @@ export default function Expenses() {
     reader.readAsDataURL(file);
   };
 
+  const viewAttachment = async (id) => {
+    try {
+      const res = await authFetch(`/api/transactions/${id}/attachment`);
+      const data = await res.json();
+      if (data.attachmentUrl) {
+        const newTab = window.open();
+        newTab.document.write(`<iframe src="${data.attachmentUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+      } else {
+        alert('Anexo não encontrado.');
+      }
+    } catch (err) {
+      alert('Erro ao carregar o anexo.');
+    }
+  };
+
   const deleteExpense = async (id) => {
     if (!confirm('Deseja excluir esta despesa?')) return;
     try {
@@ -146,11 +161,11 @@ export default function Expenses() {
       </div>
 
       {/* Tabela */}
-      <div className="card table-container" style={{ padding: 0 }}>
+      <div id="tutorial-expenses-table" className="card table-container" style={{ padding: 0 }}>
         {loading ? (
           <p style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Carregando despesas...</p>
         ) : (
-          <table id="tutorial-expenses-table">
+          <table>
             <thead style={{ backgroundColor: 'var(--bg-body)' }}>
               <tr>
                 <th>Data</th>
@@ -185,10 +200,10 @@ export default function Expenses() {
                       R$ {expense.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {expense.attachmentUrl ? (
-                        <a id={index === 0 ? "tutorial-expense-attachment" : undefined} href={expense.attachmentUrl} target="_blank" rel="noreferrer" title="Ver Comprovante" style={{ marginRight: '12px', color: 'var(--brand-blue)' }}>
+                      {expense.hasAttachment ? (
+                        <button id={index === 0 ? "tutorial-expense-attachment" : undefined} onClick={() => viewAttachment(expense.id)} title="Ver Comprovante" style={{ marginRight: '12px', color: 'var(--brand-blue)', background: 'none', border: 'none', cursor: 'pointer' }}>
                           <Paperclip size={18} />
-                        </a>
+                        </button>
                       ) : (
                         <label id={index === 0 ? "tutorial-expense-attachment" : undefined} style={{ cursor: 'pointer', marginRight: '12px', color: 'var(--text-muted)' }} title="Anexar Comprovante">
                           <Paperclip size={18} />

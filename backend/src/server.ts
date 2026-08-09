@@ -102,11 +102,53 @@ app.post('/api/auth/reset', async (req: Request, res: Response) => {
 app.get('/api/transactions', authMiddleware, async (req: Request, res: Response) => {
   try {
     const transactions = await prisma.transaction.findMany({
-      include: { category: true, entity: true },
+      select: {
+        id: true,
+        description: true,
+        amount: true,
+        type: true,
+        status: true,
+        dueDate: true,
+        paymentDate: true,
+        isRecurring: true,
+        categoryId: true,
+        entityId: true,
+        createdAt: true,
+        updatedAt: true,
+        category: true,
+        entity: true,
+        // NÃO seleciona o attachmentUrl (Base64) para economizar banda!
+      },
       orderBy: { dueDate: 'asc' },
     });
-    res.json(transactions);
+
+    // Como o attachmentUrl é ignorado na query principal, buscamos apenas os IDs que possuem anexo
+    const withAttachments = await prisma.transaction.findMany({
+      where: { attachmentUrl: { not: null } },
+      select: { id: true },
+    });
+    
+    const attachmentSet = new Set(withAttachments.map(t => t.id));
+
+    const result = transactions.map(t => ({
+      ...t,
+      hasAttachment: attachmentSet.has(t.id),
+    }));
+
+    res.json(result);
   } catch (e) { res.status(500).json({ error: 'Erro ao buscar transações.' }); }
+});
+
+app.get('/api/transactions/:id/attachment', authMiddleware, async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  try {
+    const t = await prisma.transaction.findUnique({
+      where: { id },
+      select: { attachmentUrl: true },
+    });
+    if (!t || !t.attachmentUrl) return res.status(404).json({ error: 'Anexo não encontrado' });
+    res.json({ attachmentUrl: t.attachmentUrl });
+  } catch (e) { res.status(500).json({ error: 'Erro ao buscar anexo.' }); }
 });
 
 app.post('/api/transactions', authMiddleware, async (req: Request, res: Response) => {

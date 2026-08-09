@@ -77,7 +77,7 @@ export default function CalendarView() {
       {loading ? (
         <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>Carregando calendário...</p>
       ) : (
-        <div className="calendar-grid">
+        <div id="tutorial-calendar-full" className="calendar-grid">
           {/* Cabeçalho dos dias da semana */}
           {diasDaSemana.map(d => (
             <div key={d} className="calendar-day-header">{d}</div>
@@ -106,25 +106,44 @@ export default function CalendarView() {
                     }}>
                       {day}
                     </div>
-                    {events.slice(0, 3).map((ev, eIdx) => {
+                    {events.slice(0, 4).map((ev, eIdx) => {
                       const isPaid = ev.status === 'PAID';
                       const isIn = ev.type === 'IN';
-                      const bg = isPaid ? '#f1f5f9' : isIn ? 'var(--success-bg)' : 'var(--danger-bg)';
-                      const color = isPaid ? '#94a3b8' : isIn ? 'var(--success)' : 'var(--danger)';
+                      
+                      const borderColor = isPaid ? '#cbd5e1' : isIn ? 'var(--success)' : 'var(--danger)';
+                      const bgColor = isPaid ? '#f8fafc' : isIn ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+                      const textColor = isPaid ? '#64748b' : isIn ? 'var(--success)' : 'var(--danger)';
+                      const dotColor = isPaid ? '#cbd5e1' : isIn ? 'var(--success)' : 'var(--danger)';
+
                       return (
-                        <div key={eIdx} className="calendar-event" style={{ backgroundColor: bg, color }}>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>
-                            {ev.description}
-                          </span>
-                          <span style={{ fontWeight: 700, fontSize: '0.7rem', flexShrink: 0 }}>
+                        <div key={eIdx} className="calendar-event" style={{ 
+                          backgroundColor: bgColor, 
+                          color: textColor,
+                          borderLeft: `3px solid ${borderColor}`,
+                          padding: '4px 6px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          borderRadius: '0 4px 4px 0',
+                          marginBottom: '4px',
+                          fontSize: '0.75rem',
+                          lineHeight: 1.2
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden' }}>
+                            <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: dotColor, flexShrink: 0 }}></div>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                              {ev.description}
+                            </span>
+                          </div>
+                          <span style={{ fontWeight: 800, flexShrink: 0, opacity: 0.9 }}>
                             {ev.amount >= 1000 ? `${(ev.amount/1000).toFixed(1)}k` : `${ev.amount.toFixed(0)}`}
                           </span>
                         </div>
                       );
                     })}
-                    {events.length > 3 && (
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', paddingLeft: '4px' }}>
-                        +{events.length - 3} mais...
+                    {events.length > 4 && (
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', paddingLeft: '6px', fontWeight: 600, marginTop: '2px' }}>
+                        +{events.length - 4} evento(s)
                       </div>
                     )}
                   </>
