@@ -1,0 +1,54 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String
+  type      String   // 'IN' (Receita) ou 'OUT' (Despesa)
+  color     String?  // Cor para o gráfico
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions Transaction[]
+}
+
+model Entity {
+  id        String   @id @default(uuid())
+  name      String
+  document  String?  // CPF/CNPJ
+  type      String   // 'SUPPLIER' (Fornecedor) ou 'CLIENT' (Cliente)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions Transaction[]
+}
+
+model Transaction {
+  id          String    @id @default(uuid())
+  description String
+  amount      Float
+  type        String    // 'IN' ou 'OUT'
+  status      String    // 'PENDING', 'PAID', 'OVERDUE'
+  dueDate     DateTime
+  paymentDate DateTime?
+  isRecurring Boolean   @default(false)
+  
+  // Relacionamentos
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  
+  entityId    String?
+  entity      Entity?   @relation(fields: [entityId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
