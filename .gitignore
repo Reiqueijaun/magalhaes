@@ -1,0 +1,18 @@
+# .gitignore raiz do monorepo
+
+# Dependências
+node_modules/
+**/node_modules/
+
+# Variáveis de ambiente (NUNCA subir para o GitHub!)
+.env
+**/.env
+.env.local
+.env.production
+
+# Build
+dist/
+build/
+
+# Logs
+*.log

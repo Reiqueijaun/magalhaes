@@ -1,25 +1,77 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CheckCircle2, Plus } from 'lucide-react';
+import API_URL from '../config';
 
 export default function Pending() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const [hoje] = useState([
-    { id: 1, fornecedor: 'Aluguel Galpão', valor: 5000.00, status: 'Vence Hoje' },
-    { id: 2, fornecedor: 'Internet Corporativa', valor: 350.00, status: 'Vence Hoje' },
-    { id: 3, fornecedor: 'Limpeza Terceirizada', valor: 1200.00, status: 'Atrasado' }
-  ]);
+  // Formulário
+  const [desc, setDesc] = useState('');
+  const [valor, setValor] = useState('');
+  const [dataVenc, setDataVenc] = useState('');
+  const [recorrente, setRecorrente] = useState(false);
 
-  const [seteDias] = useState([
-    { id: 4, fornecedor: 'Energia Elétrica', vencimento: '12/08', valor: 2340.00 },
-    { id: 5, fornecedor: 'Fornecedor A', vencimento: '14/08', valor: 8500.00 }
-  ]);
+  // Buscar dados da API
+  const fetchTransactions = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/transactions`);
+      if (response.ok) {
+        const data = await response.json();
+        // Filtra apenas SAÍDAS (OUT) que estão PENDENTES
+        const pendingOut = data.filter(t => t.type === 'OUT' && t.status === 'PENDING');
+        setTransactions(pendingOut);
+      }
+    } catch (error) {
+      console.log('Erro ao buscar da API, o servidor backend está rodando?');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const [trintaDias] = useState([
-    { id: 6, fornecedor: 'Impostos Mensais', vencimento: '20/08', valor: 18000.00 },
-    { id: 7, fornecedor: 'Softwares (SaaS)', vencimento: '25/08', valor: 1250.00 },
-    { id: 8, fornecedor: 'Manutenção', vencimento: '30/08', valor: 4500.00 }
-  ]);
+  useEffect(() => {
+    fetchTransactions();
+  }, []);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await fetch(`${API_URL}/api/transactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: desc,
+          amount: parseFloat(valor),
+          type: 'OUT',
+          status: 'PENDING',
+          dueDate: dataVenc,
+          isRecurring: recorrente
+        })
+      });
+      if (response.ok) {
+        setIsModalOpen(false);
+        fetchTransactions(); // Recarrega a lista
+        setDesc(''); setValor(''); setDataVenc(''); setRecorrente(false);
+      }
+    } catch (error) {
+      alert('Erro ao salvar. Verifique se o servidor backend está ligado.');
+    }
+  };
+
+  const handlePay = async (id) => {
+    try {
+      await fetch(`${API_URL}/api/transactions/${id}/pay`, { method: 'PATCH' });
+      fetchTransactions(); // Remove da lista de pendentes
+      alert('Pago! Transferido para o fluxo de despesas pagas.');
+    } catch (error) {
+      alert('Erro ao processar pagamento.');
+    }
+  };
+
+  // Separação por urgência (Simplificada para a demonstração)
+  const hoje = transactions.filter(t => new Date(t.dueDate) <= new Date());
+  const futuros = transactions.filter(t => new Date(t.dueDate) > new Date());
 
   const renderGroup = (title, icon, items, color, total) => (
     <div className="card" style={{ marginBottom: '1.5rem', borderLeft: `4px solid ${color}` }}>
@@ -33,16 +85,19 @@ export default function Pending() {
         <tbody>
           {items.map(item => (
             <tr key={item.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-              <td style={{ padding: '0.75rem 0', fontWeight: 500 }}>{item.fornecedor}</td>
-              <td style={{ padding: '0.75rem 0', color: 'var(--text-muted)' }}>{item.vencimento || 'Hoje'}</td>
-              <td style={{ padding: '0.75rem 0', fontWeight: 600, textAlign: 'right' }}>R$ {item.valor.toFixed(2).replace('.', ',')}</td>
+              <td style={{ padding: '0.75rem 0', fontWeight: 500 }}>{item.description}</td>
+              <td style={{ padding: '0.75rem 0', color: 'var(--text-muted)' }}>{new Date(item.dueDate).toLocaleDateString('pt-BR')}</td>
+              <td style={{ padding: '0.75rem 0', fontWeight: 600, textAlign: 'right' }}>R$ {item.amount.toFixed(2).replace('.', ',')}</td>
               <td style={{ padding: '0.75rem 0', textAlign: 'right', width: '150px' }}>
-                <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: 'var(--brand-blue)', borderColor: 'var(--brand-blue)' }} onClick={() => alert('Pago! Transferido para o fluxo de despesas.')}>
+                <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: 'var(--brand-blue)', borderColor: 'var(--brand-blue)' }} onClick={() => handlePay(item.id)}>
                   <CheckCircle2 size={14} style={{ marginRight: '4px' }} /> Pago
                 </button>
               </td>
             </tr>
           ))}
+          {items.length === 0 && (
+            <tr><td colSpan="4" style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)' }}>Nenhuma conta nesta categoria.</td></tr>
+          )}
         </tbody>
       </table>
     </div>
@@ -57,9 +112,14 @@ export default function Pending() {
         </button>
       </div>
 
-      {renderGroup('Hoje / Atrasadas', '🔴', hoje, 'var(--danger)', hoje.reduce((a, b) => a + b.valor, 0))}
-      {renderGroup('Próximos 7 dias', '🟠', seteDias, 'var(--warning)', seteDias.reduce((a, b) => a + b.valor, 0))}
-      {renderGroup('Próximos 30 dias', '🟡', trintaDias, '#eab308', trintaDias.reduce((a, b) => a + b.valor, 0))}
+      {loading ? (
+        <p>Carregando dados do banco...</p>
+      ) : (
+        <>
+          {renderGroup('Hoje / Atrasadas', '🔴', hoje, 'var(--danger)', hoje.reduce((a, b) => a + b.amount, 0))}
+          {renderGroup('Contas Futuras', '🟡', futuros, '#eab308', futuros.reduce((a, b) => a + b.amount, 0))}
+        </>
+      )}
 
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
@@ -68,17 +128,16 @@ export default function Pending() {
               <h3 style={{ fontSize: '1.25rem' }}>Nova Conta a Pagar</h3>
               <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', fontSize: '1.5rem' }}>&times;</button>
             </div>
-            <form onSubmit={e => { e.preventDefault(); setIsModalOpen(false); }}>
-              <div className="form-group"><label>Descrição / Fornecedor</label><input type="text" required /></div>
-              <div className="form-group"><label>Valor (R$)</label><input type="number" required /></div>
-              <div className="form-group"><label>Vencimento</label><input type="date" required /></div>
+            <form onSubmit={handleSave}>
+              <div className="form-group"><label>Descrição / Fornecedor</label><input type="text" value={desc} onChange={e => setDesc(e.target.value)} required /></div>
+              <div className="form-group"><label>Valor (R$)</label><input type="number" step="0.01" value={valor} onChange={e => setValor(e.target.value)} required /></div>
+              <div className="form-group"><label>Vencimento</label><input type="date" value={dataVenc} onChange={e => setDataVenc(e.target.value)} required /></div>
               <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
-                <input type="checkbox" id="recorrente" style={{ width: 'auto' }} />
+                <input type="checkbox" id="recorrente" checked={recorrente} onChange={e => setRecorrente(e.target.checked)} style={{ width: 'auto' }} />
                 <label htmlFor="recorrente" style={{ margin: 0 }}>Repetir Mensalmente (Recorrente)</label>
               </div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>O sistema projetará essa conta automaticamente para os próximos meses caso seja recorrente.</p>
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Cadastrar</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Cadastrar no Banco</button>
               </div>
             </form>
           </div>
