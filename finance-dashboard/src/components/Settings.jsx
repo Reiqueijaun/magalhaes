@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Tag, Users, Archive, Trash2, X } from 'lucide-react';
 import { authFetch } from '../config';
+import { formatDoc } from '../utils';
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('categorias');
@@ -246,7 +247,10 @@ export default function Settings() {
             </div>
             <form onSubmit={createEntity}>
               <div className="form-group"><label>Nome</label><input type="text" value={entName} onChange={e => setEntName(e.target.value)} placeholder="Nome da empresa ou pessoa" required /></div>
-              <div className="form-group"><label>CPF / CNPJ (opcional)</label><input type="text" value={entDoc} onChange={e => setEntDoc(e.target.value)} placeholder="00.000.000/0001-00" /></div>
+              <div className="form-group">
+                <label>CPF / CNPJ (opcional)</label>
+                <input type="text" value={entDoc} onChange={e => setEntDoc(formatDoc(e.target.value))} placeholder="00.000.000/0001-00" />
+              </div>
               <div className="form-group">
                 <label>Tipo</label>
                 <select value={entType} onChange={e => setEntType(e.target.value)}>

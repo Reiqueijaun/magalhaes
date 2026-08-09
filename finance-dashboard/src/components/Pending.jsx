@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, CheckCircle2, FileText, Loader } from 'lucide-react';
 import { authFetch } from '../config';
+import { formatCurrency, parseCurrency } from '../utils';
 
 export default function Pending() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -41,7 +42,7 @@ export default function Pending() {
         method: 'POST',
         body: JSON.stringify({
           description: desc,
-          amount: parseFloat(valor),
+          amount: parseCurrency(valor),
           type: 'OUT',
           status: 'PENDING',
           dueDate: dataVenc,
@@ -167,7 +168,7 @@ export default function Pending() {
             </div>
             <form onSubmit={handleSave}>
               <div className="form-group"><label>Descrição / Fornecedor</label><input type="text" value={desc} onChange={e => setDesc(e.target.value)} required /></div>
-              <div className="form-group"><label>Valor (R$)</label><input type="number" step="0.01" value={valor} onChange={e => setValor(e.target.value)} required /></div>
+              <div className="form-group"><label>Valor (R$)</label><input type="text" placeholder="0,00" value={valor} onChange={e => setValor(formatCurrency(e.target.value))} required /></div>
               <div className="form-group"><label>Vencimento</label><input type="date" value={dataVenc} onChange={e => setDataVenc(e.target.value)} required /></div>
               <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
                 <input type="checkbox" id="recorrente" checked={recorrente} onChange={e => setRecorrente(e.target.checked)} style={{ width: 'auto' }} />

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, CreditCard, Loader, Download } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { authFetch } from '../config';
 
 
@@ -109,7 +109,7 @@ export default function Dashboard() {
       `R$ ${c.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
     ]);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: 80,
       head: [['Categoria', 'Total Gasto']],
       body: tableData,
@@ -127,7 +127,7 @@ export default function Dashboard() {
         `R$ ${t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: doc.lastAutoTable.finalY + 15,
       head: [['Data', 'Descrição', 'Categoria', 'Valor']],
       body: paidExpenses,

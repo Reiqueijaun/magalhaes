@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Search, Paperclip, Trash2 } from 'lucide-react';
 import { authFetch } from '../config';
+import { formatCurrency, parseCurrency } from '../utils';
 
 
 export default function Expenses() {
@@ -50,7 +51,7 @@ export default function Expenses() {
         method: 'POST',
         body: JSON.stringify({
           description: desc + (banco ? ` (${banco})` : ''),
-          amount: parseFloat(valor),
+          amount: parseCurrency(valor),
           type: 'OUT',
           status: 'PAID',
           dueDate: dataVenc,
@@ -254,7 +255,7 @@ export default function Expenses() {
               </div>
               <div className="form-group">
                 <label>Valor Pago (R$)</label>
-                <input type="number" step="0.01" min="0.01" placeholder="0,00" value={valor} onChange={e => setValor(e.target.value)} required />
+                <input type="text" placeholder="0,00" value={valor} onChange={e => setValor(formatCurrency(e.target.value))} required />
               </div>
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
                 <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setIsModalOpen(false)}>Cancelar</button>
