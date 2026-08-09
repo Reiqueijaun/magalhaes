@@ -23,6 +23,11 @@ function App() {
     const savedUser = localStorage.getItem('user');
     if (token && savedUser) {
       setUser(JSON.parse(savedUser));
+      // Exibe tutorial se preferência não foi desativada
+      const tutorialPref = localStorage.getItem('showTutorial');
+      if (tutorialPref !== 'false') {
+        setShowTutorial(true);
+      }
     }
     setAuthChecked(true);
   }, []);
