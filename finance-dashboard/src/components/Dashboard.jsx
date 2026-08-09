@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, CreditCard, Loader } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import API_URL from '../config';
+import { authFetch } from '../config';
+
 
 export default function Dashboard() {
   const [summary, setSummary] = useState(null);
@@ -13,9 +13,9 @@ export default function Dashboard() {
     const fetchAll = async () => {
       try {
         const [summaryRes, transRes, catRes] = await Promise.all([
-          fetch(`${API_URL}/api/summary`),
-          fetch(`${API_URL}/api/transactions`),
-          fetch(`${API_URL}/api/categories`),
+          authFetch('/api/summary'),
+          authFetch('/api/transactions'),
+          authFetch('/api/categories'),
         ]);
         const summaryData = await summaryRes.json();
         const transData = await transRes.json();

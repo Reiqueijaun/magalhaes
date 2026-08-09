@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Trash2 } from 'lucide-react';
-import API_URL from '../config';
+import { Plus, Search } from 'lucide-react';
+import { authFetch } from '../config';
+
 
 export default function Expenses() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -22,14 +23,13 @@ export default function Expenses() {
   const fetchData = async () => {
     try {
       const [transRes, catRes, entRes] = await Promise.all([
-        fetch(`${API_URL}/api/transactions`),
-        fetch(`${API_URL}/api/categories`),
-        fetch(`${API_URL}/api/entities`),
+        authFetch('/api/transactions'),
+        authFetch('/api/categories'),
+        authFetch('/api/entities'),
       ]);
       const trans = await transRes.json();
       const cats = await catRes.json();
       const ents = await entRes.json();
-      // Histórico = despesas já pagas
       setExpenses(trans.filter(t => t.type === 'OUT' && t.status === 'PAID'));
       setCategories(cats.filter(c => c.type === 'OUT'));
       setEntities(ents.filter(e => e.type === 'SUPPLIER'));
@@ -46,9 +46,8 @@ export default function Expenses() {
     e.preventDefault();
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/transactions`, {
+      const response = await authFetch('/api/transactions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: desc + (banco ? ` (${banco})` : ''),
           amount: parseFloat(valor),
