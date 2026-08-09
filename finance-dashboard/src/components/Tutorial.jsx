@@ -288,25 +288,23 @@ export default function Tutorial({ onFinish, onNavigate }) {
     <>
       <style>{`
         @keyframes pulse-ring {
-          0% { box-shadow: 0 0 0 0 rgba(36, 59, 157, 0.7); }
-          70% { box-shadow: 0 0 0 15px rgba(36, 59, 157, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(36, 59, 157, 0); }
+          0% { box-shadow: 0 0 0 0 rgba(36, 59, 157, 0.7), 0 0 0 9999px rgba(0, 0, 0, 0.8); }
+          70% { box-shadow: 0 0 0 15px rgba(36, 59, 157, 0), 0 0 0 9999px rgba(0, 0, 0, 0.8); }
+          100% { box-shadow: 0 0 0 0 rgba(36, 59, 157, 0), 0 0 0 9999px rgba(0, 0, 0, 0.8); }
         }
       `}</style>
 
-      {/* Overlay Escuro Total */}
+      {/* Overlay transparente para bloquear cliques do usuário atrás do tutorial */}
       <div 
         style={{
           position: 'fixed',
           top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
           zIndex: 9998,
-          pointerEvents: 'auto',
-          backdropFilter: 'blur(2px)'
+          pointerEvents: 'auto'
         }} 
       />
 
-      {/* Spotlight Buraco (Clip-path) ou Borda Brilhante */}
+      {/* Spotlight com Buraco Real (feito com box-shadow gigante) */}
       {rect && (
         <div 
           style={{
@@ -318,7 +316,6 @@ export default function Tutorial({ onFinish, onNavigate }) {
             zIndex: 9999,
             borderRadius: 8,
             border: '2px solid #3b82f6',
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
             pointerEvents: 'none',
             animation: 'pulse-ring 2s infinite',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
