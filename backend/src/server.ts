@@ -52,9 +52,42 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     if (!valid) { res.status(401).json({ error: 'E-mail ou senha inválidos.' }); return; }
     const token = jwt.sign({ id: user.id, name: user.name, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
     res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao fazer login.' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro no servidor' });
+  }
+});
+
+// ─── RECUPERAÇÃO DE SENHA (VIA PIN MESTRE) ────────────────────────────────────
+app.post('/api/auth/reset', async (req: Request, res: Response) => {
+  const { email, newPassword, pin } = req.body;
+  if (!email || !newPassword || !pin) {
+    res.status(400).json({ error: 'Preencha todos os campos.' });
+    return;
+  }
+
+  const VALID_PIN = process.env.SECURITY_PIN || '2606'; // PIN hardcoded fallback
+  
+  if (pin !== VALID_PIN) {
+    res.status(403).json({ error: 'PIN de Segurança inválido.' });
+    return;
+  }
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      res.status(404).json({ error: 'E-mail não encontrado.' });
+      return;
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { email },
+      data: { password: hashedPassword }
+    });
+
+    res.json({ message: 'Senha alterada com sucesso! Você já pode fazer login.' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao redefinir a senha.' });
   }
 });
 

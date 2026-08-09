@@ -8,12 +8,41 @@ export default function Login({ onLogin }) {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  
+  // Estados para Reset de Senha
+  const [isResetting, setIsResetting] = useState(false);
+  const [pin, setPin] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccess('');
     
+    if (isResetting) {
+      try {
+        const res = await fetch(`${API_URL}/api/auth/reset`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, newPassword: password, pin }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setError(data.error || 'Erro ao resetar senha'); return; }
+        
+        setSuccess('Senha alterada! Agora você pode fazer login.');
+        setIsResetting(false);
+        setPassword('');
+        setPin('');
+      } catch {
+        setError('Não foi possível conectar ao servidor.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Fluxo de Login Normal
     try {
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
@@ -56,18 +85,17 @@ export default function Login({ onLogin }) {
 
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: 16,
-            background: 'linear-gradient(135deg, #243b9d, #1d3080)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 1rem',
-            boxShadow: '0 8px 20px rgba(36,59,157,0.4)',
-          }}>
-            <Wallet size={32} color="white" />
+          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 64, height: 64, background: 'linear-gradient(135deg, var(--brand-blue) 0%, #1a2a6c 100%)', borderRadius: '16px', color: 'white', marginBottom: '1rem', boxShadow: '0 8px 16px rgba(36, 59, 157, 0.2)' }}>
+            <Wallet size={32} />
           </div>
-          <h1 style={{ fontSize: '1.5rem', color: '#243b9d', margin: 0, fontWeight: 700 }}>Magalhaes Inteligencia</h1>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+            {isResetting ? 'Recuperar Senha' : 'Bem-vindo de volta'}
+          </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '0.25rem 0 0' }}>Sistema de Gestão Financeira</p>
         </div>
+
+        {error && <div style={{ background: '#fef2f2', color: '#dc2626', padding: '12px', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem', border: '1px solid #fecaca' }}>{error}</div>}
+        {success && <div style={{ background: '#f0fdf4', color: '#16a34a', padding: '12px', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem', border: '1px solid #bbf7d0' }}>{success}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -75,7 +103,12 @@ export default function Login({ onLogin }) {
             <input type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} required style={{ width: '100%' }} />
           </div>
           <div className="form-group">
-            <label>Senha</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label>{isResetting ? 'Nova Senha' : 'Senha'}</label>
+              {!isResetting && (
+                <button type="button" onClick={() => { setIsResetting(true); setError(''); setSuccess(''); }} style={{ background: 'none', border: 'none', color: 'var(--brand-blue)', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}>Esqueci a senha</button>
+              )}
+            </div>
             <div style={{ position: 'relative' }}>
               <input
                 type={showPass ? 'text' : 'password'}
@@ -94,10 +127,11 @@ export default function Login({ onLogin }) {
               </button>
             </div>
           </div>
-
-          {error && (
-            <div style={{ background: 'var(--danger-bg)', color: 'var(--danger)', padding: '0.75rem', borderRadius: '8px', fontSize: '0.875rem', marginBottom: '1rem' }}>
-              {error}
+          
+          {isResetting && (
+            <div className="form-group">
+              <label>PIN Mestre de Segurança</label>
+              <input type="password" placeholder="Digite o PIN de 4 dígitos" value={pin} onChange={e => setPin(e.target.value)} required style={{ width: '100%', letterSpacing: '2px' }} />
             </div>
           )}
 
@@ -105,16 +139,21 @@ export default function Login({ onLogin }) {
             type="submit"
             disabled={loading}
             style={{
-              width: '100%', padding: '0.875rem', borderRadius: '10px',
-              background: 'linear-gradient(135deg, #243b9d, #1d3080)',
-              color: 'white', fontWeight: 700, fontSize: '1rem',
-              border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1, transition: 'all 0.2s',
+              width: '100%', padding: '0.875rem', background: 'var(--brand-blue)',
+              color: 'white', border: 'none', borderRadius: '10px', fontWeight: 600,
+              fontSize: '1rem', cursor: loading ? 'wait' : 'pointer',
+              transition: 'background 0.2s',
               marginTop: '0.5rem',
             }}
           >
-            {loading ? 'Aguarde...' : '→ Entrar no sistema'}
+            {loading ? 'Aguarde...' : isResetting ? 'Salvar Nova Senha' : '→ Entrar no sistema'}
           </button>
+          
+          {isResetting && (
+            <button type="button" onClick={() => { setIsResetting(false); setError(''); setSuccess(''); }} style={{ width: '100%', padding: '0.875rem', background: 'transparent', color: 'var(--text-muted)', border: 'none', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', marginTop: '0.5rem' }}>
+              Voltar para o Login
+            </button>
+          )}
         </form>
       </div>
     </div>
