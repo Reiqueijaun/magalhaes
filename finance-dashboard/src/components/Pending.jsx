@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, CheckCircle2, FileText, Loader } from 'lucide-react';
+import { Plus, CheckCircle2, FileText, Loader, Repeat } from 'lucide-react';
 import { authFetch } from '../config';
 import { formatCurrency, parseCurrency } from '../utils';
 
@@ -116,7 +116,10 @@ export default function Pending() {
         <tbody>
           {items.map(item => (
             <tr key={item.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-              <td style={{ padding: '0.75rem 0', fontWeight: 500 }}>{item.description}</td>
+              <td style={{ padding: '0.75rem 0', fontWeight: 500 }}>
+                {item.description}
+                {item.isRecurring && <Repeat size={14} style={{ marginLeft: 6, color: 'var(--brand-blue)', verticalAlign: 'middle' }} title="Conta Recorrente Automática" />}
+              </td>
               <td style={{ padding: '0.75rem 0', color: 'var(--text-muted)' }}>{new Date(item.dueDate).toLocaleDateString('pt-BR')}</td>
               <td style={{ padding: '0.75rem 0', fontWeight: 600, textAlign: 'right' }}>R$ {item.amount.toFixed(2).replace('.', ',')}</td>
               <td style={{ padding: '0.75rem 0', textAlign: 'right', width: '150px' }}>

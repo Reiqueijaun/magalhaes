@@ -102,6 +102,25 @@ app.patch('/api/transactions/:id/pay', authMiddleware, async (req: Request, res:
   const id = String(req.params.id);
   try {
     const t = await prisma.transaction.update({ where: { id }, data: { status: 'PAID', paymentDate: new Date() } });
+    
+    if (t.isRecurring) {
+      const nextDueDate = new Date(t.dueDate);
+      nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+      
+      await prisma.transaction.create({
+        data: {
+          description: t.description,
+          amount: t.amount,
+          type: t.type,
+          categoryId: t.categoryId,
+          entityId: t.entityId,
+          dueDate: nextDueDate,
+          status: 'PENDING',
+          isRecurring: true
+        }
+      });
+    }
+    
     res.json(t);
   } catch (e) { res.status(500).json({ error: 'Erro ao dar baixa.' }); }
 });
