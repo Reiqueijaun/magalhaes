@@ -8,12 +8,14 @@ import CalendarView from './components/CalendarView';
 import Settings from './components/Settings';
 import Login from './components/Login';
 import Notifications from './components/Notifications';
+import Tutorial from './components/Tutorial';
 
 
 function App() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   // Checa se já existe token salvo no navegador
   useEffect(() => {
@@ -27,6 +29,11 @@ function App() {
 
   const handleLogin = (userData) => {
     setUser(userData);
+    // Mostra tutorial se o usuário ainda não desativou
+    const tutorialPref = localStorage.getItem('showTutorial');
+    if (tutorialPref !== 'false') {
+      setShowTutorial(true);
+    }
   };
 
   const handleLogout = () => {
@@ -84,25 +91,25 @@ function App() {
           <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', marginTop: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Transações
           </div>
-          <button className={`nav-item ${currentView === 'pending' ? 'active' : ''}`} onClick={() => setCurrentView('pending')}>
+          <button data-nav="pending" className={`nav-item ${currentView === 'pending' ? 'active' : ''}`} onClick={() => setCurrentView('pending')}>
             <Clock size={20} /> A Pagar
           </button>
-          <button className={`nav-item ${currentView === 'receivable' ? 'active' : ''}`} onClick={() => setCurrentView('receivable')}>
+          <button data-nav="receivable" className={`nav-item ${currentView === 'receivable' ? 'active' : ''}`} onClick={() => setCurrentView('receivable')}>
             <ArrowRightLeft size={20} /> A Receber
           </button>
-          <button className={`nav-item ${currentView === 'expenses' ? 'active' : ''}`} onClick={() => setCurrentView('expenses')}>
+          <button data-nav="expenses" className={`nav-item ${currentView === 'expenses' ? 'active' : ''}`} onClick={() => setCurrentView('expenses')}>
             <Receipt size={20} /> Histórico Pago
           </button>
 
           <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', marginTop: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Planejamento
           </div>
-          <button className={`nav-item ${currentView === 'calendar' ? 'active' : ''}`} onClick={() => setCurrentView('calendar')}>
+          <button data-nav="calendar" className={`nav-item ${currentView === 'calendar' ? 'active' : ''}`} onClick={() => setCurrentView('calendar')}>
             <CalendarDays size={20} /> Calendário
           </button>
 
           <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-            <button className={`nav-item ${currentView === 'settings' ? 'active' : ''}`} onClick={() => setCurrentView('settings')}>
+            <button data-nav="settings" className={`nav-item ${currentView === 'settings' ? 'active' : ''}`} onClick={() => setCurrentView('settings')}>
               <SettingsIcon size={20} /> Configurações
             </button>
             <button className="nav-item" style={{ color: 'var(--danger)' }} onClick={handleLogout}>
@@ -133,6 +140,10 @@ function App() {
           {renderView()}
         </div>
       </main>
+
+      {showTutorial && (
+        <Tutorial onFinish={() => setShowTutorial(false)} />
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Tag, Users, Archive, Trash2, X } from 'lucide-react';
+import { Plus, Tag, Users, Archive, Trash2, X, BookOpen, GraduationCap } from 'lucide-react';
 import { authFetch } from '../config';
 import { formatDoc } from '../utils';
 
@@ -8,6 +8,9 @@ export default function Settings() {
   const [categories, setCategories] = useState([]);
   const [entities, setEntities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [tutorialEnabled, setTutorialEnabled] = useState(
+    localStorage.getItem('showTutorial') !== 'false'
+  );
 
   // Formulários
   const [catModal, setCatModal] = useState(false);
@@ -82,6 +85,7 @@ export default function Settings() {
             { key: 'categorias', icon: <Tag size={18} />, label: 'Categorias' },
             { key: 'fornecedores', icon: <Users size={18} />, label: 'Fornecedores e Clientes' },
             { key: 'bancos', icon: <Archive size={18} />, label: 'Bancos e Caixas' },
+            { key: 'tutorial', icon: <GraduationCap size={18} />, label: 'Tutorial & Ajuda' },
           ].map(({ key, icon, label }) => (
             <button
               key={key}
@@ -97,6 +101,77 @@ export default function Settings() {
 
       {/* Conteúdo */}
       <div style={{ flex: 1, padding: '2rem', overflow: 'auto' }}>
+
+        {/* TUTORIAL & AJUDA */}
+        {activeTab === 'tutorial' && (
+          <div>
+            <div style={{ marginBottom: '2rem' }}>
+              <h2 style={{ fontSize: '1.25rem', margin: '0 0 4px' }}>Tutorial & Ajuda</h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>Configure a exibição do tutorial interativo do sistema</p>
+            </div>
+
+            {/* Card de configuração */}
+            <div style={{ background: 'var(--bg-body)', border: '1px solid var(--border-color)', borderRadius: 12, padding: '1.5rem', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: 'linear-gradient(135deg, #243b9d, #1a2a6c)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                    <GraduationCap size={22} />
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>Exibir tutorial ao entrar no sistema</p>
+                    <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>O tutorial aparece automaticamente após o login</p>
+                  </div>
+                </div>
+                {/* Toggle */}
+                <div
+                  onClick={() => {
+                    const next = !tutorialEnabled;
+                    setTutorialEnabled(next);
+                    localStorage.setItem('showTutorial', next ? 'true' : 'false');
+                  }}
+                  style={{
+                    width: 48, height: 26, borderRadius: 13,
+                    background: tutorialEnabled ? '#243b9d' : '#cbd5e1',
+                    cursor: 'pointer', position: 'relative', transition: 'background 0.3s', flexShrink: 0,
+                  }}
+                >
+                  <div style={{
+                    position: 'absolute', top: 3,
+                    left: tutorialEnabled ? 25 : 3,
+                    width: 20, height: 20, borderRadius: '50%',
+                    background: 'white', transition: 'left 0.3s',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                  }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Botão reiniciar tutorial */}
+            <div style={{ background: 'var(--bg-body)', border: '1px solid var(--border-color)', borderRadius: 12, padding: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                    <BookOpen size={22} />
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>Reiniciar o Tutorial Agora</p>
+                    <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>Abre o tutorial interativo com todos os 12 passos do sistema</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    localStorage.setItem('showTutorial', 'true');
+                    setTutorialEnabled(true);
+                    window.location.reload();
+                  }}
+                  className="btn btn-primary"
+                >
+                  Ver Tutorial
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* CATEGORIAS */}
         {activeTab === 'categorias' && (
