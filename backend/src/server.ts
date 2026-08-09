@@ -14,7 +14,13 @@ const app = express();
 const port = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'magalhaes-secret-key-change-in-production';
 
-app.use(cors({ origin: process.env.FRONTEND_URL || '*', methods: ['GET','POST','PATCH','DELETE','PUT'] }));
+app.use(cors({
+  origin: true, // Aceita qualquer origem (sistema single-user, seguro via JWT)
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+}));
+app.options('*', cors()); // Responde pre-flight em todas as rotas
 app.use(express.json({ limit: '10mb' }));
 
 // ─── MIDDLEWARE DE AUTENTICAÇÃO ────────────────────────────────────────────────
