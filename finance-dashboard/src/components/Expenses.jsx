@@ -150,7 +150,7 @@ export default function Expenses() {
         {loading ? (
           <p style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Carregando despesas...</p>
         ) : (
-          <table>
+          <table id="tutorial-expenses-table">
             <thead style={{ backgroundColor: 'var(--bg-body)' }}>
               <tr>
                 <th>Data</th>
@@ -169,7 +169,7 @@ export default function Expenses() {
                   </td>
                 </tr>
               ) : (
-                filtered.map(expense => (
+                filtered.map((expense, index) => (
                   <tr key={expense.id}>
                     <td style={{ whiteSpace: 'nowrap' }}>{new Date(expense.paymentDate || expense.dueDate).toLocaleDateString('pt-BR')}</td>
                     <td style={{ fontWeight: 500 }}>{expense.description}</td>
@@ -186,11 +186,11 @@ export default function Expenses() {
                     </td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {expense.attachmentUrl ? (
-                        <a href={expense.attachmentUrl} target="_blank" rel="noreferrer" title="Ver Comprovante" style={{ marginRight: '12px', color: 'var(--brand-blue)' }}>
+                        <a id={index === 0 ? "tutorial-expense-attachment" : undefined} href={expense.attachmentUrl} target="_blank" rel="noreferrer" title="Ver Comprovante" style={{ marginRight: '12px', color: 'var(--brand-blue)' }}>
                           <Paperclip size={18} />
                         </a>
                       ) : (
-                        <label style={{ cursor: 'pointer', marginRight: '12px', color: 'var(--text-muted)' }} title="Anexar Comprovante">
+                        <label id={index === 0 ? "tutorial-expense-attachment" : undefined} style={{ cursor: 'pointer', marginRight: '12px', color: 'var(--text-muted)' }} title="Anexar Comprovante">
                           <Paperclip size={18} />
                           <input type="file" style={{ display: 'none' }} accept="image/*,.pdf" onChange={(e) => handleFileUpload(expense.id, e)} />
                         </label>

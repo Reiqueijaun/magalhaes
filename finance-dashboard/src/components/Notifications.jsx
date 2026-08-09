@@ -43,6 +43,7 @@ export default function Notifications({ onNavigate }) {
   return (
     <div style={{ position: 'relative' }}>
       <button 
+        id="tutorial-bell"
         onClick={() => setIsOpen(!isOpen)}
         style={{
           background: 'none', border: 'none', cursor: 'pointer',

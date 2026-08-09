@@ -112,7 +112,7 @@ export default function Pending() {
         </h3>
         <span style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>R$ {total.toLocaleString('pt-BR')}</span>
       </div>
-      <table style={{ width: '100%' }}>
+      <table id="tutorial-pending-table" style={{ width: '100%' }}>
         <tbody>
           {items.map(item => (
             <tr key={item.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
@@ -142,12 +142,12 @@ export default function Pending() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h2 style={{ fontSize: '1.25rem', color: 'var(--text-main)' }}>O que tenho para pagar?</h2>
         <div style={{ display: 'flex', gap: '1rem' }}>
-          <label className="btn btn-secondary" style={{ cursor: ocrLoading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label id="tutorial-import-boleto" className="btn btn-secondary" style={{ cursor: ocrLoading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
             {ocrLoading ? <Loader size={18} className="spin" /> : <FileText size={18} />}
             {ocrLoading ? 'Lendo boleto...' : 'Importar Boleto (PDF)'}
             <input type="file" accept="application/pdf" style={{ display: 'none' }} onChange={handleBoletoUpload} disabled={ocrLoading} />
           </label>
-          <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+          <button id="tutorial-new-pending" className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
             <Plus size={18} /> Registrar Conta a Pagar
           </button>
         </div>
@@ -173,7 +173,7 @@ export default function Pending() {
               <div className="form-group"><label>Descrição / Fornecedor</label><input type="text" value={desc} onChange={e => setDesc(e.target.value)} required /></div>
               <div className="form-group"><label>Valor (R$)</label><input type="text" placeholder="0,00" value={valor} onChange={e => setValor(formatCurrency(e.target.value))} required /></div>
               <div className="form-group"><label>Vencimento</label><input type="date" value={dataVenc} onChange={e => setDataVenc(e.target.value)} required /></div>
-              <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
+              <div id="tutorial-pending-recurring-checkbox" className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
                 <input type="checkbox" id="recorrente" checked={recorrente} onChange={e => setRecorrente(e.target.checked)} style={{ width: 'auto' }} />
                 <label htmlFor="recorrente" style={{ margin: 0 }}>Repetir Mensalmente (Recorrente)</label>
               </div>

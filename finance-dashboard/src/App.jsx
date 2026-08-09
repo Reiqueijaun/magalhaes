@@ -81,14 +81,14 @@ function App() {
   return (
     <div className="app-container">
       <aside className="sidebar">
-        <div className="sidebar-header">
+        <div id="tutorial-sidebar-header" className="sidebar-header">
           <div className="icon-bg blue" style={{ width: 32, height: 32, borderRadius: 8 }}>
             <Wallet size={18} />
           </div>
           <span className="brand-title">Magalhaes Inteligencia</span>
         </div>
 
-        <nav className="sidebar-nav">
+        <nav id="tutorial-sidebar-nav" className="sidebar-nav">
           <button className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`} onClick={() => setCurrentView('dashboard')}>
             <LayoutDashboard size={20} /> Visão Geral
           </button>
@@ -147,7 +147,7 @@ function App() {
       </main>
 
       {showTutorial && (
-        <Tutorial onFinish={() => setShowTutorial(false)} />
+        <Tutorial onNavigate={setCurrentView} onFinish={() => setShowTutorial(false)} />
       )}
     </div>
   );

@@ -115,7 +115,7 @@ export default function Receivable() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h2 style={{ fontSize: '1.25rem', color: 'var(--text-main)' }}>O que tenho para receber?</h2>
-        <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+        <button id="tutorial-new-receivable" className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
           <Plus size={18} /> Registrar Cobrança
         </button>
       </div>

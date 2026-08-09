@@ -1,324 +1,414 @@
-import { useState, useEffect, useRef } from 'react';
-import { X, ChevronRight, ChevronLeft, BookOpen, GraduationCap } from 'lucide-react';
+import { useState, useLayoutEffect, useEffect } from 'react';
+import { X, ChevronRight, ChevronLeft, Hand } from 'lucide-react';
 
-// Definição dos 12 passos do tutorial
 const STEPS = [
   {
-    id: 'sidebar',
-    target: '.sidebar-nav',
-    title: '👋 Bem-vindo ao Magalhaes Inteligencia!',
-    description: 'Este é o menu lateral do sistema. Por aqui você navega entre todas as seções: Visão Geral, A Pagar, A Receber, Histórico, Calendário e Configurações. Vamos conhecer cada uma delas!',
-    position: 'right',
+    title: 'Bem-vindo ao Magalhães!',
+    description: 'Este é o seu novo sistema inteligente de gestão financeira. Vamos dar uma volta rápida para você conhecer tudo.',
+    targetId: 'tutorial-sidebar-header',
+    view: 'dashboard',
+    position: 'right'
   },
   {
-    id: 'dashboard',
-    target: '.page-content',
-    title: '📊 Painel de Controle (Dashboard)',
-    description: 'Esta é a sua tela principal! Aqui você vê um resumo completo das suas finanças: total de receitas, despesas pagas, saldo projetado e gráficos de evolução mensal. Sempre que entrar, comece por aqui para ter a visão do todo.',
-    position: 'center',
+    title: 'Menu de Navegação',
+    description: 'Aqui fica o menu principal. Você pode alternar entre Visão Geral, contas a pagar, contas a receber e ver o histórico de tudo que já foi pago.',
+    targetId: 'tutorial-sidebar-nav',
+    view: 'dashboard',
+    position: 'right'
   },
   {
-    id: 'notifications',
-    target: '.topbar',
-    title: '🔔 Sino de Alertas',
-    description: 'No canto superior direito fica o sino de notificações. Ele fica vermelho quando você tem contas vencidas ou que vencem hoje/amanhã. Clique nele para ver quais contas precisam de atenção urgente!',
-    position: 'bottom',
+    title: 'Alertas Inteligentes',
+    description: 'Este sino avisa quando há contas vencidas ou vencendo hoje/amanhã. Ele fica vermelhinho para chamar sua atenção.',
+    targetId: 'tutorial-bell',
+    view: 'dashboard',
+    position: 'bottom'
   },
   {
-    id: 'pending',
-    target: '[data-nav="pending"]',
-    title: '💸 Contas a Pagar',
-    description: 'Aqui você registra tudo que ainda precisa pagar: aluguel, fornecedores, contas em geral. Cadastre com a data de vencimento e o sistema vai te lembrar quando estiver próximo. Você também pode importar um boleto em PDF e o sistema preenche tudo automaticamente!',
-    position: 'right',
+    title: 'Resumo Financeiro',
+    description: 'Estes cards mostram a saúde do seu negócio no mês: quanto entrou, quanto saiu, sua rentabilidade e as contas atrasadas.',
+    targetId: 'tutorial-summary-cards',
+    view: 'dashboard',
+    position: 'bottom'
   },
   {
-    id: 'pending-recorrente',
-    target: '[data-nav="pending"]',
-    title: '🔄 Contas Recorrentes',
-    description: 'Ao registrar uma conta a pagar, existe a opção "Pagamento Recorrente". Marque essa caixinha para contas fixas como aluguel e assinaturas — quando você der baixa (pagar), o sistema já cria automaticamente a mesma conta para o próximo mês!',
-    position: 'right',
+    title: 'Gráfico de Evolução',
+    description: 'Acompanhe visualmente o fluxo do seu dinheiro dia após dia.',
+    targetId: 'tutorial-monthly-chart',
+    view: 'dashboard',
+    position: 'right'
   },
   {
-    id: 'receivable',
-    target: '[data-nav="receivable"]',
-    title: '💰 Contas a Receber',
-    description: 'Nesta seção você registra valores que irá receber: pagamentos de clientes, serviços prestados etc. Assim você tem controle do que está previsto entrar no seu caixa e a visão fica completa no Dashboard.',
-    position: 'right',
+    title: 'Exportar Relatório',
+    description: 'Precisa enviar os dados para alguém ou guardar? Clique aqui para gerar um PDF com todo o fechamento do mês.',
+    targetId: 'tutorial-export-pdf',
+    view: 'dashboard',
+    position: 'bottom'
   },
   {
-    id: 'expenses',
-    target: '[data-nav="expenses"]',
-    title: '🧾 Histórico de Despesas Pagas',
-    description: 'Aqui ficam registradas todas as despesas que já foram pagas. Você pode adicionar uma despesa direto aqui, ou ela cai aqui automaticamente quando você dá baixa em uma conta da tela "A Pagar".',
-    position: 'right',
+    title: 'Contas a Pagar',
+    description: 'Esta é a tela de despesas. Você pode ler boletos PDF automaticamente clicando neste botão. A IA preenche os dados para você!',
+    targetId: 'tutorial-import-boleto',
+    view: 'pending',
+    position: 'bottom'
   },
   {
-    id: 'attachment',
-    target: '[data-nav="expenses"]',
-    title: '📎 Anexar Comprovantes',
-    description: 'Na tabela de Histórico Pago, cada linha tem um ícone de clipe. Clique nele para anexar a foto ou PDF do comprovante/nota fiscal daquela despesa. O arquivo fica salvo e vinculado para sempre à transação!',
-    position: 'right',
+    title: 'Registro Manual',
+    description: 'Se não tiver o boleto em PDF, pode registrar a despesa manualmente clicando aqui.',
+    targetId: 'tutorial-new-pending',
+    view: 'pending',
+    position: 'bottom'
   },
   {
-    id: 'calendar',
-    target: '[data-nav="calendar"]',
-    title: '📅 Calendário Financeiro',
-    description: 'O calendário mostra visualmente todas as suas contas a pagar e a receber no mês. Dias com contas ficam marcados, ajudando você a planejar seu fluxo de caixa com antecedência.',
-    position: 'right',
+    title: 'Despesas Recorrentes',
+    description: 'Ao registrar manualmente, marque esta opção para contas como Aluguel ou Internet. O sistema vai recriá-las sozinho todo mês!',
+    targetId: 'tutorial-pending-recurring-checkbox',
+    view: 'pending',
+    position: 'top', // Needs to be shown inside the modal, but the modal is only open when clicking...
+    // Actually wait, if the modal is not open, the element won't exist.
+    // Let's change the step to just point to the table.
+    skipElementCheck: true, // We'll handle this differently or skip for now if element not found.
   },
   {
-    id: 'pdf',
-    target: '.topbar',
-    title: '📄 Exportar Relatório em PDF',
-    description: 'No Dashboard, existe o botão "Exportar Relatório". Clicando nele, o sistema gera um PDF profissional com o resumo do mês, gastos por categoria e tabela de todas as despesas. Perfeito para enviar para o seu contador!',
-    position: 'bottom',
+    title: 'Gerenciando Pagamentos',
+    description: 'Aqui ficam suas despesas. Quando pagar, é só clicar em "Pago" e a conta vai para o Histórico de Pagos.',
+    targetId: 'tutorial-pending-table',
+    view: 'pending',
+    position: 'top'
   },
   {
-    id: 'settings',
-    target: '[data-nav="settings"]',
-    title: '⚙️ Configurações',
-    description: 'Nas configurações você cadastra suas Categorias de gastos (ex: "Fornecedores", "Aluguel", "Impostos") e seus Fornecedores com CNPJ. Esses cadastros aparecem como opção na hora de registrar uma despesa, deixando os relatórios muito mais organizados!',
-    position: 'right',
+    title: 'Contas a Receber',
+    description: 'Registre aqui tudo que seus clientes te devem. Funciona igualzinho ao Contas a Pagar!',
+    targetId: 'tutorial-new-receivable',
+    view: 'receivable',
+    position: 'bottom'
   },
   {
-    id: 'finish',
-    target: '.sidebar-header',
-    title: '🎉 Pronto! Você conhece o sistema!',
-    description: 'Agora você sabe tudo sobre o Magalhaes Inteligencia! Lembre-se: você pode desativar este tutorial nas Configurações, na seção "Tutorial & Ajuda". Qualquer dúvida, é só reativar o tutorial por lá. Bom trabalho! 💪',
-    position: 'right',
+    title: 'Histórico Pago',
+    description: 'Tudo que você pagou vem parar aqui. O seu arquivo morto digital.',
+    targetId: 'tutorial-expenses-table',
+    view: 'expenses',
+    position: 'top'
   },
+  {
+    title: 'Anexar Comprovantes',
+    description: 'Você pode anexar o comprovante de pagamento ou nota fiscal clicando no ícone de clipe. Assim você nunca perde um recibo!',
+    targetId: 'tutorial-expense-attachment',
+    view: 'expenses',
+    position: 'left'
+  },
+  {
+    title: 'Visão do Mês',
+    description: 'O Calendário mostra suas contas distribuídas pelos dias. Bolinhas vermelhas são despesas, verdes são receitas.',
+    targetId: 'tutorial-calendar-full',
+    view: 'calendar',
+    position: 'top'
+  },
+  {
+    title: 'Categorias e Cadastros',
+    description: 'Nas configurações, você cadastra suas Categorias de despesas. É essencial para o gráfico de pizza funcionar!',
+    targetId: 'tutorial-settings-categories',
+    view: 'settings',
+    position: 'right'
+  },
+  {
+    title: 'Pronto para usar!',
+    description: 'Se quiser rever este tutorial, basta vir na aba Tutorial & Ajuda aqui nas Configurações. Aproveite o sistema!',
+    targetId: 'tutorial-settings-tutorial',
+    view: 'settings',
+    position: 'right'
+  }
 ];
 
-export default function Tutorial({ onFinish }) {
-  const [step, setStep] = useState(0);
-  const [visible, setVisible] = useState(true);
-  const [targetRect, setTargetRect] = useState(null);
-  const tooltipRef = useRef(null);
+export default function Tutorial({ onFinish, onNavigate }) {
+  const [stepIndex, setStepIndex] = useState(0);
+  const [rect, setRect] = useState(null);
 
-  const currentStep = STEPS[step];
+  const step = STEPS[stepIndex];
+
+  // Filtro corrigindo passo 9, como o modal não abre automático, vou pular ele do array dinamicamente se quiser, ou alterar para apontar pro botão "registrar" explicando
+  // Vou substituir a info do passo 9.
+  STEPS[8].targetId = 'tutorial-new-pending';
+  STEPS[8].description = 'Dica: Ao registrar manualmente uma conta fixa (ex: Aluguel), marque a opção "Recorrente". O sistema vai renovar a conta sozinho todo mês!';
 
   useEffect(() => {
-    if (!visible) return;
-    const el = document.querySelector(currentStep.target);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      const rect = el.getBoundingClientRect();
-      setTargetRect(rect);
-    } else {
-      setTargetRect(null);
+    // Navigate to the correct view BEFORE highlighting
+    if (onNavigate && step.view) {
+      onNavigate(step.view);
     }
-  }, [step, visible, currentStep.target]);
+  }, [stepIndex, onNavigate, step.view]);
 
-  const handleClose = () => {
-    setVisible(false);
-    onFinish?.();
-  };
+  // Recalculate rectangle after navigation and DOM update
+  useLayoutEffect(() => {
+    let animationFrameId;
+    let timeoutId;
+    
+    const updateRect = () => {
+      const el = document.getElementById(step.targetId);
+      if (el) {
+        const bounds = el.getBoundingClientRect();
+        // Give it a tiny padding
+        setRect({
+          top: bounds.top - 4,
+          left: bounds.left - 4,
+          width: bounds.width + 8,
+          height: bounds.height + 8
+        });
+      } else {
+        setRect(null); // fallback if element not found
+      }
+    };
+
+    // Keep checking for the element to appear after navigation
+    const checkLoop = () => {
+      updateRect();
+      if (!document.getElementById(step.targetId)) {
+        animationFrameId = requestAnimationFrame(checkLoop);
+      }
+    };
+
+    // Start checking
+    checkLoop();
+    // Re-check after 300ms just in case it was a transition
+    timeoutId = setTimeout(updateRect, 300);
+
+    window.addEventListener('resize', updateRect);
+    window.addEventListener('scroll', updateRect, true);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', updateRect);
+      window.removeEventListener('scroll', updateRect, true);
+    };
+  }, [step.targetId, stepIndex]);
 
   const handleNext = () => {
-    if (step < STEPS.length - 1) {
-      setStep(step + 1);
-    } else {
-      handleClose();
-    }
+    if (stepIndex < STEPS.length - 1) setStepIndex(stepIndex + 1);
+    else finish();
   };
 
   const handlePrev = () => {
-    if (step > 0) setStep(step - 1);
+    if (stepIndex > 0) setStepIndex(stepIndex - 1);
   };
 
-  if (!visible) return null;
+  const finish = () => {
+    localStorage.setItem('showTutorial', 'false');
+    onFinish();
+  };
 
-  // Calcula posição do tooltip
+  // Smart Tooltip Positioning
   const getTooltipStyle = () => {
-    if (!targetRect || currentStep.position === 'center') {
+    if (!rect) {
+      // Fallback: center screen
       return {
-        position: 'fixed',
         top: '50%',
         left: '50%',
-        transform: 'translate(-50%, -50%)',
-        zIndex: 10001,
-        width: 380,
+        transform: 'translate(-50%, -50%)'
       };
     }
 
-    const pad = 20;
-    if (currentStep.position === 'right') {
-      return {
-        position: 'fixed',
-        top: Math.min(targetRect.top, window.innerHeight - 280),
-        left: targetRect.right + pad,
-        zIndex: 10001,
-        width: 340,
-      };
+    const tooltipWidth = 320;
+    const padding = 16;
+    let top = 0;
+    let left = 0;
+
+    // Base positions
+    if (step.position === 'bottom') {
+      top = rect.top + rect.height + padding;
+      left = rect.left + (rect.width / 2) - (tooltipWidth / 2);
+    } else if (step.position === 'top') {
+      top = rect.top - padding;
+      left = rect.left + (rect.width / 2) - (tooltipWidth / 2);
+    } else if (step.position === 'right') {
+      top = rect.top + (rect.height / 2);
+      left = rect.left + rect.width + padding;
+    } else if (step.position === 'left') {
+      top = rect.top + (rect.height / 2);
+      left = rect.left - tooltipWidth - padding;
     }
-    if (currentStep.position === 'bottom') {
-      return {
-        position: 'fixed',
-        top: targetRect.bottom + pad,
-        right: 24,
-        zIndex: 10001,
-        width: 340,
-      };
+
+    // Adjust for vertical centering if right/left
+    if (step.position === 'right' || step.position === 'left') {
+      // translateY will handle it in CSS, but we need to check bounds
+      // actually, let\'s calculate exact px
     }
-    return {
-      position: 'fixed',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      zIndex: 10001,
-      width: 380,
+
+    // Clamp to window boundaries
+    const margin = 12;
+    
+    // Quick clamping (simplified for exact pixels)
+    // For Top/Bottom positions
+    if (step.position === 'bottom' || step.position === 'top') {
+      // Too far left
+      if (left < margin) left = margin;
+      // Too far right
+      if (left + tooltipWidth > window.innerWidth - margin) {
+        left = window.innerWidth - tooltipWidth - margin;
+      }
+    }
+    
+    // For Right/Left positions
+    if (step.position === 'right' || step.position === 'left') {
+      // If right goes off screen, flip to left
+      if (step.position === 'right' && left + tooltipWidth > window.innerWidth - margin) {
+        left = rect.left - tooltipWidth - padding;
+      }
+      // If left goes off screen, flip to right
+      if (step.position === 'left' && left < margin) {
+        left = rect.left + rect.width + padding;
+      }
+    }
+
+    // For Top positions going off top screen, flip to bottom
+    if (step.position === 'top' && top < 200) { // arbitrary height for tooltip
+       top = rect.top + rect.height + padding;
+    }
+    
+    // For Bottom positions going off bottom screen, flip to top
+    if (step.position === 'bottom' && top > window.innerHeight - 200) {
+       top = rect.top - padding;
+    }
+
+    const style = {
+      position: 'absolute',
+      width: tooltipWidth,
+      zIndex: 10000,
+      left: `${left}px`,
+      top: `${top}px`,
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
     };
-  };
 
-  const progress = ((step + 1) / STEPS.length) * 100;
+    if (step.position === 'top') style.transform = 'translateY(-100%)';
+    if (step.position === 'right' || step.position === 'left') style.transform = 'translateY(-50%)';
+
+    return style;
+  };
 
   return (
     <>
-      {/* Overlay escuro com "buraco" no elemento atual */}
-      <div
+      <style>{`
+        @keyframes pulse-ring {
+          0% { box-shadow: 0 0 0 0 rgba(36, 59, 157, 0.7); }
+          70% { box-shadow: 0 0 0 15px rgba(36, 59, 157, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(36, 59, 157, 0); }
+        }
+      `}</style>
+
+      {/* Overlay Escuro Total */}
+      <div 
         style={{
-          position: 'fixed', inset: 0,
-          backgroundColor: 'rgba(0,0,0,0.65)',
-          zIndex: 10000,
-          pointerEvents: 'none',
-        }}
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          zIndex: 9998,
+          pointerEvents: 'auto',
+          backdropFilter: 'blur(2px)'
+        }} 
       />
 
-      {/* Destaque do elemento alvo */}
-      {targetRect && currentStep.position !== 'center' && (
-        <div
+      {/* Spotlight Buraco (Clip-path) ou Borda Brilhante */}
+      {rect && (
+        <div 
           style={{
             position: 'fixed',
-            top: targetRect.top - 4,
-            left: targetRect.left - 4,
-            width: targetRect.width + 8,
-            height: targetRect.height + 8,
+            top: rect.top,
+            left: rect.left,
+            width: rect.width,
+            height: rect.height,
+            zIndex: 9999,
             borderRadius: 8,
-            boxShadow: '0 0 0 9999px rgba(0,0,0,0.65)',
-            border: '2px solid #4f70e8',
-            zIndex: 10000,
+            border: '2px solid #3b82f6',
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
             pointerEvents: 'none',
-            transition: 'all 0.3s ease',
+            animation: 'pulse-ring 2s infinite',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         />
       )}
 
-      {/* Tooltip do tutorial */}
-      <div
-        ref={tooltipRef}
-        style={{
-          ...getTooltipStyle(),
-          background: 'white',
+      {/* Balão de Dica (Tooltip) */}
+      <div style={getTooltipStyle()}>
+        <div style={{
+          backgroundColor: '#fff',
           borderRadius: 16,
-          boxShadow: '0 24px 60px rgba(0,0,0,0.35)',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
           overflow: 'hidden',
-          animation: 'fadeInScale 0.25s ease',
-        }}
-      >
-        {/* Header */}
-        <div style={{
-          background: 'linear-gradient(135deg, #243b9d 0%, #1a2a6c 100%)',
-          padding: '1rem 1.25rem',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
+          flexDirection: 'column'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'white' }}>
-            <GraduationCap size={18} />
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Tutorial — Passo {step + 1} de {STEPS.length}
-            </span>
-          </div>
-          <button
-            onClick={handleClose}
-            style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 6, padding: '4px 8px', color: 'white', cursor: 'pointer', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 4 }}
-            title="Pular tutorial"
-          >
-            <X size={14} /> Pular
-          </button>
-        </div>
-
-        {/* Barra de progresso */}
-        <div style={{ height: 3, background: '#e5e7eb' }}>
+          {/* Cabeçalho do Balão */}
           <div style={{
-            height: '100%',
-            width: `${progress}%`,
-            background: 'linear-gradient(90deg, #243b9d, #4f70e8)',
-            transition: 'width 0.4s ease',
-          }} />
-        </div>
-
-        {/* Conteúdo */}
-        <div style={{ padding: '1.25rem' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', margin: '0 0 0.75rem', lineHeight: 1.4 }}>
-            {currentStep.title}
-          </h3>
-          <p style={{ fontSize: '0.875rem', color: '#475569', lineHeight: 1.7, margin: 0 }}>
-            {currentStep.description}
-          </p>
-        </div>
-
-        {/* Botões de navegação */}
-        <div style={{
-          padding: '1rem 1.25rem',
-          borderTop: '1px solid #f1f5f9',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '0.75rem',
-        }}>
-          <button
-            onClick={handlePrev}
-            disabled={step === 0}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              padding: '0.5rem 1rem', borderRadius: 8,
-              border: '1px solid #e2e8f0', background: 'white',
-              color: step === 0 ? '#cbd5e1' : '#475569',
-              cursor: step === 0 ? 'default' : 'pointer',
-              fontSize: '0.875rem', fontWeight: 600,
-            }}
-          >
-            <ChevronLeft size={16} /> Anterior
-          </button>
-
-          {/* Pontos de progresso */}
-          <div style={{ display: 'flex', gap: 4, flex: 1, justifyContent: 'center' }}>
-            {STEPS.map((_, i) => (
-              <div key={i} style={{
-                width: i === step ? 16 : 6,
-                height: 6,
-                borderRadius: 3,
-                background: i === step ? '#243b9d' : i < step ? '#93c5fd' : '#e2e8f0',
-                transition: 'all 0.3s ease',
-              }} />
-            ))}
+            background: 'linear-gradient(135deg, #243b9d, #1a2a6c)',
+            padding: '1.25rem 1.5rem',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 12
+          }}>
+            <div style={{
+              background: 'rgba(255,255,255,0.2)',
+              borderRadius: '50%',
+              padding: 8,
+              display: 'flex'
+            }}>
+              <Hand size={24} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>{step.title}</h3>
+              <p style={{ margin: '4px 0 0', fontSize: '0.8rem', opacity: 0.8 }}>
+                Passo {stepIndex + 1} de {STEPS.length}
+              </p>
+            </div>
           </div>
 
-          <button
-            onClick={handleNext}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              padding: '0.5rem 1.25rem', borderRadius: 8,
-              border: 'none',
-              background: 'linear-gradient(135deg, #243b9d, #1a2a6c)',
-              color: 'white',
-              cursor: 'pointer',
-              fontSize: '0.875rem', fontWeight: 700,
-              boxShadow: '0 4px 12px rgba(36,59,157,0.3)',
-            }}
-          >
-            {step === STEPS.length - 1 ? '🎉 Concluir' : 'Próximo'} <ChevronRight size={16} />
-          </button>
+          {/* Corpo do Balão */}
+          <div style={{ padding: '1.5rem', color: 'var(--text-main)', fontSize: '0.95rem', lineHeight: 1.5 }}>
+            {step.description}
+          </div>
+
+          {/* Rodapé e Controles */}
+          <div style={{
+            padding: '1rem 1.5rem',
+            borderTop: '1px solid var(--border-color)',
+            background: 'var(--bg-body)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <button 
+              onClick={finish}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                fontWeight: 600
+              }}
+            >
+              Pular Tudo
+            </button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={handlePrev}
+                disabled={stepIndex === 0}
+                style={{ padding: '0.5rem', opacity: stepIndex === 0 ? 0.5 : 1 }}
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleNext}
+                style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                {stepIndex === STEPS.length - 1 ? 'Concluir' : 'Próximo'}
+                {stepIndex < STEPS.length - 1 && <ChevronRight size={18} />}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-
-      <style>{`
-        @keyframes fadeInScale {
-          from { opacity: 0; transform: scale(0.92) ${currentStep.position === 'center' ? 'translate(-50%,-50%)' : ''}; }
-          to   { opacity: 1; transform: scale(1)    ${currentStep.position === 'center' ? 'translate(-50%,-50%)' : ''}; }
-        }
-      `}</style>
     </>
   );
 }

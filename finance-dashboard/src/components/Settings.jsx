@@ -89,6 +89,7 @@ export default function Settings() {
           ].map(({ key, icon, label }) => (
             <button
               key={key}
+              id={key === 'categorias' ? 'tutorial-settings-categories' : key === 'tutorial' ? 'tutorial-settings-tutorial' : undefined}
               className={`nav-item ${activeTab === key ? 'active' : ''}`}
               onClick={() => setActiveTab(key)}
               style={{ width: '100%', justifyContent: 'flex-start' }}

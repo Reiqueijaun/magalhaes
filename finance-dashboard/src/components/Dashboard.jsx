@@ -143,7 +143,7 @@ export default function Dashboard() {
       
       {/* Barra de Ações Sup */}
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button className="btn btn-primary" onClick={generatePDF} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button id="tutorial-export-pdf" className="btn btn-primary" onClick={generatePDF} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Download size={18} /> Exportar Relatório (PDF)
         </button>
       </div>
@@ -175,7 +175,7 @@ export default function Dashboard() {
       </div>
 
       {/* Cards de Resumo */}
-      <div className="dashboard-grid">
+      <div id="tutorial-summary-cards" className="dashboard-grid">
         <div className="card stat-card">
           <div className="stat-header">
             <span>Receita do Mês</span>
@@ -212,7 +212,7 @@ export default function Dashboard() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
         {/* Gráfico de Evolução */}
-        <div className="card" style={{ padding: '2rem' }}>
+        <div id="tutorial-monthly-chart" className="card" style={{ padding: '2rem' }}>
           <h3 style={{ marginBottom: '1.5rem', color: 'var(--text-main)', fontSize: '1.1rem' }}>Evolução Mensal</h3>
           <div style={{ width: '100%', height: 300 }}>
             <ResponsiveContainer width="100%" height="100%">
