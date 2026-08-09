@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Paperclip, Trash2 } from 'lucide-react';
 import { authFetch } from '../config';
 
 
@@ -73,6 +73,40 @@ export default function Expenses() {
     }
   };
 
+  const handleFileUpload = async (id, e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      alert('O arquivo é muito grande. O limite é 8MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const base64 = ev.target.result;
+      try {
+        await authFetch(`/api/transactions/${id}/attach`, {
+          method: 'PATCH',
+          body: JSON.stringify({ attachmentUrl: base64 })
+        });
+        alert('Comprovante anexado com sucesso!');
+        fetchData();
+      } catch (err) {
+        alert('Erro ao anexar comprovante.');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const deleteExpense = async (id) => {
+    if (!confirm('Deseja excluir esta despesa?')) return;
+    try {
+      await authFetch(`/api/transactions/${id}`, { method: 'DELETE' });
+      fetchData();
+    } catch (err) {
+      alert('Erro ao excluir.');
+    }
+  };
+
   const filtered = expenses.filter(e =>
     e.description.toLowerCase().includes(search.toLowerCase()) ||
     (e.category?.name || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -123,6 +157,7 @@ export default function Expenses() {
                 <th>Fornecedor</th>
                 <th>Categoria</th>
                 <th>Valor (R$)</th>
+                <th style={{ textAlign: 'right' }}>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -147,6 +182,21 @@ export default function Expenses() {
                     </td>
                     <td style={{ fontWeight: 700, color: 'var(--danger)' }}>
                       R$ {expense.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {expense.attachmentUrl ? (
+                        <a href={expense.attachmentUrl} target="_blank" rel="noreferrer" title="Ver Comprovante" style={{ marginRight: '12px', color: 'var(--brand-blue)' }}>
+                          <Paperclip size={18} />
+                        </a>
+                      ) : (
+                        <label style={{ cursor: 'pointer', marginRight: '12px', color: 'var(--text-muted)' }} title="Anexar Comprovante">
+                          <Paperclip size={18} />
+                          <input type="file" style={{ display: 'none' }} accept="image/*,.pdf" onChange={(e) => handleFileUpload(expense.id, e)} />
+                        </label>
+                      )}
+                      <button onClick={() => deleteExpense(expense.id)} style={{ color: 'var(--danger)', background: 'none' }} title="Excluir">
+                        <Trash2 size={18} />
+                      </button>
                     </td>
                   </tr>
                 ))

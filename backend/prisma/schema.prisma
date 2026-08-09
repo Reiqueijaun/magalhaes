@@ -50,6 +50,7 @@ model Transaction {
   dueDate     DateTime
   paymentDate DateTime?
   isRecurring Boolean   @default(false)
+  attachmentUrl String? // Base64 da imagem/pdf do comprovante
   
   // Relacionamentos
   categoryId  String?

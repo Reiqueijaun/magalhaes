@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle2, Plus } from 'lucide-react';
-import API_URL from '../config';
+import { Plus, CheckCircle2, FileText, Loader } from 'lucide-react';
+import { authFetch } from '../config';
 
 export default function Pending() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -16,7 +16,7 @@ export default function Pending() {
   // Buscar dados da API
   const fetchTransactions = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/transactions`);
+      const response = await authFetch('/api/transactions');
       if (response.ok) {
         const data = await response.json();
         // Filtra apenas SAÍDAS (OUT) que estão PENDENTES
@@ -37,9 +37,8 @@ export default function Pending() {
   const handleSave = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/api/transactions`, {
+      const response = await authFetch('/api/transactions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: desc,
           amount: parseFloat(valor),
@@ -59,9 +58,40 @@ export default function Pending() {
     }
   };
 
+  const [ocrLoading, setOcrLoading] = useState(false);
+
+  const handleBoletoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setOcrLoading(true);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const response = await authFetch('/api/ocr/boleto', {
+          method: 'POST',
+          body: JSON.stringify({ fileBase64: ev.target.result })
+        });
+        const data = await response.json();
+        
+        if (data.amount) setValor(data.amount);
+        if (data.dueDate) setDataVenc(data.dueDate);
+        
+        setIsModalOpen(true); // Abre o form preenchido
+      } catch (err) {
+        alert('Erro ao ler boleto. Tente preencher manualmente.');
+        setIsModalOpen(true);
+      } finally {
+        setOcrLoading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = null; // reseta o input
+  };
+
   const handlePay = async (id) => {
     try {
-      await fetch(`${API_URL}/api/transactions/${id}/pay`, { method: 'PATCH' });
+      await authFetch(`/api/transactions/${id}/pay`, { method: 'PATCH' });
       fetchTransactions(); // Remove da lista de pendentes
       alert('Pago! Transferido para o fluxo de despesas pagas.');
     } catch (error) {
@@ -106,10 +136,17 @@ export default function Pending() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <h2 style={{ fontSize: '1.25rem', color: 'var(--text-main)' }}>O que eu tenho para pagar?</h2>
-        <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
-          <Plus size={18} /> Cadastrar Conta a Pagar
-        </button>
+        <h2 style={{ fontSize: '1.25rem', color: 'var(--text-main)' }}>O que tenho para pagar?</h2>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <label className="btn btn-secondary" style={{ cursor: ocrLoading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {ocrLoading ? <Loader size={18} className="spin" /> : <FileText size={18} />}
+            {ocrLoading ? 'Lendo boleto...' : 'Importar Boleto (PDF)'}
+            <input type="file" accept="application/pdf" style={{ display: 'none' }} onChange={handleBoletoUpload} disabled={ocrLoading} />
+          </label>
+          <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+            <Plus size={18} /> Registrar Conta a Pagar
+          </button>
+        </div>
       </div>
 
       {loading ? (

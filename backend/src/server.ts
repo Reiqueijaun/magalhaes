@@ -3,6 +3,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import pdfParse from 'pdf-parse';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
@@ -14,7 +15,7 @@ const port = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'magalhaes-secret-key-change-in-production';
 
 app.use(cors({ origin: process.env.FRONTEND_URL || '*', methods: ['GET','POST','PATCH','DELETE','PUT'] }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // ─── MIDDLEWARE DE AUTENTICAÇÃO ────────────────────────────────────────────────
 const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
@@ -36,20 +37,9 @@ app.get('/api/health', (_, res) => {
 
 // ─── AUTH ──────────────────────────────────────────────────────────────────────
 
-// Cadastro (apenas o primeiro acesso cria o usuário)
+// Cadastro (Desativado: Sistema exclusivo para 1 usuário)
 app.post('/api/auth/register', async (req: Request, res: Response) => {
-  const { name, email, password } = req.body;
-  try {
-    const exists = await prisma.user.findUnique({ where: { email } });
-    if (exists) { res.status(400).json({ error: 'E-mail já cadastrado.' }); return; }
-    const hashed = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({ data: { name, email, password: hashed } });
-    const token = jwt.sign({ id: user.id, name: user.name, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-    res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email } });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erro ao cadastrar.' });
-  }
+  res.status(403).json({ error: 'O cadastro de novos usuários está desativado por questões de segurança.' });
 });
 
 // Login
@@ -80,7 +70,7 @@ app.get('/api/transactions', authMiddleware, async (req: Request, res: Response)
 });
 
 app.post('/api/transactions', authMiddleware, async (req: Request, res: Response) => {
-  const { description, amount, type, status, dueDate, paymentDate, isRecurring, categoryId, entityId } = req.body;
+  const { description, amount, type, status, dueDate, paymentDate, isRecurring, categoryId, entityId, attachmentUrl } = req.body;
   try {
     const transaction = await prisma.transaction.create({
       data: {
@@ -92,10 +82,20 @@ app.post('/api/transactions', authMiddleware, async (req: Request, res: Response
         isRecurring: Boolean(isRecurring),
         categoryId: categoryId || null,
         entityId: entityId || null,
+        attachmentUrl: attachmentUrl || null,
       },
     });
     res.status(201).json(transaction);
   } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao criar transação.' }); }
+});
+
+app.patch('/api/transactions/:id/attach', authMiddleware, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { attachmentUrl } = req.body;
+  try {
+    const t = await prisma.transaction.update({ where: { id }, data: { attachmentUrl } });
+    res.json(t);
+  } catch (e) { res.status(500).json({ error: 'Erro ao anexar comprovante.' }); }
 });
 
 app.patch('/api/transactions/:id/pay', authMiddleware, async (req: Request, res: Response) => {
@@ -112,6 +112,39 @@ app.delete('/api/transactions/:id', authMiddleware, async (req: Request, res: Re
     await prisma.transaction.delete({ where: { id } });
     res.json({ message: 'Excluído.' });
   } catch (e) { res.status(500).json({ error: 'Erro ao excluir.' }); }
+});
+
+// ─── LEITURA DE BOLETO (OCR) ──────────────────────────────────────────────────
+app.post('/api/ocr/boleto', authMiddleware, async (req: Request, res: Response) => {
+  const { fileBase64 } = req.body;
+  if (!fileBase64) { res.status(400).json({ error: 'Arquivo não fornecido.' }); return; }
+  
+  try {
+    const base64Data = fileBase64.replace(/^data:application\/pdf;base64,/, "");
+    const buffer = Buffer.from(base64Data, 'base64');
+    
+    const data = await pdfParse(buffer);
+    const text = data.text;
+    
+    // Extrair Valor (ex: R$ 1.500,00 ou Valor do Documento 1.500,00)
+    const valueMatch = text.match(/R\$\s*([\d\.,]+)/) || text.match(/Valor[^\d]*([\d\.,]+)/i);
+    let amount = '';
+    if (valueMatch) {
+      amount = valueMatch[1].replace(/\./g, '').replace(',', '.');
+    }
+    
+    // Extrair Data de Vencimento (dd/mm/yyyy)
+    const dateMatch = text.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    let dueDate = '';
+    if (dateMatch) {
+      dueDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+    }
+    
+    res.json({ amount, dueDate });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Erro ao ler o PDF do boleto.' });
+  }
 });
 
 // ─── RESUMO / DASHBOARD (protegido) ───────────────────────────────────────────

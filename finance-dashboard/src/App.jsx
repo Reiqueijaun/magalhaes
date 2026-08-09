@@ -7,6 +7,8 @@ import Receivable from './components/Receivable';
 import CalendarView from './components/CalendarView';
 import Settings from './components/Settings';
 import Login from './components/Login';
+import Notifications from './components/Notifications';
+
 
 function App() {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -113,13 +115,16 @@ function App() {
       <main className="main-content">
         <header className="topbar">
           <h2 style={{ fontSize: '1.25rem', color: 'var(--text-main)', fontWeight: 600 }}>{getPageTitle()}</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: '0.875rem', fontWeight: 600 }}>{user.name}</p>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{user.email}</p>
-            </div>
-            <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-blue), #1d3080)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.875rem' }}>
-              {user.name?.charAt(0).toUpperCase()}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+            <Notifications onNavigate={setCurrentView} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '1px solid var(--border-color)', paddingLeft: '1.5rem' }}>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ fontSize: '0.875rem', fontWeight: 600 }}>{user.name}</p>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{user.email}</p>
+              </div>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-blue), #1d3080)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.875rem' }}>
+                {user.name?.charAt(0).toUpperCase()}
+              </div>
             </div>
           </div>
         </header>

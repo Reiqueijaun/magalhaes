@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, CreditCard, Loader } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, CreditCard, Loader, Download } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import { authFetch } from '../config';
 
 
@@ -80,8 +82,71 @@ export default function Dashboard() {
   const saidasPrevistas = transactions.filter(t => t.type === 'OUT' && t.status === 'PENDING').reduce((a, t) => a + t.amount, 0);
   const saldoProjetado = saldoAtual + entradasPrevistas - saidasPrevistas;
 
+  const generatePDF = () => {
+    const doc = new jsPDF();
+    
+    // Título
+    doc.setFontSize(18);
+    doc.setTextColor(36, 59, 157); // brand-blue
+    doc.text('Relatório Financeiro', 14, 22);
+    
+    // Subtítulo
+    doc.setFontSize(12);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Magalhaes Inteligencia LTDA - Resumo do Mês`, 14, 30);
+
+    // Resumo
+    doc.setFontSize(11);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Receitas: R$ ${receitaMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 14, 45);
+    doc.text(`Despesas: R$ ${despesasMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 14, 52);
+    doc.text(`Saldo Projetado: R$ ${saldoProjetado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 14, 59);
+    doc.text(`Margem de Lucro: ${rentabilidade}%`, 14, 66);
+
+    // Tabela de Despesas por Categoria
+    const tableData = despesasPorCategoria.map(c => [
+      c.nome, 
+      `R$ ${c.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+    ]);
+
+    doc.autoTable({
+      startY: 80,
+      head: [['Categoria', 'Total Gasto']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [36, 59, 157] }
+    });
+
+    // Tabela das últimas despesas pagas do mês
+    const paidExpenses = transactions
+      .filter(t => t.type === 'OUT' && t.status === 'PAID')
+      .map(t => [
+        new Date(t.paymentDate).toLocaleDateString('pt-BR'),
+        t.description,
+        t.category?.name || '—',
+        `R$ ${t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      ]);
+
+    doc.autoTable({
+      startY: doc.lastAutoTable.finalY + 15,
+      head: [['Data', 'Descrição', 'Categoria', 'Valor']],
+      body: paidExpenses,
+      theme: 'grid',
+      headStyles: { fillColor: [36, 59, 157] }
+    });
+
+    doc.save('relatorio-magalhaes.pdf');
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+      
+      {/* Barra de Ações Sup */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button className="btn btn-primary" onClick={generatePDF} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Download size={18} /> Exportar Relatório (PDF)
+        </button>
+      </div>
 
       {/* Fluxo de Caixa Projetado */}
       <div className="card" style={{ background: 'linear-gradient(to right, var(--brand-blue), var(--brand-blue-hover))', color: 'white', padding: '2rem' }}>
