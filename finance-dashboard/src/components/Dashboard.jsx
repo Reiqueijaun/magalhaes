@@ -1,135 +1,204 @@
-import { TrendingUp, DollarSign, CreditCard } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { TrendingUp, TrendingDown, DollarSign, CreditCard, Loader } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-
-const chartData = [
-  { name: 'Jan', receitas: 4000, despesas: 2400 },
-  { name: 'Fev', receitas: 3000, despesas: 1398 },
-  { name: 'Mar', receitas: 2000, despesas: 9800 },
-  { name: 'Abr', receitas: 2780, despesas: 3908 },
-  { name: 'Mai', receitas: 1890, despesas: 4800 },
-  { name: 'Jun', receitas: 2390, despesas: 3800 },
-  { name: 'Jul', receitas: 3490, despesas: 4300 },
-  { name: 'Ago', receitas: 5000, despesas: 2100 },
-];
-
-const despesasCategorias = [
-  { nome: 'Pessoal', valor: 42000, color: 'var(--brand-blue)' },
-  { nome: 'Fornecedores', valor: 31000, color: '#3b82f6' },
-  { nome: 'Impostos', valor: 18000, color: '#6366f1' },
-  { nome: 'Aluguel', valor: 7000, color: '#8b5cf6' },
-  { nome: 'Energia', valor: 4200, color: '#ec4899' },
-  { nome: 'Combustível', valor: 3800, color: '#f43f5e' },
-  { nome: 'Outros', valor: 9500, color: 'var(--text-muted)' },
-];
-const totalDespesas = despesasCategorias.reduce((acc, curr) => acc + curr.valor, 0);
+import API_URL from '../config';
 
 export default function Dashboard() {
+  const [summary, setSummary] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      try {
+        const [summaryRes, transRes, catRes] = await Promise.all([
+          fetch(`${API_URL}/api/summary`),
+          fetch(`${API_URL}/api/transactions`),
+          fetch(`${API_URL}/api/categories`),
+        ]);
+        const summaryData = await summaryRes.json();
+        const transData = await transRes.json();
+        const catData = await catRes.json();
+        setSummary(summaryData);
+        setTransactions(transData);
+        setCategories(catData);
+      } catch (err) {
+        console.error('Erro ao carregar dashboard:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAll();
+  }, []);
+
+  // Monta gráfico de barras de despesas por categoria
+  const despesasPorCategoria = categories
+    .filter(c => c.type === 'OUT')
+    .map(cat => {
+      const total = transactions
+        .filter(t => t.categoryId === cat.id && t.status === 'PAID')
+        .reduce((acc, t) => acc + t.amount, 0);
+      return { nome: cat.name, valor: total, color: cat.color || 'var(--brand-blue)' };
+    })
+    .filter(c => c.valor > 0);
+
+  const totalDespesasCat = despesasPorCategoria.reduce((acc, c) => acc + c.valor, 0);
+
+  // Monta dados do gráfico de evolução mensal
+  const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const chartData = meses.map((name, idx) => {
+    const receitas = transactions
+      .filter(t => t.type === 'IN' && t.status === 'PAID' && new Date(t.paymentDate).getMonth() === idx)
+      .reduce((acc, t) => acc + t.amount, 0);
+    const despesas = transactions
+      .filter(t => t.type === 'OUT' && t.status === 'PAID' && new Date(t.paymentDate).getMonth() === idx)
+      .reduce((acc, t) => acc + t.amount, 0);
+    return { name, receitas, despesas };
+  });
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '400px', flexDirection: 'column', gap: '1rem' }}>
+        <Loader size={40} color="var(--brand-blue)" style={{ animation: 'spin 1s linear infinite' }} />
+        <p style={{ color: 'var(--text-muted)' }}>Carregando dados do banco...</p>
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  const receitaMes = summary?.receitaMes || 0;
+  const despesasMes = summary?.despesasMes || 0;
+  const rentabilidade = summary?.rentabilidade || 0;
+  const contasVencidas = summary?.contasVencidasHoje || { total: 0, count: 0 };
+  const aReceberHoje = summary?.aReceberHoje || 0;
+
+  // Saldo projetado (simplificado)
+  const saldoAtual = receitaMes - despesasMes;
+  const entradasPrevistas = transactions.filter(t => t.type === 'IN' && t.status === 'PENDING').reduce((a, t) => a + t.amount, 0);
+  const saidasPrevistas = transactions.filter(t => t.type === 'OUT' && t.status === 'PENDING').reduce((a, t) => a + t.amount, 0);
+  const saldoProjetado = saldoAtual + entradasPrevistas - saidasPrevistas;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      
-      {/* Fluxo de Caixa Automático */}
+
+      {/* Fluxo de Caixa Projetado */}
       <div className="card" style={{ background: 'linear-gradient(to right, var(--brand-blue), var(--brand-blue-hover))', color: 'white', padding: '2rem' }}>
-        <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem', fontWeight: 600, color: 'white', opacity: 0.9 }}>Fluxo de Caixa (Próximos 30 dias)</h3>
+        <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem', fontWeight: 600, color: 'white', opacity: 0.9 }}>Fluxo de Caixa Projetado (Mês)</h3>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '2rem' }}>
           <div>
-            <p style={{ fontSize: '0.875rem', opacity: 0.8 }}>🟢 Saldo Atual</p>
-            <p style={{ fontSize: '1.5rem', fontWeight: 700 }}>R$ 84.350,00</p>
+            <p style={{ fontSize: '0.875rem', opacity: 0.8 }}>🟢 Saldo Acumulado</p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 700 }}>R$ {saldoAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
           </div>
           <div style={{ fontSize: '1.5rem', opacity: 0.5 }}>+</div>
           <div>
-            <p style={{ fontSize: '0.875rem', opacity: 0.8 }}>🟢 Entradas Previstas</p>
-            <p style={{ fontSize: '1.5rem', fontWeight: 700 }}>R$ 92.000,00</p>
+            <p style={{ fontSize: '0.875rem', opacity: 0.8 }}>🟢 Entradas Pendentes</p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 700 }}>R$ {entradasPrevistas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
           </div>
           <div style={{ fontSize: '1.5rem', opacity: 0.5 }}>-</div>
           <div>
-            <p style={{ fontSize: '0.875rem', opacity: 0.8 }}>🔴 Saídas Previstas</p>
-            <p style={{ fontSize: '1.5rem', fontWeight: 700 }}>R$ 76.000,00</p>
+            <p style={{ fontSize: '0.875rem', opacity: 0.8 }}>🔴 Saídas Pendentes</p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 700 }}>R$ {saidasPrevistas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
           </div>
           <div style={{ fontSize: '1.5rem', opacity: 0.5 }}>=</div>
-          <div style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: '1rem 1.5rem', borderRadius: '12px' }}>
+          <div style={{ backgroundColor: 'rgba(255,255,255,0.15)', padding: '1rem 1.5rem', borderRadius: '12px' }}>
             <p style={{ fontSize: '0.875rem', opacity: 0.9 }}>Saldo Projetado</p>
-            <p style={{ fontSize: '2rem', fontWeight: 700 }}>R$ 100.350,00</p>
+            <p style={{ fontSize: '2rem', fontWeight: 700 }}>R$ {saldoProjetado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
           </div>
         </div>
       </div>
 
+      {/* Cards de Resumo */}
       <div className="dashboard-grid">
         <div className="card stat-card">
           <div className="stat-header">
             <span>Receita do Mês</span>
             <div className="icon-bg green"><DollarSign size={20} /></div>
           </div>
-          <div className="stat-value">R$ 52.400,00</div>
-          <div className="stat-footer"><TrendingUp size={14} className="text-success" /><span className="text-success">+12.5%</span></div>
+          <div className="stat-value">R$ {receitaMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+          <div className="stat-footer"><TrendingUp size={14} className="text-success" /><span className="text-success">Mês atual</span></div>
         </div>
-        <div className="card stat-card" style={{ borderColor: 'var(--danger)', borderWidth: '2px' }}>
+        <div className="card stat-card">
           <div className="stat-header">
-            <span>Contas a Pagar (Hoje)</span>
+            <span>Despesas do Mês</span>
             <div className="icon-bg red"><CreditCard size={20} /></div>
           </div>
-          <div className="stat-value">R$ 4.820,00</div>
-          <div className="stat-footer"><span className="text-danger">3 contas vencendo</span></div>
+          <div className="stat-value">R$ {despesasMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+          <div className="stat-footer"><TrendingDown size={14} className="text-danger" /><span className="text-danger">Saídas pagas</span></div>
         </div>
-        <div className="card stat-card" style={{ borderColor: 'var(--success)', borderWidth: '2px' }}>
+        <div className="card stat-card">
           <div className="stat-header">
-            <span>A Receber (Hoje)</span>
-            <div className="icon-bg green"><DollarSign size={20} /></div>
+            <span>Rentabilidade</span>
+            <div className="icon-bg blue"><TrendingUp size={20} /></div>
           </div>
-          <div className="stat-value">R$ 8.400,00</div>
-          <div className="stat-footer"><span className="text-success">2 cobranças</span></div>
+          <div className="stat-value">{rentabilidade}%</div>
+          <div className="stat-footer"><span className="text-muted">Margem de lucro</span></div>
+        </div>
+        <div className="card stat-card" style={{ borderColor: 'var(--warning)', borderWidth: '2px' }}>
+          <div className="stat-header">
+            <span>A Pagar (Vencidas)</span>
+            <div className="icon-bg orange"><CreditCard size={20} /></div>
+          </div>
+          <div className="stat-value">R$ {contasVencidas.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+          <div className="stat-footer"><span className="text-danger">{contasVencidas.count} conta(s) em atraso</span></div>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', alignItems: 'stretch' }}>
-        
-        {/* Gráfico de Evolução Financeira */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+        {/* Gráfico de Evolução */}
         <div className="card" style={{ padding: '2rem' }}>
           <h3 style={{ marginBottom: '1.5rem', color: 'var(--text-main)', fontSize: '1.1rem' }}>Evolução Mensal</h3>
-          <div style={{ width: '100%', height: 350 }}>
+          <div style={{ width: '100%', height: 300 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="colorReceitas" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="colorR" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="var(--success)" stopOpacity={0.3}/>
                     <stop offset="95%" stopColor="var(--success)" stopOpacity={0}/>
                   </linearGradient>
-                  <linearGradient id="colorDespesas" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="colorD" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="var(--danger)" stopOpacity={0.3}/>
                     <stop offset="95%" stopColor="var(--danger)" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
-                <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip />
-                <Area type="monotone" dataKey="receitas" stroke="var(--success)" strokeWidth={2} fillOpacity={1} fill="url(#colorReceitas)" />
-                <Area type="monotone" dataKey="despesas" stroke="var(--danger)" strokeWidth={2} fillOpacity={1} fill="url(#colorDespesas)" />
+                <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
+                <Tooltip formatter={v => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} />
+                <Area type="monotone" dataKey="receitas" name="Receitas" stroke="var(--success)" strokeWidth={2} fillOpacity={1} fill="url(#colorR)" />
+                <Area type="monotone" dataKey="despesas" name="Despesas" stroke="var(--danger)" strokeWidth={2} fillOpacity={1} fill="url(#colorD)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Para onde está indo meu dinheiro? */}
+        {/* Para onde vai o dinheiro */}
         <div className="card" style={{ padding: '2rem' }}>
-          <h3 style={{ marginBottom: '1.5rem', color: 'var(--text-main)', fontSize: '1.1rem' }}>Para onde está indo meu dinheiro? (Mês Atual)</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            {despesasCategorias.map(cat => {
-              const percentage = (cat.valor / totalDespesas) * 100;
-              return (
-                <div key={cat.nome}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: '4px' }}>
-                    <span style={{ fontWeight: 500 }}>{cat.nome}</span>
-                    <span style={{ fontWeight: 600 }}>R$ {cat.valor.toLocaleString('pt-BR')}</span>
+          <h3 style={{ marginBottom: '1.5rem', color: 'var(--text-main)', fontSize: '1.1rem' }}>Para onde está indo meu dinheiro?</h3>
+          {despesasPorCategoria.length === 0 ? (
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem 0' }}>
+              <p>Nenhuma despesa categorizada ainda.</p>
+              <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>Cadastre despesas com categorias para ver aqui!</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {despesasPorCategoria.map(cat => {
+                const pct = totalDespesasCat > 0 ? (cat.valor / totalDespesasCat) * 100 : 0;
+                return (
+                  <div key={cat.nome}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: '4px' }}>
+                      <span style={{ fontWeight: 500 }}>{cat.nome}</span>
+                      <span style={{ fontWeight: 600 }}>R$ {cat.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="progress-container">
+                      <div className="progress-bar" style={{ width: `${pct}%`, backgroundColor: cat.color }}></div>
+                    </div>
                   </div>
-                  <div className="progress-container">
-                    <div className="progress-bar" style={{ width: `${percentage}%`, backgroundColor: cat.color }}></div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
-
       </div>
     </div>
   );
