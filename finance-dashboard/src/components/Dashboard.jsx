@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, CreditCard, Loader } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { authFetch } from '../config';
