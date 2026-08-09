@@ -3,8 +3,6 @@ import { Wallet, Eye, EyeOff, UserPlus, LogIn } from 'lucide-react';
 import API_URL from '../config';
 
 export default function Login({ onLogin }) {
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -15,13 +13,12 @@ export default function Login({ onLogin }) {
     e.preventDefault();
     setLoading(true);
     setError('');
-    const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
-    const body = mode === 'login' ? { email, password } : { name, email, password };
+    
     try {
-      const res = await fetch(`${API_URL}${endpoint}`, {
+      const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Erro desconhecido'); return; }
@@ -72,43 +69,7 @@ export default function Login({ onLogin }) {
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '0.25rem 0 0' }}>Sistema de Gestão Financeira</p>
         </div>
 
-        {/* Toggle Login / Cadastro */}
-        <div style={{ display: 'flex', background: 'var(--bg-body)', borderRadius: '10px', padding: '4px', marginBottom: '1.5rem' }}>
-          <button
-            onClick={() => setMode('login')}
-            style={{
-              flex: 1, padding: '0.6rem', borderRadius: '8px', border: 'none',
-              fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer',
-              background: mode === 'login' ? 'white' : 'transparent',
-              color: mode === 'login' ? '#243b9d' : 'var(--text-muted)',
-              boxShadow: mode === 'login' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
-              transition: 'all 0.2s',
-            }}
-          >
-            <LogIn size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Entrar
-          </button>
-          <button
-            onClick={() => setMode('register')}
-            style={{
-              flex: 1, padding: '0.6rem', borderRadius: '8px', border: 'none',
-              fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer',
-              background: mode === 'register' ? 'white' : 'transparent',
-              color: mode === 'register' ? '#243b9d' : 'var(--text-muted)',
-              boxShadow: mode === 'register' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
-              transition: 'all 0.2s',
-            }}
-          >
-            <UserPlus size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Cadastrar
-          </button>
-        </div>
-
         <form onSubmit={handleSubmit}>
-          {mode === 'register' && (
-            <div className="form-group">
-              <label>Nome completo</label>
-              <input type="text" placeholder="Seu nome" value={name} onChange={e => setName(e.target.value)} required style={{ width: '100%' }} />
-            </div>
-          )}
           <div className="form-group">
             <label>E-mail</label>
             <input type="email" placeholder="seu@email.com" value={email} onChange={e => setEmail(e.target.value)} required style={{ width: '100%' }} />
@@ -152,7 +113,7 @@ export default function Login({ onLogin }) {
               marginTop: '0.5rem',
             }}
           >
-            {loading ? 'Aguarde...' : mode === 'login' ? '→ Entrar no sistema' : '→ Criar minha conta'}
+            {loading ? 'Aguarde...' : '→ Entrar no sistema'}
           </button>
         </form>
       </div>
