@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Receipt, Clock, Wallet, Settings as SettingsIcon, LogOut, ArrowRightLeft, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, Receipt, Clock, Wallet, Settings as SettingsIcon, LogOut, ArrowRightLeft, CalendarDays, FileBarChart2 } from 'lucide-react';
+import Reports from './components/Reports';
 import Dashboard from './components/Dashboard';
 import Expenses from './components/Expenses';
 import Pending from './components/Pending';
@@ -61,6 +62,7 @@ function App() {
       case 'pending':    return <Pending />;
       case 'receivable': return <Receivable />;
       case 'calendar':   return <CalendarView />;
+      case 'reports':    return <Reports />;
       case 'settings':   return <Settings />;
       default:           return <Dashboard />;
     }
@@ -73,6 +75,7 @@ function App() {
       case 'pending':    return 'Contas a Pagar';
       case 'receivable': return 'Contas a Receber';
       case 'calendar':   return 'Calendário Financeiro';
+      case 'reports':    return 'Relatórios Financeiros';
       case 'settings':   return 'Configurações do Sistema';
       default:           return 'Painel Financeiro';
     }
@@ -111,6 +114,9 @@ function App() {
           </div>
           <button data-nav="calendar" className={`nav-item ${currentView === 'calendar' ? 'active' : ''}`} onClick={() => setCurrentView('calendar')}>
             <CalendarDays size={20} /> Calendário
+          </button>
+          <button data-nav="reports" className={`nav-item ${currentView === 'reports' ? 'active' : ''}`} onClick={() => setCurrentView('reports')}>
+            <FileBarChart2 size={20} /> Relatórios
           </button>
 
           <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
