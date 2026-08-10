@@ -97,7 +97,7 @@ export default function PersonalFinance() {
       if (!map[key]) map[key] = { name: key, value: 0, color };
       map[key].value += t.amount;
     });
-    return Object.values(map).sort((a: any, b: any) => b.value - a.value);
+    return Object.values(map).sort((a, b) => b.value - a.value);
   }, [thisMonth]);
 
   // Progresso dos orçamentos (gastos reais vs limite)
@@ -198,7 +198,7 @@ export default function PersonalFinance() {
   );
 
   const inputStyle = { width: '100%', padding: '0.6rem 0.75rem', borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-main)', fontSize: '0.875rem' };
-  const labelStyle = { fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: '0.3rem', display: 'block' };
+  const labelStyle = { fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem', display: 'block' };
 
   const pendentes = transactions.filter(t => t.status === 'PENDING');
 
@@ -262,9 +262,9 @@ export default function PersonalFinance() {
                     <ResponsiveContainer width="100%" height={240}>
                       <PieChart>
                         <Pie data={spendByCategory} cx="50%" cy="50%" outerRadius={80} dataKey="value" nameKey="name" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} fontSize={11}>
-                          {(spendByCategory as any[]).map((entry: any, i) => <Cell key={i} fill={entry.color} />)}
+                          {(spendByCategory).map((entry, i) => <Cell key={i} fill={entry.color} />)}
                         </Pie>
-                        <Tooltip formatter={(v: any) => fmt(v)} />
+                        <Tooltip formatter={(v) => fmt(v)} />
                       </PieChart>
                     </ResponsiveContainer>
                   )}
@@ -281,7 +281,7 @@ export default function PersonalFinance() {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      {(budgetsWithProgress as any[]).map((b: any) => (
+                      {(budgetsWithProgress).map((b) => (
                         <div key={b.id}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                             <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{b.category?.name || b.name}</span>
@@ -404,7 +404,7 @@ export default function PersonalFinance() {
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
-                  {(budgetsWithProgress as any[]).map((b: any) => (
+                  {(budgetsWithProgress).map((b) => (
                     <div key={b.id} className="card" style={{ padding: '1.5rem', position: 'relative' }}>
                       <button onClick={() => deleteBudget(b.id)} style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                         <Trash2 size={14} />
@@ -452,7 +452,7 @@ export default function PersonalFinance() {
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.25rem' }}>
-                  {(goals as any[]).map((g: any) => {
+                  {(goals).map((g) => {
                     const pct = Math.min((g.currentAmount / g.targetAmount) * 100, 100);
                     const done = pct >= 100;
                     return (
