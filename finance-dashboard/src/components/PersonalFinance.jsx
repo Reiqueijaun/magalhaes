@@ -64,11 +64,14 @@ export default function PersonalFinance() {
         authFetch(`/api/pf/budgets?month=${now.getMonth() + 1}&year=${now.getFullYear()}`),
         authFetch('/api/pf/goals'),
       ]);
-      setTransactions(await tRes.json());
-      setCategories(await cRes.json());
-      setBudgets(await bRes.json());
-      setGoals(await gRes.json());
-    } catch (e) { console.error(e); }
+      const [tData, cData, bData, gData] = await Promise.all([
+        tRes.json(), cRes.json(), bRes.json(), gRes.json(),
+      ]);
+      if (Array.isArray(tData)) setTransactions(tData);
+      if (Array.isArray(cData)) setCategories(cData);
+      if (Array.isArray(bData)) setBudgets(bData);
+      if (Array.isArray(gData)) setGoals(gData);
+    } catch (e) { console.error('Erro ao carregar finanças pessoais:', e); }
     finally { setLoading(false); }
   };
 

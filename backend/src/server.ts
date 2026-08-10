@@ -42,6 +42,51 @@ app.get('/api/health', (_, res) => {
   res.json({ status: '✅ Backend Magalhaes operacional', database: 'PostgreSQL via Neon' });
 });
 
+// ─── AUTO-MIGRAÇÃO: garante que colunas e tabelas novas existem ───────────────
+async function runMigrations() {
+  const pg = require('pg');
+  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+  try {
+    // Adiciona coluna context em Transaction (se não existir)
+    await pool.query(`ALTER TABLE "Transaction" ADD COLUMN IF NOT EXISTS context TEXT NOT NULL DEFAULT 'PJ';`);
+    // Adiciona coluna context em Category (se não existir)
+    await pool.query(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS context TEXT NOT NULL DEFAULT 'PJ';`);
+    // Cria tabela Budget (se não existir)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "Budget" (
+        id TEXT NOT NULL PRIMARY KEY,
+        "categoryId" TEXT,
+        name TEXT NOT NULL,
+        "limitAmount" DOUBLE PRECISION NOT NULL,
+        month INTEGER NOT NULL,
+        year INTEGER NOT NULL,
+        context TEXT NOT NULL DEFAULT 'PF',
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    // Cria tabela Goal (se não existir)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "Goal" (
+        id TEXT NOT NULL PRIMARY KEY,
+        name TEXT NOT NULL,
+        emoji TEXT NOT NULL DEFAULT '🎯',
+        "targetAmount" DOUBLE PRECISION NOT NULL,
+        "currentAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        deadline TIMESTAMP(3),
+        context TEXT NOT NULL DEFAULT 'PF',
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ Migrações aplicadas com sucesso.');
+  } catch (e) {
+    console.error('⚠️ Erro nas migrações (provavelmente já aplicadas):', e);
+  } finally {
+    await pool.end();
+  }
+}
+
 // ─── AUTH ──────────────────────────────────────────────────────────────────────
 
 // Cadastro (Desativado: Sistema exclusivo para 1 usuário)
@@ -463,4 +508,7 @@ app.delete('/api/pf/goals/:id', authMiddleware, async (req: Request, res: Respon
   res.json({ message: 'Excluído.' });
 });
 
-app.listen(port, () => console.log(`🚀 Servidor Magalhaes na porta ${port}`));
+app.listen(port, () => {
+  console.log(`🚀 Servidor Magalhaes na porta ${port}`);
+  runMigrations();
+});
