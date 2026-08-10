@@ -297,4 +297,170 @@ app.delete('/api/entities/:id', authMiddleware, async (req: Request, res: Respon
   res.json({ message: 'Excluído.' });
 });
 
+// ─── FINANÇAS PESSOAIS (PF) ────────────────────────────────────────────────────
+
+// Categorias PF
+app.get('/api/pf/categories', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    let cats = await (prisma as any).category.findMany({ where: { context: 'PF' } });
+    // Se não existirem categorias PF, cria as padrões automaticamente
+    if (cats.length === 0) {
+      const defaults = [
+        { name: 'Alimentação',  type: 'OUT', color: '#ef4444', context: 'PF' },
+        { name: 'Transporte',   type: 'OUT', color: '#f97316', context: 'PF' },
+        { name: 'Moradia',      type: 'OUT', color: '#8b5cf6', context: 'PF' },
+        { name: 'Saúde',        type: 'OUT', color: '#10b981', context: 'PF' },
+        { name: 'Lazer',        type: 'OUT', color: '#3b82f6', context: 'PF' },
+        { name: 'Educação',     type: 'OUT', color: '#f59e0b', context: 'PF' },
+        { name: 'Vestuário',    type: 'OUT', color: '#ec4899', context: 'PF' },
+        { name: 'Salário',      type: 'IN',  color: '#22c55e', context: 'PF' },
+        { name: 'Pró-labore',   type: 'IN',  color: '#06b6d4', context: 'PF' },
+        { name: 'Outros',       type: 'OUT', color: '#94a3b8', context: 'PF' },
+      ];
+      await (prisma as any).category.createMany({ data: defaults });
+      cats = await (prisma as any).category.findMany({ where: { context: 'PF' } });
+    }
+    res.json(cats);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao buscar categorias PF.' }); }
+});
+
+app.post('/api/pf/categories', authMiddleware, async (req: Request, res: Response) => {
+  const { name, type, color } = req.body;
+  try {
+    const cat = await (prisma as any).category.create({ data: { name, type, color: color || '#94a3b8', context: 'PF' } });
+    res.status(201).json(cat);
+  } catch (e) { res.status(500).json({ error: 'Erro ao criar categoria PF.' }); }
+});
+
+app.delete('/api/pf/categories/:id', authMiddleware, async (req: Request, res: Response) => {
+  await (prisma as any).category.delete({ where: { id: String(req.params.id) } });
+  res.json({ message: 'Excluído.' });
+});
+
+// Transações PF
+app.get('/api/pf/transactions', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const transactions = await (prisma as any).transaction.findMany({
+      where: { context: 'PF' },
+      select: {
+        id: true, description: true, amount: true, type: true,
+        status: true, dueDate: true, paymentDate: true, isRecurring: true,
+        categoryId: true, entityId: true, createdAt: true, updatedAt: true,
+        context: true, category: true, entity: true,
+      },
+      orderBy: { dueDate: 'desc' },
+    });
+    const withAtt = await (prisma as any).transaction.findMany({
+      where: { context: 'PF', attachmentUrl: { not: null } }, select: { id: true },
+    });
+    const attSet = new Set(withAtt.map((t: any) => t.id));
+    res.json(transactions.map((t: any) => ({ ...t, hasAttachment: attSet.has(t.id) })));
+  } catch (e) { res.status(500).json({ error: 'Erro ao buscar transações PF.' }); }
+});
+
+app.post('/api/pf/transactions', authMiddleware, async (req: Request, res: Response) => {
+  const { description, amount, type, status, dueDate, paymentDate, isRecurring, categoryId, entityId } = req.body;
+  try {
+    const t = await (prisma as any).transaction.create({
+      data: {
+        description, amount: Number(amount), type, status,
+        dueDate: new Date(dueDate),
+        paymentDate: paymentDate ? new Date(paymentDate) : null,
+        isRecurring: Boolean(isRecurring),
+        categoryId: categoryId || null,
+        entityId: entityId || null,
+        context: 'PF',
+      },
+    });
+    res.status(201).json(t);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao criar transação PF.' }); }
+});
+
+app.patch('/api/pf/transactions/:id/pay', authMiddleware, async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  try {
+    const t = await (prisma as any).transaction.update({
+      where: { id }, data: { status: 'PAID', paymentDate: new Date() },
+    });
+    if (t.isRecurring) {
+      const nextDue = new Date(t.dueDate); nextDue.setMonth(nextDue.getMonth() + 1);
+      await (prisma as any).transaction.create({
+        data: { description: t.description, amount: t.amount, type: t.type, categoryId: t.categoryId, entityId: t.entityId, dueDate: nextDue, status: 'PENDING', isRecurring: true, context: 'PF' },
+      });
+    }
+    res.json(t);
+  } catch (e) { res.status(500).json({ error: 'Erro ao dar baixa.' }); }
+});
+
+app.delete('/api/pf/transactions/:id', authMiddleware, async (req: Request, res: Response) => {
+  await (prisma as any).transaction.delete({ where: { id: String(req.params.id) } });
+  res.json({ message: 'Excluído.' });
+});
+
+// Orçamentos (Budget)
+app.get('/api/pf/budgets', authMiddleware, async (req: Request, res: Response) => {
+  const now = new Date();
+  const month = parseInt(req.query.month as string) || now.getMonth() + 1;
+  const year = parseInt(req.query.year as string) || now.getFullYear();
+  try {
+    const budgets = await (prisma as any).budget.findMany({
+      where: { context: 'PF', month, year },
+      include: { category: true },
+    });
+    res.json(budgets);
+  } catch (e) { res.status(500).json({ error: 'Erro ao buscar orçamentos.' }); }
+});
+
+app.post('/api/pf/budgets', authMiddleware, async (req: Request, res: Response) => {
+  const { name, categoryId, limitAmount, month, year } = req.body;
+  try {
+    const b = await (prisma as any).budget.create({
+      data: { name, categoryId: categoryId || null, limitAmount: Number(limitAmount), month, year, context: 'PF' },
+      include: { category: true },
+    });
+    res.status(201).json(b);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao criar orçamento.' }); }
+});
+
+app.delete('/api/pf/budgets/:id', authMiddleware, async (req: Request, res: Response) => {
+  await (prisma as any).budget.delete({ where: { id: String(req.params.id) } });
+  res.json({ message: 'Excluído.' });
+});
+
+// Metas (Goals)
+app.get('/api/pf/goals', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    res.json(await (prisma as any).goal.findMany({ where: { context: 'PF' }, orderBy: { createdAt: 'asc' } }));
+  } catch (e) { res.status(500).json({ error: 'Erro ao buscar metas.' }); }
+});
+
+app.post('/api/pf/goals', authMiddleware, async (req: Request, res: Response) => {
+  const { name, emoji, targetAmount, deadline } = req.body;
+  try {
+    const g = await (prisma as any).goal.create({
+      data: { name, emoji: emoji || '🎯', targetAmount: Number(targetAmount), deadline: deadline ? new Date(deadline) : null, context: 'PF' },
+    });
+    res.status(201).json(g);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao criar meta.' }); }
+});
+
+app.patch('/api/pf/goals/:id/deposit', authMiddleware, async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  const { amount } = req.body;
+  try {
+    const g = await (prisma as any).goal.findUnique({ where: { id } });
+    if (!g) { res.status(404).json({ error: 'Meta não encontrada.' }); return; }
+    const updated = await (prisma as any).goal.update({
+      where: { id },
+      data: { currentAmount: Math.min(g.currentAmount + Number(amount), g.targetAmount) },
+    });
+    res.json(updated);
+  } catch (e) { res.status(500).json({ error: 'Erro ao depositar.' }); }
+});
+
+app.delete('/api/pf/goals/:id', authMiddleware, async (req: Request, res: Response) => {
+  await (prisma as any).goal.delete({ where: { id: String(req.params.id) } });
+  res.json({ message: 'Excluído.' });
+});
+
 app.listen(port, () => console.log(`🚀 Servidor Magalhaes na porta ${port}`));

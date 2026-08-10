@@ -24,10 +24,12 @@ model Category {
   name      String
   type      String   // 'IN' (Receita) ou 'OUT' (Despesa)
   color     String?  // Cor para o gráfico
+  context   String   @default("PJ") // 'PJ' ou 'PF'
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   transactions Transaction[]
+  budgets      Budget[]
 }
 
 model Entity {
@@ -50,7 +52,8 @@ model Transaction {
   dueDate     DateTime
   paymentDate DateTime?
   isRecurring Boolean   @default(false)
-  attachmentUrl String? // Base64 da imagem/pdf do comprovante
+  attachmentUrl String?
+  context     String    @default("PJ") // 'PJ' (Empresa) ou 'PF' (Pessoal)
   
   // Relacionamentos
   categoryId  String?
@@ -65,4 +68,32 @@ model Transaction {
   @@index([dueDate])
   @@index([status])
   @@index([type])
+  @@index([context])
+}
+
+model Budget {
+  id         String   @id @default(uuid())
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+  name       String   // Nome livre se não tiver categoria
+  limitAmount Float
+  month      Int      // 1-12
+  year       Int
+  context    String   @default("PF")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([month, year, context])
+}
+
+model Goal {
+  id            String   @id @default(uuid())
+  name          String
+  emoji         String   @default("🎯")
+  targetAmount  Float
+  currentAmount Float    @default(0)
+  deadline      DateTime?
+  context       String   @default("PF")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }

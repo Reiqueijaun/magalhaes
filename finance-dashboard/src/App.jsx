@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Receipt, Clock, Wallet, Settings as SettingsIcon, LogOut, ArrowRightLeft, CalendarDays, FileBarChart2 } from 'lucide-react';
+import { LayoutDashboard, Receipt, Clock, Wallet, Settings as SettingsIcon, LogOut, ArrowRightLeft, CalendarDays, FileBarChart2, User } from 'lucide-react';
 import Reports from './components/Reports';
+import PersonalFinance from './components/PersonalFinance';
 import Dashboard from './components/Dashboard';
 import Expenses from './components/Expenses';
 import Pending from './components/Pending';
@@ -63,6 +64,7 @@ function App() {
       case 'receivable': return <Receivable />;
       case 'calendar':   return <CalendarView />;
       case 'reports':    return <Reports />;
+      case 'personal':   return <PersonalFinance />;
       case 'settings':   return <Settings />;
       default:           return <Dashboard />;
     }
@@ -76,6 +78,7 @@ function App() {
       case 'receivable': return 'Contas a Receber';
       case 'calendar':   return 'Calendário Financeiro';
       case 'reports':    return 'Relatórios Financeiros';
+      case 'personal':   return 'Finanças Pessoais';
       case 'settings':   return 'Configurações do Sistema';
       default:           return 'Painel Financeiro';
     }
@@ -117,6 +120,15 @@ function App() {
           </button>
           <button data-nav="reports" className={`nav-item ${currentView === 'reports' ? 'active' : ''}`} onClick={() => setCurrentView('reports')}>
             <FileBarChart2 size={20} /> Relatórios
+          </button>
+
+          {/* Separador PF */}
+          <div style={{ margin: '0.5rem 1rem', borderTop: '1px solid var(--border-color)' }} />
+          <div style={{ padding: '0 1rem 0.5rem', fontSize: '0.7rem', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: '0.8rem' }}>👤</span> Pessoal (PF)
+          </div>
+          <button data-nav="personal" className={`nav-item ${currentView === 'personal' ? 'active' : ''}`} onClick={() => setCurrentView('personal')} style={{ color: currentView === 'personal' ? 'white' : '#7c3aed', background: currentView === 'personal' ? 'linear-gradient(135deg, #7c3aed, #4f46e5)' : 'rgba(124,58,237,0.08)', fontWeight: 600 }}>
+            <User size={20} /> Finanças Pessoais
           </button>
 
           <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
