@@ -7,6 +7,8 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState('categorias');
   const [categories, setCategories] = useState([]);
   const [entities, setEntities] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tutorialEnabled, setTutorialEnabled] = useState(
     localStorage.getItem('showTutorial') !== 'false'
@@ -23,15 +25,28 @@ export default function Settings() {
   const [entDoc, setEntDoc] = useState('');
   const [entType, setEntType] = useState('SUPPLIER');
 
+  const [compModal, setCompModal] = useState(false);
+  const [compName, setCompName] = useState('');
+  const [compDoc, setCompDoc] = useState('');
+
+  const [bankModal, setBankModal] = useState(false);
+  const [bankName, setBankName] = useState('');
+  const [bankAgency, setBankAgency] = useState('');
+  const [bankAcc, setBankAcc] = useState('');
+
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [catRes, entRes] = await Promise.all([
+      const [catRes, entRes, compRes, bankRes] = await Promise.all([
         authFetch('/api/categories'),
         authFetch('/api/entities'),
+        authFetch('/api/companies'),
+        authFetch('/api/bank-accounts'),
       ]);
       setCategories(await catRes.json());
       setEntities(await entRes.json());
+      setCompanies(await compRes.json());
+      setBankAccounts(await bankRes.json());
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -70,6 +85,32 @@ export default function Settings() {
     fetchAll();
   };
 
+  const createCompany = async (e) => {
+    e.preventDefault();
+    await authFetch('/api/companies', {
+      method: 'POST', body: JSON.stringify({ name: compName, document: compDoc }),
+    });
+    setCompName(''); setCompDoc(''); setCompModal(false); fetchAll();
+  };
+  const deleteCompany = async (id) => {
+    if (!confirm('Excluir empresa?')) return;
+    await authFetch(`/api/companies/${id}`, { method: 'DELETE' });
+    fetchAll();
+  };
+
+  const createBank = async (e) => {
+    e.preventDefault();
+    await authFetch('/api/bank-accounts', {
+      method: 'POST', body: JSON.stringify({ name: bankName, agency: bankAgency, account: bankAcc }),
+    });
+    setBankName(''); setBankAgency(''); setBankAcc(''); setBankModal(false); fetchAll();
+  };
+  const deleteBank = async (id) => {
+    if (!confirm('Excluir conta bancária?')) return;
+    await authFetch(`/api/bank-accounts/${id}`, { method: 'DELETE' });
+    fetchAll();
+  };
+
   const catOut = categories.filter(c => c.type === 'OUT');
   const catIn  = categories.filter(c => c.type === 'IN');
   const suppliers = entities.filter(e => e.type === 'SUPPLIER');
@@ -84,7 +125,8 @@ export default function Settings() {
           {[
             { key: 'categorias', icon: <Tag size={18} />, label: 'Categorias' },
             { key: 'fornecedores', icon: <Users size={18} />, label: 'Fornecedores e Clientes' },
-            { key: 'bancos', icon: <Archive size={18} />, label: 'Bancos e Caixas' },
+            { key: 'empresas', icon: <Archive size={18} />, label: 'Empresas / Unidades' },
+            { key: 'bancos', icon: <BookOpen size={18} />, label: 'Bancos e Caixas' },
             { key: 'tutorial', icon: <GraduationCap size={18} />, label: 'Tutorial & Ajuda' },
           ].map(({ key, icon, label }) => (
             <button
@@ -272,10 +314,71 @@ export default function Settings() {
           </div>
         )}
 
+        {activeTab === 'empresas' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Empresas / Unidades de Negócio</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '4px 0 0' }}>Para separar lançamentos de diferentes empresas</p>
+              </div>
+              <button className="btn btn-primary" onClick={() => setCompModal(true)}><Plus size={18}/> Nova Empresa</button>
+            </div>
+            {loading ? <p style={{ color: 'var(--text-muted)' }}>Carregando...</p> : (
+              <table style={{ width: '100%', marginBottom: '2rem' }}>
+                <thead><tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Empresa</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>CNPJ</th>
+                  <th style={{ padding: '0.75rem' }}></th>
+                </tr></thead>
+                <tbody>
+                  {companies.length === 0 && <tr><td colSpan={3} style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Nenhuma empresa cadastrada.</td></tr>}
+                  {companies.map(c => (
+                    <tr key={c.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '0.75rem', fontWeight: 500 }}>{c.name}</td>
+                      <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{c.document || '—'}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                        <button onClick={() => deleteCompany(c.id)} style={{ color: 'var(--danger)', background: 'none' }}><Trash2 size={16} /></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
         {activeTab === 'bancos' && (
           <div>
-            <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>Bancos e Caixas</h2>
-            <p style={{ color: 'var(--text-muted)' }}>Em breve: gerencie suas contas bancárias e caixas físicos separadamente para ter um fluxo de caixa por conta.</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Bancos e Caixas</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '4px 0 0' }}>Contas bancárias usadas para baixar pagamentos</p>
+              </div>
+              <button className="btn btn-primary" onClick={() => setBankModal(true)}><Plus size={18}/> Novo Banco</button>
+            </div>
+            {loading ? <p style={{ color: 'var(--text-muted)' }}>Carregando...</p> : (
+              <table style={{ width: '100%', marginBottom: '2rem' }}>
+                <thead><tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Nome (Banco/Caixa)</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Agência</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Conta</th>
+                  <th style={{ padding: '0.75rem' }}></th>
+                </tr></thead>
+                <tbody>
+                  {bankAccounts.length === 0 && <tr><td colSpan={4} style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Nenhum banco cadastrado.</td></tr>}
+                  {bankAccounts.map(b => (
+                    <tr key={b.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '0.75rem', fontWeight: 500 }}>{b.name}</td>
+                      <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{b.agency || '—'}</td>
+                      <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{b.account || '—'}</td>
+                      <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                        <button onClick={() => deleteBank(b.id)} style={{ color: 'var(--danger)', background: 'none' }}><Trash2 size={16} /></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
       </div>
@@ -336,6 +439,48 @@ export default function Settings() {
               </div>
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
                 <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEntModal(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Salvar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Modal: Nova Empresa */}
+      {compModal && (
+        <div className="modal-overlay" onClick={() => setCompModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Nova Empresa / Unidade</h3>
+              <button onClick={() => setCompModal(false)} style={{ background: 'none', fontSize: '1.5rem', color: 'var(--text-muted)' }}><X size={20} /></button>
+            </div>
+            <form onSubmit={createCompany}>
+              <div className="form-group"><label>Nome da Empresa</label><input type="text" value={compName} onChange={e => setCompName(e.target.value)} required /></div>
+              <div className="form-group"><label>CNPJ (opcional)</label><input type="text" value={compDoc} onChange={e => setCompDoc(formatDoc(e.target.value))} /></div>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setCompModal(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Salvar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Novo Banco */}
+      {bankModal && (
+        <div className="modal-overlay" onClick={() => setBankModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Nova Conta Bancária / Caixa</h3>
+              <button onClick={() => setBankModal(false)} style={{ background: 'none', fontSize: '1.5rem', color: 'var(--text-muted)' }}><X size={20} /></button>
+            </div>
+            <form onSubmit={createBank}>
+              <div className="form-group"><label>Nome (ex: Itaú, Nubank, Caixa Físico)</label><input type="text" value={bankName} onChange={e => setBankName(e.target.value)} required /></div>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <div className="form-group" style={{ flex: 1 }}><label>Agência</label><input type="text" value={bankAgency} onChange={e => setBankAgency(e.target.value)} /></div>
+                <div className="form-group" style={{ flex: 1 }}><label>Conta</label><input type="text" value={bankAcc} onChange={e => setBankAcc(e.target.value)} /></div>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setBankModal(false)}>Cancelar</button>
                 <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Salvar</button>
               </div>
             </form>

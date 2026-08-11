@@ -9,6 +9,8 @@ export default function Expenses() {
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
   const [entities, setEntities] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
@@ -18,22 +20,29 @@ export default function Expenses() {
   const [dataVenc, setDataVenc] = useState(new Date().toISOString().split('T')[0]);
   const [categoryId, setCategoryId] = useState('');
   const [entityId, setEntityId] = useState('');
-  const [banco, setBanco] = useState('');
+  const [companyId, setCompanyId] = useState('');
+  const [bankAccountId, setBankAccountId] = useState('');
   const [saving, setSaving] = useState(false);
 
   const fetchData = async () => {
     try {
-      const [transRes, catRes, entRes] = await Promise.all([
+      const [transRes, catRes, entRes, compRes, bankRes] = await Promise.all([
         authFetch('/api/transactions'),
         authFetch('/api/categories'),
         authFetch('/api/entities'),
+        authFetch('/api/companies'),
+        authFetch('/api/bank-accounts'),
       ]);
       const trans = await transRes.json();
       const cats = await catRes.json();
       const ents = await entRes.json();
-      setExpenses(trans.filter(t => t.type === 'OUT' && t.status === 'PAID'));
+      const comps = await compRes.json();
+      const banks = await bankRes.json();
+      setExpenses(trans.filter(t => t.type === 'OUT' && t.status === 'PAID' && t.context === 'PJ'));
       setCategories(cats.filter(c => c.type === 'OUT'));
       setEntities(ents.filter(e => e.type === 'SUPPLIER'));
+      setCompanies(comps);
+      setBankAccounts(banks);
     } catch (err) {
       console.error(err);
     } finally {
@@ -50,7 +59,7 @@ export default function Expenses() {
       const response = await authFetch('/api/transactions', {
         method: 'POST',
         body: JSON.stringify({
-          description: desc + (banco ? ` (${banco})` : ''),
+          description: desc,
           amount: parseCurrency(valor),
           type: 'OUT',
           status: 'PAID',
@@ -59,12 +68,14 @@ export default function Expenses() {
           isRecurring: false,
           categoryId: categoryId || null,
           entityId: entityId || null,
+          companyId: companyId || null,
+          bankAccountId: bankAccountId || null,
         })
       });
       if (response.ok) {
         setIsModalOpen(false);
         fetchData();
-        setDesc(''); setValor(''); setCategoryId(''); setEntityId(''); setBanco('');
+        setDesc(''); setValor(''); setCategoryId(''); setEntityId(''); setCompanyId(''); setBankAccountId('');
         setDataVenc(new Date().toISOString().split('T')[0]);
       }
     } catch (err) {
@@ -187,7 +198,10 @@ export default function Expenses() {
                 filtered.map((expense, index) => (
                   <tr key={expense.id}>
                     <td style={{ whiteSpace: 'nowrap' }}>{new Date(expense.paymentDate || expense.dueDate).toLocaleDateString('pt-BR')}</td>
-                    <td style={{ fontWeight: 500 }}>{expense.description}</td>
+                    <td style={{ fontWeight: 500 }}>
+                      {expense.description}
+                      {expense.company && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{expense.company.name}</div>}
+                    </td>
                     <td style={{ color: 'var(--text-muted)' }}>{expense.entity?.name || '—'}</td>
                     <td>
                       {expense.category ? (
@@ -240,19 +254,20 @@ export default function Expenses() {
                 <input type="text" placeholder="Ex: Compra de material" value={desc} onChange={e => setDesc(e.target.value)} required />
               </div>
               <div className="form-group">
-                <label>Banco / Forma de Pagamento</label>
-                <select value={banco} onChange={e => setBanco(e.target.value)}>
+                <label>Conta Bancária / Forma de Pagamento</label>
+                <select value={bankAccountId} onChange={e => setBankAccountId(e.target.value)}>
                   <option value="">Selecione...</option>
-                  <option>Banco do Brasil</option>
-                  <option>Itaú</option>
-                  <option>Bradesco</option>
-                  <option>Caixa Econômica</option>
-                  <option>Nubank</option>
-                  <option>PIX</option>
-                  <option>Dinheiro (Caixa Físico)</option>
+                  {bankAccounts.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label>Empresa</label>
+                  <select value={companyId} onChange={e => setCompanyId(e.target.value)} required>
+                    <option value="">Selecione...</option>
+                    {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
                 <div className="form-group">
                   <label>Categoria</label>
                   <select value={categoryId} onChange={e => setCategoryId(e.target.value)}>

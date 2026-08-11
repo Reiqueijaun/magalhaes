@@ -79,6 +79,30 @@ async function runMigrations() {
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    // Cria tabela Company (se não existir)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "Company" (
+        id TEXT NOT NULL PRIMARY KEY,
+        name TEXT NOT NULL,
+        document TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    // Cria tabela BankAccount (se não existir)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "BankAccount" (
+        id TEXT NOT NULL PRIMARY KEY,
+        name TEXT NOT NULL,
+        agency TEXT,
+        account TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    // Adiciona colunas novas na Transaction
+    await pool.query(`ALTER TABLE "Transaction" ADD COLUMN IF NOT EXISTS "companyId" TEXT;`);
+    await pool.query(`ALTER TABLE "Transaction" ADD COLUMN IF NOT EXISTS "bankAccountId" TEXT;`);
     console.log('✅ Migrações aplicadas com sucesso.');
   } catch (e) {
     console.error('⚠️ Erro nas migrações (provavelmente já aplicadas):', e);
@@ -158,10 +182,14 @@ app.get('/api/transactions', authMiddleware, async (req: Request, res: Response)
         isRecurring: true,
         categoryId: true,
         entityId: true,
+        companyId: true,
+        bankAccountId: true,
         createdAt: true,
         updatedAt: true,
         category: true,
         entity: true,
+        company: true,
+        bankAccount: true,
         // NÃO seleciona o attachmentUrl (Base64) para economizar banda!
       },
       orderBy: { dueDate: 'asc' },
@@ -197,7 +225,7 @@ app.get('/api/transactions/:id/attachment', authMiddleware, async (req: Request,
 });
 
 app.post('/api/transactions', authMiddleware, async (req: Request, res: Response) => {
-  const { description, amount, type, status, dueDate, paymentDate, isRecurring, categoryId, entityId, attachmentUrl } = req.body;
+  const { description, amount, type, status, dueDate, paymentDate, isRecurring, categoryId, entityId, companyId, attachmentUrl } = req.body;
   try {
     const transaction = await prisma.transaction.create({
       data: {
@@ -209,7 +237,9 @@ app.post('/api/transactions', authMiddleware, async (req: Request, res: Response
         isRecurring: Boolean(isRecurring),
         categoryId: categoryId || null,
         entityId: entityId || null,
+        companyId: companyId || null,
         attachmentUrl: attachmentUrl || null,
+        context: 'PJ'
       },
     });
     res.status(201).json(transaction);
@@ -227,8 +257,14 @@ app.patch('/api/transactions/:id/attach', authMiddleware, async (req: Request, r
 
 app.patch('/api/transactions/:id/pay', authMiddleware, async (req: Request, res: Response) => {
   const id = String(req.params.id);
+  const { paymentDate, bankAccountId, amount } = req.body;
   try {
-    const t = await prisma.transaction.update({ where: { id }, data: { status: 'PAID', paymentDate: new Date() } });
+    const payDate = paymentDate ? new Date(paymentDate) : new Date();
+    const updateData: any = { status: 'PAID', paymentDate: payDate };
+    if (bankAccountId) updateData.bankAccountId = bankAccountId;
+    if (amount) updateData.amount = Number(amount);
+
+    const t = await prisma.transaction.update({ where: { id }, data: updateData });
     
     if (t.isRecurring) {
       const nextDueDate = new Date(t.dueDate);
@@ -241,9 +277,11 @@ app.patch('/api/transactions/:id/pay', authMiddleware, async (req: Request, res:
           type: t.type,
           categoryId: t.categoryId,
           entityId: t.entityId,
+          companyId: t.companyId,
           dueDate: nextDueDate,
           status: 'PENDING',
-          isRecurring: true
+          isRecurring: true,
+          context: t.context
         }
       });
     }
@@ -342,6 +380,31 @@ app.delete('/api/entities/:id', authMiddleware, async (req: Request, res: Respon
   res.json({ message: 'Excluído.' });
 });
 
+// ─── EMPRESAS E CONTAS BANCÁRIAS (Configurações) ──────────────────────────────
+app.get('/api/companies', authMiddleware, async (req: Request, res: Response) => {
+  res.json(await (prisma as any).company.findMany());
+});
+app.post('/api/companies', authMiddleware, async (req: Request, res: Response) => {
+  const { name, document } = req.body;
+  res.status(201).json(await (prisma as any).company.create({ data: { name, document } }));
+});
+app.delete('/api/companies/:id', authMiddleware, async (req: Request, res: Response) => {
+  await (prisma as any).company.delete({ where: { id: String(req.params.id) } });
+  res.json({ message: 'Excluído.' });
+});
+
+app.get('/api/bank-accounts', authMiddleware, async (req: Request, res: Response) => {
+  res.json(await (prisma as any).bankAccount.findMany());
+});
+app.post('/api/bank-accounts', authMiddleware, async (req: Request, res: Response) => {
+  const { name, agency, account } = req.body;
+  res.status(201).json(await (prisma as any).bankAccount.create({ data: { name, agency, account } }));
+});
+app.delete('/api/bank-accounts/:id', authMiddleware, async (req: Request, res: Response) => {
+  await (prisma as any).bankAccount.delete({ where: { id: String(req.params.id) } });
+  res.json({ message: 'Excluído.' });
+});
+
 // ─── FINANÇAS PESSOAIS (PF) ────────────────────────────────────────────────────
 
 // Categorias PF
@@ -390,8 +453,8 @@ app.get('/api/pf/transactions', authMiddleware, async (req: Request, res: Respon
       select: {
         id: true, description: true, amount: true, type: true,
         status: true, dueDate: true, paymentDate: true, isRecurring: true,
-        categoryId: true, entityId: true, createdAt: true, updatedAt: true,
-        context: true, category: true, entity: true,
+        categoryId: true, entityId: true, companyId: true, bankAccountId: true, createdAt: true, updatedAt: true,
+        context: true, category: true, entity: true, company: true, bankAccount: true,
       },
       orderBy: { dueDate: 'desc' },
     });
@@ -404,7 +467,7 @@ app.get('/api/pf/transactions', authMiddleware, async (req: Request, res: Respon
 });
 
 app.post('/api/pf/transactions', authMiddleware, async (req: Request, res: Response) => {
-  const { description, amount, type, status, dueDate, paymentDate, isRecurring, categoryId, entityId } = req.body;
+  const { description, amount, type, status, dueDate, paymentDate, isRecurring, categoryId, entityId, companyId, bankAccountId } = req.body;
   try {
     const t = await (prisma as any).transaction.create({
       data: {
@@ -414,6 +477,8 @@ app.post('/api/pf/transactions', authMiddleware, async (req: Request, res: Respo
         isRecurring: Boolean(isRecurring),
         categoryId: categoryId || null,
         entityId: entityId || null,
+        companyId: companyId || null,
+        bankAccountId: bankAccountId || null,
         context: 'PF',
       },
     });
@@ -423,14 +488,20 @@ app.post('/api/pf/transactions', authMiddleware, async (req: Request, res: Respo
 
 app.patch('/api/pf/transactions/:id/pay', authMiddleware, async (req: Request, res: Response) => {
   const id = String(req.params.id);
+  const { paymentDate, bankAccountId, amount } = req.body;
   try {
+    const payDate = paymentDate ? new Date(paymentDate) : new Date();
+    const updateData: any = { status: 'PAID', paymentDate: payDate };
+    if (bankAccountId) updateData.bankAccountId = bankAccountId;
+    if (amount) updateData.amount = Number(amount);
+
     const t = await (prisma as any).transaction.update({
-      where: { id }, data: { status: 'PAID', paymentDate: new Date() },
+      where: { id }, data: updateData,
     });
     if (t.isRecurring) {
       const nextDue = new Date(t.dueDate); nextDue.setMonth(nextDue.getMonth() + 1);
       await (prisma as any).transaction.create({
-        data: { description: t.description, amount: t.amount, type: t.type, categoryId: t.categoryId, entityId: t.entityId, dueDate: nextDue, status: 'PENDING', isRecurring: true, context: 'PF' },
+        data: { description: t.description, amount: t.amount, type: t.type, categoryId: t.categoryId, entityId: t.entityId, companyId: t.companyId, dueDate: nextDue, status: 'PENDING', isRecurring: true, context: 'PF' },
       });
     }
     res.json(t);

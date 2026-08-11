@@ -47,6 +47,7 @@ export default function Reports() {
   const [entities, setEntities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generated, setGenerated] = useState(false);
+  const [activeTab, setActiveTab] = useState('geral'); // 'geral' | 'futuras'
 
   // Filtros
   const [period, setPeriod] = useState('month');
@@ -113,6 +114,36 @@ export default function Reports() {
   const statusLabel = (s) => ({ PAID: 'Pago', PENDING: 'Pendente', OVERDUE: 'Vencido' }[s] || s);
   const typeLabel = (t) => t === 'IN' ? 'Receita' : 'Despesa';
 
+  // Lógica de Contas Futuras
+  const provisaoData = useMemo(() => {
+    const futurePending = transactions.filter(t => t.status === 'PENDING' && t.context === 'PJ');
+    // Agrupar por Mês-Ano e depois por Empresa
+    const groups = {};
+    futurePending.forEach(t => {
+      const d = new Date(t.dueDate);
+      const m = d.getMonth() + 1;
+      const y = d.getFullYear();
+      const monthKey = `${y}-${m < 10 ? '0'+m : m}`; // ex: 2026-09
+      const compId = t.company?.id || 'Sem Empresa';
+      const compName = t.company?.name || 'Geral / Sem Empresa';
+      
+      if (!groups[monthKey]) groups[monthKey] = { label: `${m < 10 ? '0'+m : m}/${y}`, totalIn: 0, totalOut: 0, companies: {} };
+      if (!groups[monthKey].companies[compId]) groups[monthKey].companies[compId] = { name: compName, totalIn: 0, totalOut: 0, items: [] };
+      
+      const g = groups[monthKey];
+      const cg = g.companies[compId];
+      cg.items.push(t);
+      if (t.type === 'IN') { g.totalIn += t.amount; cg.totalIn += t.amount; }
+      else { g.totalOut += t.amount; cg.totalOut += t.amount; }
+    });
+    
+    // Convert to sorted array
+    return Object.entries(groups).sort((a,b) => a[0].localeCompare(b[0])).map(([key, data]) => ({
+      key, label: data.label, totalIn: data.totalIn, totalOut: data.totalOut, saldo: data.totalIn - data.totalOut,
+      companies: Object.values(data.companies).sort((a,b) => b.totalOut - a.totalOut)
+    }));
+  }, [transactions]);
+
   const handleGeneratePDF = () => {
     const doc = new jsPDF();
     const periodLabel = PERIOD_OPTIONS.find(p => p.value === period)?.label || 'Personalizado';
@@ -172,6 +203,56 @@ export default function Reports() {
     doc.save(`relatorio-${period}-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
+  const handleGenerateProvisaoPDF = () => {
+    const doc = new jsPDF();
+    doc.setFillColor(36, 59, 157);
+    doc.rect(0, 0, 210, 30, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Magalhães Inteligência Financeira', 14, 13);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Relatório de Provisões (Contas Futuras)`, 14, 22);
+    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 130, 22);
+
+    let currentY = 40;
+    
+    provisaoData.forEach(mes => {
+      doc.setTextColor(40, 40, 40);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Mês: ${mes.label} (Previsto: ${fmt(mes.saldo)})`, 14, currentY);
+      currentY += 5;
+      
+      mes.companies.forEach(comp => {
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(100);
+        doc.text(`Empresa: ${comp.name} | Receitas: ${fmt(comp.totalIn)} | Despesas: ${fmt(comp.totalOut)}`, 14, currentY + 5);
+        
+        autoTable(doc, {
+          startY: currentY + 8,
+          head: [['Data', 'Descrição', 'Categoria', 'Valor']],
+          body: comp.items.map(t => [
+            fmtDate(t.dueDate),
+            t.description,
+            t.category?.name || '—',
+            `${t.type === 'IN' ? '+' : '-'} ${fmt(t.amount)}`
+          ]),
+          theme: 'grid',
+          headStyles: { fillColor: [240, 240, 240], textColor: [40,40,40] },
+          styles: { fontSize: 8 },
+          margin: { left: 14 }
+        });
+        currentY = doc.lastAutoTable.finalY + 10;
+      });
+      currentY += 10;
+    });
+
+    doc.save(`provisoes-${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
   const selectStyle = {
     width: '100%', padding: '0.6rem 0.75rem', borderRadius: 8,
     border: '1px solid var(--border-color)', background: 'var(--bg-card)',
@@ -193,22 +274,28 @@ export default function Reports() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Relatórios Financeiros</h2>
-          <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Monte seu relatório com os filtros abaixo e exporte em PDF</p>
+          <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Acompanhamento e previsão de caixa</p>
         </div>
-        {generated && filteredData.length > 0 && (
-          <button className="btn btn-primary" onClick={handleGeneratePDF} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Download size={18} /> Exportar PDF
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className={`btn ${activeTab === 'geral' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('geral')}>Relatório Geral</button>
+          <button className={`btn ${activeTab === 'futuras' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('futuras')}>Provisões / Futuro</button>
+        </div>
       </div>
 
+      {activeTab === 'geral' && (
       <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '1.5rem', alignItems: 'start' }}>
-
         {/* ── Painel de Filtros ── */}
         <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'sticky', top: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.25rem' }}>
-            <SlidersHorizontal size={18} style={{ color: 'var(--brand-blue)' }} />
-            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Filtros</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.25rem' }}>
+              <SlidersHorizontal size={18} style={{ color: 'var(--brand-blue)' }} />
+              <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Filtros</span>
+            </div>
+            {generated && filteredData.length > 0 && (
+              <button className="btn btn-primary" onClick={handleGeneratePDF} style={{ padding: '4px 8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Download size={14} /> PDF
+              </button>
+            )}
           </div>
 
           {/* Período */}
@@ -409,6 +496,66 @@ export default function Reports() {
           )}
         </div>
       </div>
+      )}
+
+      {activeTab === 'futuras' && (
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.2rem', margin: 0 }}>Provisões e Contas Futuras</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '4px 0 0' }}>Previsão de caixa agrupada por mês e por empresa (apenas contas pendentes)</p>
+            </div>
+            <button className="btn btn-primary" onClick={handleGenerateProvisaoPDF} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Download size={18} /> Exportar PDF Detalhado
+            </button>
+          </div>
+
+          {loading ? (
+            <p>Carregando dados...</p>
+          ) : provisaoData.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)' }}>Nenhuma conta pendente ou futura encontrada.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              {provisaoData.map(mes => (
+                <div key={mes.key} style={{ border: '1px solid var(--border-color)', borderRadius: '12px', overflow: 'hidden' }}>
+                  <div style={{ background: 'var(--bg-body)', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)' }}>
+                    <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>Mês: {mes.label}</h4>
+                    <div style={{ display: 'flex', gap: '1rem', fontSize: '0.9rem', fontWeight: 600 }}>
+                      <span style={{ color: 'var(--success)' }}>+ {fmt(mes.totalIn)}</span>
+                      <span style={{ color: 'var(--danger)' }}>- {fmt(mes.totalOut)}</span>
+                      <span style={{ color: mes.saldo >= 0 ? 'var(--success)' : 'var(--danger)' }}>Previsto: {fmt(mes.saldo)}</span>
+                    </div>
+                  </div>
+                  <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    {mes.companies.map(comp => (
+                      <div key={comp.name}>
+                        <h5 style={{ margin: '0 0 0.75rem', color: 'var(--brand-blue)', fontSize: '0.95rem', display: 'flex', justifyContent: 'space-between' }}>
+                          <span>🏢 {comp.name}</span>
+                          <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Despesas: {fmt(comp.totalOut)}</span>
+                        </h5>
+                        <table style={{ width: '100%', fontSize: '0.85rem' }}>
+                          <tbody>
+                            {comp.items.map(t => (
+                              <tr key={t.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                <td style={{ padding: '0.5rem 0', color: 'var(--text-muted)', width: '80px' }}>{fmtDate(t.dueDate)}</td>
+                                <td style={{ padding: '0.5rem 0', fontWeight: 500 }}>{t.description}</td>
+                                <td style={{ padding: '0.5rem 0', color: 'var(--text-muted)' }}>{t.category?.name || '—'}</td>
+                                <td style={{ padding: '0.5rem 0', textAlign: 'right', fontWeight: 600, color: t.type === 'IN' ? 'var(--success)' : 'var(--danger)' }}>
+                                  {t.type === 'IN' ? '+' : '-'} {fmt(t.amount)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

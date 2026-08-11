@@ -43,6 +43,27 @@ model Entity {
   transactions Transaction[]
 }
 
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  document  String?  // CNPJ
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions Transaction[]
+}
+
+model BankAccount {
+  id        String   @id @default(uuid())
+  name      String   // ex: Itaú, Nubank, Caixa
+  agency    String?
+  account   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions Transaction[]
+}
+
 model Transaction {
   id          String    @id @default(uuid())
   description String
@@ -62,6 +83,12 @@ model Transaction {
   entityId    String?
   entity      Entity?   @relation(fields: [entityId], references: [id])
 
+  companyId   String?
+  company     Company?  @relation(fields: [companyId], references: [id])
+
+  bankAccountId String?
+  bankAccount   BankAccount? @relation(fields: [bankAccountId], references: [id])
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -69,6 +96,7 @@ model Transaction {
   @@index([status])
   @@index([type])
   @@index([context])
+  @@index([companyId])
 }
 
 model Budget {

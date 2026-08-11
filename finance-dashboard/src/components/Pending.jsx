@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, CheckCircle2, FileText, Loader, Repeat } from 'lucide-react';
 import { authFetch } from '../config';
 import { formatCurrency, parseCurrency } from '../utils';
+import PayModal from './PayModal';
 
 export default function Pending() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -12,18 +13,26 @@ export default function Pending() {
   const [desc, setDesc] = useState('');
   const [valor, setValor] = useState('');
   const [dataVenc, setDataVenc] = useState('');
+  const [companyId, setCompanyId] = useState('');
   const [recorrente, setRecorrente] = useState(false);
+  
+  const [companies, setCompanies] = useState([]);
+  const [payTransaction, setPayTransaction] = useState(null);
 
   // Buscar dados da API
   const fetchTransactions = async () => {
     try {
-      const response = await authFetch('/api/transactions');
-      if (response.ok) {
-        const data = await response.json();
-        // Filtra apenas SAÍDAS (OUT) que estão PENDENTES
-        const pendingOut = data.filter(t => t.type === 'OUT' && t.status === 'PENDING');
+      const [transRes, compRes] = await Promise.all([
+        authFetch('/api/transactions'),
+        authFetch('/api/companies'),
+      ]);
+      if (transRes.ok) {
+        const data = await transRes.json();
+        // Filtra apenas SAÍDAS (OUT) que estão PENDENTES no contexto PJ
+        const pendingOut = data.filter(t => t.type === 'OUT' && t.status === 'PENDING' && t.context === 'PJ');
         setTransactions(pendingOut);
       }
+      if (compRes.ok) setCompanies(await compRes.json());
     } catch (error) {
       console.log('Erro ao buscar da API, o servidor backend está rodando?');
     } finally {
@@ -46,13 +55,14 @@ export default function Pending() {
           type: 'OUT',
           status: 'PENDING',
           dueDate: dataVenc,
+          companyId: companyId || null,
           isRecurring: recorrente
         })
       });
       if (response.ok) {
         setIsModalOpen(false);
         fetchTransactions(); // Recarrega a lista
-        setDesc(''); setValor(''); setDataVenc(''); setRecorrente(false);
+        setDesc(''); setValor(''); setDataVenc(''); setCompanyId(''); setRecorrente(false);
       }
     } catch (error) {
       alert('Erro ao salvar. Verifique se o servidor backend está ligado.');
@@ -90,14 +100,14 @@ export default function Pending() {
     e.target.value = null; // reseta o input
   };
 
-  const handlePay = async (id) => {
-    try {
-      await authFetch(`/api/transactions/${id}/pay`, { method: 'PATCH' });
-      fetchTransactions(); // Remove da lista de pendentes
-      alert('Pago! Transferido para o fluxo de despesas pagas.');
-    } catch (error) {
-      alert('Erro ao processar pagamento.');
-    }
+  const handlePay = (transaction) => {
+    setPayTransaction(transaction);
+  };
+
+  const handlePaySuccess = () => {
+    setPayTransaction(null);
+    fetchTransactions();
+    alert('✅ Título baixado com sucesso! Transferido para o extrato.');
   };
 
   // Separação por urgência (Simplificada para a demonstração)
@@ -118,13 +128,14 @@ export default function Pending() {
             <tr key={item.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
               <td style={{ padding: '0.75rem 0', fontWeight: 500 }}>
                 {item.description}
+                {item.company && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.company.name}</div>}
                 {item.isRecurring && <Repeat size={14} style={{ marginLeft: 6, color: 'var(--brand-blue)', verticalAlign: 'middle' }} title="Conta Recorrente Automática" />}
               </td>
               <td style={{ padding: '0.75rem 0', color: 'var(--text-muted)' }}>{new Date(item.dueDate).toLocaleDateString('pt-BR')}</td>
               <td style={{ padding: '0.75rem 0', fontWeight: 600, textAlign: 'right' }}>R$ {item.amount.toFixed(2).replace('.', ',')}</td>
               <td style={{ padding: '0.75rem 0', textAlign: 'right', width: '150px' }}>
-                <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: 'var(--brand-blue)', borderColor: 'var(--brand-blue)' }} onClick={() => handlePay(item.id)}>
-                  <CheckCircle2 size={14} style={{ marginRight: '4px' }} /> Pago
+                <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: 'var(--brand-blue)', borderColor: 'var(--brand-blue)' }} onClick={() => handlePay(item)}>
+                  <CheckCircle2 size={14} style={{ marginRight: '4px' }} /> Dar Baixa
                 </button>
               </td>
             </tr>
@@ -172,7 +183,16 @@ export default function Pending() {
             <form onSubmit={handleSave}>
               <div className="form-group"><label>Descrição / Fornecedor</label><input type="text" value={desc} onChange={e => setDesc(e.target.value)} required /></div>
               <div className="form-group"><label>Valor (R$)</label><input type="text" placeholder="0,00" value={valor} onChange={e => setValor(formatCurrency(e.target.value))} required /></div>
-              <div className="form-group"><label>Vencimento</label><input type="date" value={dataVenc} onChange={e => setDataVenc(e.target.value)} required /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group"><label>Vencimento</label><input type="date" value={dataVenc} onChange={e => setDataVenc(e.target.value)} required /></div>
+                <div className="form-group">
+                  <label>Empresa</label>
+                  <select value={companyId} onChange={e => setCompanyId(e.target.value)} required>
+                    <option value="">Selecione...</option>
+                    {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              </div>
               <div id="tutorial-pending-recurring-checkbox" className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
                 <input type="checkbox" id="recorrente" checked={recorrente} onChange={e => setRecorrente(e.target.checked)} style={{ width: 'auto' }} />
                 <label htmlFor="recorrente" style={{ margin: 0 }}>Repetir Mensalmente (Recorrente)</label>
@@ -184,6 +204,14 @@ export default function Pending() {
           </div>
         </div>
       )}
+
+      {/* Modal de Baixa Profissional */}
+      <PayModal
+        isOpen={!!payTransaction}
+        onClose={() => setPayTransaction(null)}
+        transaction={payTransaction}
+        onPaySuccess={handlePaySuccess}
+      />
     </div>
   );
 }
