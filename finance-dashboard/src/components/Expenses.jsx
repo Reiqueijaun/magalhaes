@@ -38,7 +38,7 @@ export default function Expenses() {
       const ents = await entRes.json();
       const comps = await compRes.json();
       const banks = await bankRes.json();
-      setExpenses(trans.filter(t => t.type === 'OUT' && t.status === 'PAID' && t.context === 'PJ'));
+      setExpenses(trans.filter(t => t.type === 'OUT' && t.status === 'PAID' && (!t.context || t.context === 'PJ')));
       setCategories(cats.filter(c => c.type === 'OUT'));
       setEntities(ents.filter(e => e.type === 'SUPPLIER'));
       setCompanies(comps);

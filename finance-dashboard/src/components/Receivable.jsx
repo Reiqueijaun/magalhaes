@@ -27,7 +27,7 @@ export default function Receivable() {
       ]);
       if (transRes.ok) {
         const data = await transRes.json();
-        setTransactions(data.filter(t => t.type === 'IN' && t.status === 'PENDING' && t.context === 'PJ'));
+        setTransactions(data.filter(t => t.type === 'IN' && t.status === 'PENDING' && (!t.context || t.context === 'PJ')));
       }
       if (compRes.ok) setCompanies(await compRes.json());
     } catch (error) {

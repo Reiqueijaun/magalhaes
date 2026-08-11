@@ -52,10 +52,10 @@ export default function Dashboard() {
   const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   const chartData = meses.map((name, idx) => {
     const receitas = transactions
-      .filter(t => t.type === 'IN' && t.status === 'PAID' && new Date(t.paymentDate).getMonth() === idx)
+      .filter(t => t.type === 'IN' && t.status === 'PAID' && new Date(t.paymentDate || t.dueDate).getMonth() === idx)
       .reduce((acc, t) => acc + t.amount, 0);
     const despesas = transactions
-      .filter(t => t.type === 'OUT' && t.status === 'PAID' && new Date(t.paymentDate).getMonth() === idx)
+      .filter(t => t.type === 'OUT' && t.status === 'PAID' && new Date(t.paymentDate || t.dueDate).getMonth() === idx)
       .reduce((acc, t) => acc + t.amount, 0);
     return { name, receitas, despesas };
   });
@@ -121,7 +121,7 @@ export default function Dashboard() {
     const paidExpenses = transactions
       .filter(t => t.type === 'OUT' && t.status === 'PAID')
       .map(t => [
-        new Date(t.paymentDate).toLocaleDateString('pt-BR'),
+        new Date(t.paymentDate || t.dueDate).toLocaleDateString('pt-BR'),
         t.description,
         t.category?.name || '—',
         `R$ ${t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
