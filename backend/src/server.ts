@@ -184,6 +184,7 @@ app.get('/api/transactions', authMiddleware, async (req: Request, res: Response)
         entityId: true,
         companyId: true,
         bankAccountId: true,
+        context: true,
         createdAt: true,
         updatedAt: true,
         category: true,

@@ -49,6 +49,9 @@ export default function Reports() {
   const [generated, setGenerated] = useState(false);
   const [activeTab, setActiveTab] = useState('geral'); // 'geral' | 'futuras'
 
+  // Filtro da aba Provisões
+  const [provisaoFilter, setProvisaoFilter] = useState('all'); // 'all' | '7' | '15' | '30' | '60' | 'month'
+
   // Filtros
   const [period, setPeriod] = useState('month');
   const [customFrom, setCustomFrom] = useState('');
@@ -116,33 +119,55 @@ export default function Reports() {
 
   // Lógica de Contas Futuras
   const provisaoData = useMemo(() => {
-    const futurePending = transactions.filter(t => t.status === 'PENDING' && t.context === 'PJ');
+    // Filtra transações pendentes (PJ ou sem context definido, pois é a rota /api/transactions)
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    // Calcular data limite conforme filtro de prazo
+    let dateLimitMax = null;
+    if (provisaoFilter === 'month') {
+      dateLimitMax = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59); // fim do mês corrente
+    } else if (provisaoFilter !== 'all') {
+      const days = parseInt(provisaoFilter);
+      dateLimitMax = new Date(now);
+      dateLimitMax.setDate(dateLimitMax.getDate() + days);
+      dateLimitMax.setHours(23, 59, 59);
+    }
+
+    const futurePending = transactions.filter(t => {
+      if (t.status !== 'PENDING') return false;
+      // Aceita context PJ ou ausente (pré-migração)
+      if (t.context && t.context !== 'PJ') return false;
+      const due = new Date(t.dueDate);
+      if (dateLimitMax && due > dateLimitMax) return false;
+      return true;
+    });
+
     // Agrupar por Mês-Ano e depois por Empresa
     const groups = {};
     futurePending.forEach(t => {
       const d = new Date(t.dueDate);
       const m = d.getMonth() + 1;
       const y = d.getFullYear();
-      const monthKey = `${y}-${m < 10 ? '0'+m : m}`; // ex: 2026-09
+      const monthKey = `${y}-${m < 10 ? '0'+m : m}`;
       const compId = t.company?.id || 'Sem Empresa';
       const compName = t.company?.name || 'Geral / Sem Empresa';
-      
+
       if (!groups[monthKey]) groups[monthKey] = { label: `${m < 10 ? '0'+m : m}/${y}`, totalIn: 0, totalOut: 0, companies: {} };
       if (!groups[monthKey].companies[compId]) groups[monthKey].companies[compId] = { name: compName, totalIn: 0, totalOut: 0, items: [] };
-      
+
       const g = groups[monthKey];
       const cg = g.companies[compId];
       cg.items.push(t);
       if (t.type === 'IN') { g.totalIn += t.amount; cg.totalIn += t.amount; }
       else { g.totalOut += t.amount; cg.totalOut += t.amount; }
     });
-    
-    // Convert to sorted array
+
     return Object.entries(groups).sort((a,b) => a[0].localeCompare(b[0])).map(([key, data]) => ({
       key, label: data.label, totalIn: data.totalIn, totalOut: data.totalOut, saldo: data.totalIn - data.totalOut,
       companies: Object.values(data.companies).sort((a,b) => b.totalOut - a.totalOut)
     }));
-  }, [transactions]);
+  }, [transactions, provisaoFilter]);
 
   const handleGeneratePDF = () => {
     const doc = new jsPDF();
@@ -500,7 +525,7 @@ export default function Reports() {
 
       {activeTab === 'futuras' && (
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
               <h3 style={{ fontSize: '1.2rem', margin: 0 }}>Provisões e Contas Futuras</h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '4px 0 0' }}>Previsão de caixa agrupada por mês e por empresa (apenas contas pendentes)</p>
@@ -510,10 +535,37 @@ export default function Reports() {
             </button>
           </div>
 
+          {/* Filtros de prazo */}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '1.5rem', padding: '0.75rem 1rem', background: 'var(--bg-body)', borderRadius: '10px', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', marginRight: 4 }}>Filtrar por prazo:</span>
+            {[
+              { value: 'all', label: 'Todos' },
+              { value: '7', label: 'Próx. 7 dias' },
+              { value: '15', label: 'Próx. 15 dias' },
+              { value: '30', label: 'Próx. 30 dias' },
+              { value: '60', label: 'Próx. 60 dias' },
+              { value: 'month', label: 'Este Mês' },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setProvisaoFilter(opt.value)}
+                style={{
+                  padding: '4px 12px', borderRadius: 20, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                  border: provisaoFilter === opt.value ? '2px solid var(--brand-blue)' : '1px solid var(--border-color)',
+                  background: provisaoFilter === opt.value ? 'var(--brand-blue)' : 'var(--bg-card)',
+                  color: provisaoFilter === opt.value ? 'white' : 'var(--text-main)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
           {loading ? (
             <p>Carregando dados...</p>
           ) : provisaoData.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)' }}>Nenhuma conta pendente ou futura encontrada.</p>
+            <p style={{ color: 'var(--text-muted)' }}>Nenhuma conta pendente ou futura encontrada para o período selecionado.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
               {provisaoData.map(mes => (
