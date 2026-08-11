@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 const pdfParse = require('pdf-parse');
@@ -22,6 +23,7 @@ app.use(cors({
   preflightContinue: false,
   optionsSuccessStatus: 204,
 }));
+app.use(compression()); // ← gzip: reduz payload JSON em ~70%
 app.use(express.json({ limit: '10mb' }));
 
 // ─── MIDDLEWARE DE AUTENTICAÇÃO ────────────────────────────────────────────────
@@ -103,7 +105,13 @@ async function runMigrations() {
     // Adiciona colunas novas na Transaction
     await pool.query(`ALTER TABLE "Transaction" ADD COLUMN IF NOT EXISTS "companyId" TEXT;`);
     await pool.query(`ALTER TABLE "Transaction" ADD COLUMN IF NOT EXISTS "bankAccountId" TEXT;`);
-    console.log('✅ Migrações aplicadas com sucesso.');
+    // Criar índices no banco de produção para acelerar buscas
+    await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_transaction_status" ON "Transaction"(status);`).catch(() => {});
+    await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_transaction_type" ON "Transaction"(type);`).catch(() => {});
+    await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_transaction_context" ON "Transaction"(context);`).catch(() => {});
+    await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_transaction_dueDate" ON "Transaction"("dueDate");`).catch(() => {});
+    await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_transaction_companyId" ON "Transaction"("companyId");`).catch(() => {});
+    console.log('✅ Migrações e índices aplicados com sucesso.');
   } catch (e) {
     console.error('⚠️ Erro nas migrações (provavelmente já aplicadas):', e);
   } finally {
@@ -170,44 +178,41 @@ app.post('/api/auth/reset', async (req: Request, res: Response) => {
 // ─── TRANSAÇÕES (protegidas) ───────────────────────────────────────────────────
 app.get('/api/transactions', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const transactions = await prisma.transaction.findMany({
-      select: {
-        id: true,
-        description: true,
-        amount: true,
-        type: true,
-        status: true,
-        dueDate: true,
-        paymentDate: true,
-        isRecurring: true,
-        categoryId: true,
-        entityId: true,
-        companyId: true,
-        bankAccountId: true,
-        context: true,
-        createdAt: true,
-        updatedAt: true,
-        category: true,
-        entity: true,
-        company: true,
-        bankAccount: true,
-        // NÃO seleciona o attachmentUrl (Base64) para economizar banda!
-      },
-      orderBy: { dueDate: 'asc' },
-    });
+    // Paraleliza as 2 queries para reduzir tempo de resposta
+    const [transactions, withAttachments] = await Promise.all([
+      prisma.transaction.findMany({
+        select: {
+          id: true,
+          description: true,
+          amount: true,
+          type: true,
+          status: true,
+          dueDate: true,
+          paymentDate: true,
+          isRecurring: true,
+          categoryId: true,
+          entityId: true,
+          companyId: true,
+          bankAccountId: true,
+          context: true,
+          createdAt: true,
+          updatedAt: true,
+          category: true,
+          entity: true,
+          company: true,
+          bankAccount: true,
+          // NÃO seleciona attachmentUrl (Base64) para economizar banda!
+        },
+        orderBy: { dueDate: 'asc' },
+      }),
+      prisma.transaction.findMany({
+        where: { attachmentUrl: { not: null } },
+        select: { id: true },
+      }),
+    ]);
 
-    // Como o attachmentUrl é ignorado na query principal, buscamos apenas os IDs que possuem anexo
-    const withAttachments = await prisma.transaction.findMany({
-      where: { attachmentUrl: { not: null } },
-      select: { id: true },
-    });
-    
     const attachmentSet = new Set(withAttachments.map(t => t.id));
-
-    const result = transactions.map(t => ({
-      ...t,
-      hasAttachment: attachmentSet.has(t.id),
-    }));
+    const result = transactions.map(t => ({ ...t, hasAttachment: attachmentSet.has(t.id) }));
 
     res.json(result);
   } catch (e) { res.status(500).json({ error: 'Erro ao buscar transações.' }); }
