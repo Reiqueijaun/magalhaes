@@ -2,6 +2,9 @@ import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import compression from 'compression';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import hpp from 'hpp';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 const pdfParse = require('pdf-parse');
@@ -23,8 +26,27 @@ app.use(cors({
   preflightContinue: false,
   optionsSuccessStatus: 204,
 }));
+
+// Proteções Globais
+app.use(helmet()); // Blindagem básica de cabeçalhos de segurança (XSS, Sniffing, Clickjacking)
+app.use(hpp());    // Impede ataque de poluição de parâmetros HTTP
 app.use(compression()); // ← gzip: reduz payload JSON em ~70%
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '10mb' })); // Limita o body para evitar DoS por carga excessiva
+
+// Limite Global da API (Evita DoS generalizado - 200 reqs / min / IP)
+const globalLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, 
+  max: 200, 
+  message: { error: 'Muitas requisições deste IP, tente novamente em um minuto.' }
+});
+app.use('/api', globalLimiter);
+
+// Limite Rigoroso para Login e Recuperação de Senha (Evita Força Bruta)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 5, // Apenas 5 tentativas por IP
+  message: { error: 'Muitas tentativas de login ou recuperação. Seu IP foi bloqueado temporariamente por questões de segurança. Tente novamente em 15 minutos.' }
+});
 
 // ─── MIDDLEWARE DE AUTENTICAÇÃO ────────────────────────────────────────────────
 const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
@@ -122,12 +144,12 @@ async function runMigrations() {
 // ─── AUTH ──────────────────────────────────────────────────────────────────────
 
 // Cadastro (Desativado: Sistema exclusivo para 1 usuário)
-app.post('/api/auth/register', async (req: Request, res: Response) => {
+app.post('/api/auth/register', authLimiter, async (req: Request, res: Response) => {
   res.status(403).json({ error: 'O cadastro de novos usuários está desativado por questões de segurança.' });
 });
 
 // Login
-app.post('/api/auth/login', async (req: Request, res: Response) => {
+app.post('/api/auth/login', authLimiter, async (req: Request, res: Response) => {
   const { email, password } = req.body;
   try {
     const user = await prisma.user.findUnique({ where: { email } });
@@ -142,7 +164,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
 });
 
 // ─── RECUPERAÇÃO DE SENHA (VIA PIN MESTRE) ────────────────────────────────────
-app.post('/api/auth/reset', async (req: Request, res: Response) => {
+app.post('/api/auth/reset', authLimiter, async (req: Request, res: Response) => {
   const { email, newPassword, pin } = req.body;
   if (!email || !newPassword || !pin) {
     res.status(400).json({ error: 'Preencha todos os campos.' });

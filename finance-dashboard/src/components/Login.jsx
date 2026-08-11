@@ -27,6 +27,12 @@ export default function Login({ onLogin }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, newPassword: password, pin }),
         });
+        
+        if (res.status === 429) {
+          setError('🚨 Você tentou redefinir a senha muitas vezes. Seu IP foi bloqueado por segurança. Tente novamente daqui a 15 minutos.');
+          return;
+        }
+
         const data = await res.json();
         if (!res.ok) { setError(data.error || 'Erro ao resetar senha'); return; }
         
@@ -49,6 +55,12 @@ export default function Login({ onLogin }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
+      
+      if (res.status === 429) {
+        setError('🚨 Múltiplas tentativas de acesso inválidas. Como medida de proteção contra invasões, o acesso foi bloqueado. Tente novamente em 15 minutos.');
+        return;
+      }
+
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Erro desconhecido'); return; }
       localStorage.setItem('token', data.token);
