@@ -61,6 +61,24 @@ const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
+// ─── MIDDLEWARE DE MÓDULO WAREHOUSE ───────────────────────────────────────────
+const warehouseAuthMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) { res.status(401).json({ error: 'Token não fornecido.' }); return; }
+  try {
+    const decoded: any = jwt.verify(token, JWT_SECRET);
+    const mod = decoded.module || 'FINANCE';
+    if (mod !== 'WAREHOUSE' && mod !== 'ADMIN') {
+      res.status(403).json({ error: 'Acesso negado. Módulo de almoxarifado requerido.' });
+      return;
+    }
+    (req as any).user = decoded;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Token inválido ou expirado.' });
+  }
+};
+
 // ─── HEALTH CHECK ──────────────────────────────────────────────────────────────
 app.get('/api/health', (_, res) => {
   res.json({ status: '✅ Backend Magalhaes operacional', database: 'PostgreSQL via Neon' });
@@ -199,6 +217,18 @@ async function runMigrations() {
     await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_stockmovement_productId" ON "StockMovement"("productId");`).catch(() => {});
     await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_stockmovement_type" ON "StockMovement"(type);`).catch(() => {});
     await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_stockmovement_date" ON "StockMovement"(date);`).catch(() => {});
+    // Módulo de usuário
+    await pool.query(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS module TEXT NOT NULL DEFAULT 'FINANCE';`);
+    // Categorias do almoxarifado
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "WarehouseCategory" (
+        id TEXT NOT NULL PRIMARY KEY,
+        name TEXT NOT NULL,
+        color TEXT NOT NULL DEFAULT '#64748b',
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
     console.log('✅ Migrações e índices aplicados com sucesso.');
   } catch (e) {
     console.error('⚠️ Erro nas migrações (provavelmente já aplicadas):', e);
@@ -222,8 +252,9 @@ app.post('/api/auth/login', authLimiter, async (req: Request, res: Response) => 
     if (!user) { res.status(401).json({ error: 'E-mail ou senha inválidos.' }); return; }
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) { res.status(401).json({ error: 'E-mail ou senha inválidos.' }); return; }
-    const token = jwt.sign({ id: user.id, name: user.name, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+    const module = (user as any).module || 'FINANCE';
+    const token = jwt.sign({ id: user.id, name: user.name, email: user.email, module }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, module } });
   } catch (error) {
     res.status(500).json({ error: 'Erro no servidor' });
   }
@@ -261,6 +292,30 @@ app.post('/api/auth/reset', authLimiter, async (req: Request, res: Response) => 
   } catch (error) {
     res.status(500).json({ error: 'Erro ao redefinir a senha.' });
   }
+});
+
+// Listar usuários (apenas ADMIN)
+app.get('/api/auth/users', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const users = await prisma.user.findMany({ select: { id: true, name: true, email: true, role: true, createdAt: true } });
+    res.json(users);
+  } catch { res.status(500).json({ error: 'Erro ao listar usuários.' }); }
+});
+
+// Atualizar módulo do usuário
+app.patch('/api/auth/users/:id/module', authMiddleware, async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  const { module } = req.body;
+  if (!['FINANCE', 'WAREHOUSE', 'ADMIN'].includes(module)) {
+    res.status(400).json({ error: 'Módulo inválido. Use FINANCE, WAREHOUSE ou ADMIN.' }); return;
+  }
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    await pool.query(`UPDATE "User" SET module=$1 WHERE id=$2`, [module, id]);
+    await pool.end();
+    res.json({ message: 'Módulo atualizado.' });
+  } catch { res.status(500).json({ error: 'Erro ao atualizar módulo.' }); }
 });
 
 // ─── TRANSAÇÕES (protegidas) ───────────────────────────────────────────────────
@@ -679,6 +734,44 @@ app.delete('/api/pf/goals/:id', authMiddleware, async (req: Request, res: Respon
 function genId() {
   return require('crypto').randomUUID();
 }
+
+// ── CATEGORIAS DO ALMOXARIFADO ────────────────────────────────────────────────
+app.get('/api/warehouse/categories', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const { rows } = await pool.query(`SELECT * FROM "WarehouseCategory" ORDER BY name ASC`);
+    await pool.end();
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: 'Erro ao buscar categorias.' }); }
+});
+
+app.post('/api/warehouse/categories', authMiddleware, async (req: Request, res: Response) => {
+  const { name, color } = req.body;
+  if (!name) { res.status(400).json({ error: 'Nome da categoria é obrigatório.' }); return; }
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const id = genId();
+    const { rows } = await pool.query(
+      `INSERT INTO "WarehouseCategory" (id, name, color) VALUES ($1,$2,$3) RETURNING *`,
+      [id, name, color || '#64748b']
+    );
+    await pool.end();
+    res.status(201).json(rows[0]);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao criar categoria.' }); }
+});
+
+app.delete('/api/warehouse/categories/:id', authMiddleware, async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    await pool.query(`DELETE FROM "WarehouseCategory" WHERE id=$1`, [id]);
+    await pool.end();
+    res.json({ message: 'Excluído.' });
+  } catch (e) { res.status(500).json({ error: 'Erro ao excluir categoria.' }); }
+});
 
 // ── FORNECEDORES DE ESTOQUE ──────────────────────────────────────────────────
 app.get('/api/warehouse/suppliers', authMiddleware, async (req: Request, res: Response) => {

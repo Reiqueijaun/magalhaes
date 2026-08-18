@@ -24,7 +24,7 @@ const MOVEMENT_TYPES = {
 
 const UNITS = ['UN', 'KG', 'CX', 'MT', 'LT', 'M²', 'PC', 'RL', 'PR', 'TON'];
 
-const token = () => localStorage.getItem('token');
+const token = () => localStorage.getItem('warehouse_token') || localStorage.getItem('token');
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` });
 
 // ─── API calls ────────────────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ function StockBar({ current, min }) {
 }
 
 // ─── MODAL: Produto ───────────────────────────────────────────────────────────
-function ProductModal({ product, locations, suppliers, onSave, onClose }) {
+function ProductModal({ product, locations, suppliers, categories, onSave, onClose }) {
   const [form, setForm] = useState(product ? {
     name: product.name, description: product.description || '', code: product.code,
     manufacturerCode: product.manufacturerCode || '', unit: product.unit || 'UN',
@@ -178,7 +178,10 @@ function ProductModal({ product, locations, suppliers, onSave, onClose }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Categoria</label>
-            <input value={form.category} onChange={e => f('category', e.target.value)} placeholder="Ex: Elétrico, Hidráulico..." style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem' }} />
+            <select value={form.category} onChange={e => f('category', e.target.value)} style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem' }}>
+              <option value="Geral">Geral</option>
+              {categories?.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+            </select>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -483,6 +486,7 @@ export default function WarehouseModule() {
   const [movements, setMovements] = useState([]);
   const [locations, setLocations] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -502,6 +506,7 @@ export default function WarehouseModule() {
   const [settingsTab, setSettingsTab] = useState('locations');
   const [newLoc, setNewLoc] = useState({ aisle: '', shelf: '', position: '' });
   const [newSup, setNewSup] = useState({ name: '', document: '', contact: '', email: '', phone: '' });
+  const [newCat, setNewCat] = useState({ name: '', color: '#64748b' });
 
   const loadAll = async () => {
     setLoading(true);
@@ -530,7 +535,7 @@ export default function WarehouseModule() {
   useEffect(() => { loadAll(); }, []);
 
   // Filtered products
-  const categories = [...new Set(products.map(p => p.category))].filter(Boolean).sort();
+  const uniqueCategories = [...new Set(products.map(p => p.category))].filter(Boolean).sort();
   const filteredProducts = products.filter(p => {
     const s = search.toLowerCase();
     const matchSearch = !s || p.name.toLowerCase().includes(s) || p.code.toLowerCase().includes(s) || (p.manufacturerCode || '').toLowerCase().includes(s);
@@ -586,6 +591,20 @@ export default function WarehouseModule() {
     loadAll();
   };
 
+  const handleAddCategory = async () => {
+    if (!newCat.name) return alert('Nome da categoria é obrigatório.');
+    await api.post('/api/warehouse/categories', newCat);
+    setNewCat({ name: '', color: '#64748b' });
+    loadAll();
+  };
+
+  const handleDeleteCategory = async (id) => {
+    if (confirm('Tem certeza? Isso excluirá apenas a categoria, os produtos ficarão com categoria "Geral".')) {
+      await api.del(`/api/warehouse/categories/${id}`);
+      loadAll();
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: '#64748b' }}>
@@ -598,7 +617,7 @@ export default function WarehouseModule() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, maxWidth: 1300, margin: '0 auto', width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, margin: '0 auto', width: '100%' }}>
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #243b9d 100%)', borderRadius: 16, padding: '1.5rem 2rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 8px 24px rgba(36,59,157,0.3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -711,7 +730,7 @@ export default function WarehouseModule() {
             </div>
             <select value={filterCat} onChange={e => setFilterCat(e.target.value)} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white', minWidth: 160 }}>
               <option value="">Todas as categorias</option>
-              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              {uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             <button onClick={() => { setEditProduct(null); setShowProductModal(true); }} style={{ padding: '0.55rem 1.1rem', background: 'linear-gradient(135deg, #243b9d, #1d3080)', color: 'white', borderRadius: 9, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', border: 'none' }}>
               <Plus size={16} /> Novo Produto
@@ -942,7 +961,11 @@ export default function WarehouseModule() {
         <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '1.5rem' }}>
           {/* Sub-tabs */}
           <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: 4, height: 'fit-content' }}>
-            {[{ id: 'locations', icon: MapPin, label: 'Localizações' }, { id: 'suppliers', icon: Truck, label: 'Fornecedores' }].map(t => {
+            {[
+              { id: 'locations', icon: MapPin, label: 'Localizações' },
+              { id: 'suppliers', icon: Truck, label: 'Fornecedores' },
+              { id: 'categories', icon: Tag, label: 'Categorias' }
+            ].map(t => {
               const Icon = t.icon;
               return (
                 <button key={t.id} onClick={() => setSettingsTab(t.id)} style={{ padding: '0.6rem 0.75rem', border: 'none', borderRadius: 8, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', background: settingsTab === t.id ? '#eef1f8' : 'transparent', color: settingsTab === t.id ? '#243b9d' : '#64748b' }}>
@@ -984,12 +1007,18 @@ export default function WarehouseModule() {
                     <p>Nenhuma localização cadastrada</p>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '1.25rem 1.5rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', padding: '1.5rem' }}>
                     {locations.map(l => (
-                      <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '5px 10px' }}>
-                        <MapPin size={13} color="#243b9d" />
-                        <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#243b9d' }}>{l.label}</span>
-                        <button onClick={() => handleDeleteLocation(l.id)} style={{ background: 'none', border: 'none', padding: 2, cursor: 'pointer', color: '#cbd5e1', lineHeight: 0 }}><X size={12} /></button>
+                      <div key={l.id} style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc' }}>
+                        <div>
+                          <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '1.1rem' }}>{l.label}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Corredor {l.aisle} · Prat. {l.shelf}</div>
+                        </div>
+                        <button onClick={() => {
+                          if(confirm('Excluir?')) {
+                            api.del(`/api/warehouse/locations/${l.id}`).then(loadAll);
+                          }
+                        }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 }}><Trash2 size={16} /></button>
                       </div>
                     ))}
                   </div>
@@ -1055,6 +1084,45 @@ export default function WarehouseModule() {
                 )}
               </div>
             )}
+
+            {settingsTab === 'categories' && (
+              <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0' }}>
+                  <h3 style={{ fontWeight: 700, color: '#243b9d', fontSize: '1rem', marginBottom: 12 }}>Gerenciar Categorias</h3>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 150 }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Nome da Categoria *</label>
+                      <input value={newCat.name} onChange={e => setNewCat(p => ({ ...p, name: e.target.value }))} placeholder="Ex: Elétrica, Hidráulica, EPI..." style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.85rem' }} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 60 }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>Cor</label>
+                      <input type="color" value={newCat.color} onChange={e => setNewCat(p => ({ ...p, color: e.target.value }))} style={{ padding: '0', border: '1px solid #e2e8f0', borderRadius: 8, height: '36px', width: '50px', cursor: 'pointer' }} />
+                    </div>
+                    <button onClick={handleAddCategory} style={{ padding: '0.5rem 1rem', background: 'linear-gradient(135deg, #243b9d, #1d3080)', color: 'white', borderRadius: 8, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, border: 'none', fontSize: '0.85rem' }}>
+                      <Plus size={14} /> Adicionar
+                    </button>
+                  </div>
+                </div>
+                {categories?.length === 0 ? (
+                  <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
+                    <Tag size={32} style={{ margin: '0 auto 8px', opacity: 0.3, display: 'block' }} />
+                    <p>Nenhuma categoria cadastrada</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', padding: '1.5rem' }}>
+                    {categories?.map(c => (
+                      <div key={c.id} style={{ padding: '1rem', border: `1px solid ${c.color}44`, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: `${c.color}11` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 12, height: 12, borderRadius: '50%', background: c.color }} />
+                          <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.95rem' }}>{c.name}</div>
+                        </div>
+                        <button onClick={() => handleDeleteCategory(c.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 }}><Trash2 size={16} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1065,6 +1133,7 @@ export default function WarehouseModule() {
           product={editProduct}
           locations={locations}
           suppliers={suppliers}
+          categories={categories}
           onSave={() => { setShowProductModal(false); setEditProduct(null); loadAll(); }}
           onClose={() => { setShowProductModal(false); setEditProduct(null); }}
         />

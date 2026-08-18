@@ -15,6 +15,7 @@ model User {
   email     String   @unique
   password  String
   role      String   @default("ADMIN")
+  module    String   @default("FINANCE") // 'FINANCE', 'WAREHOUSE', 'ADMIN'
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -191,6 +192,14 @@ model StockMovement {
   @@index([productId])
   @@index([type])
   @@index([date])
+}
+
+model WarehouseCategory {
+  id        String   @id @default(uuid())
+  name      String
+  color     String   @default("#64748b")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Goal {

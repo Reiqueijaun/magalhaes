@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Receipt, Clock, Wallet, Settings as SettingsIcon, LogOut, ArrowRightLeft, CalendarDays, FileBarChart2, User, Package } from 'lucide-react';
+import {
+  LayoutDashboard, Receipt, Clock, Wallet,
+  Settings as SettingsIcon, LogOut, ArrowRightLeft,
+  CalendarDays, FileBarChart2, User, Package
+} from 'lucide-react';
 import Reports from './components/Reports';
 import PersonalFinance from './components/PersonalFinance';
 import Dashboard from './components/Dashboard';
@@ -12,36 +16,108 @@ import Login from './components/Login';
 import Notifications from './components/Notifications';
 import Tutorial from './components/Tutorial';
 import WarehouseModule from './components/Warehouse';
+import WarehouseLogin from './components/WarehouseLogin';
 
+// ─── Detecta se o usuário está na rota do almoxarifado ───────────────────────
+const isWarehouseRoute = () => window.location.pathname.startsWith('/almox');
 
-function App() {
+// ─── APP DO ALMOXARIFADO (/almox) ────────────────────────────────────────────
+function WarehouseApp() {
+  const [user, setUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('warehouse_token');
+    const savedUser = localStorage.getItem('warehouse_user');
+    if (token && savedUser) setUser(JSON.parse(savedUser));
+    setAuthChecked(true);
+  }, []);
+
+  const handleLogin = (userData) => setUser(userData);
+
+  const handleLogout = () => {
+    localStorage.removeItem('warehouse_token');
+    localStorage.removeItem('warehouse_user');
+    setUser(null);
+  };
+
+  if (!authChecked) return null;
+  if (!user) return <WarehouseLogin onLogin={handleLogin} />;
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f4f7f6', display: 'flex', flexDirection: 'column' }}>
+      {/* Topbar do almoxarifado */}
+      <header style={{
+        height: 64, background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 2rem', boxShadow: '0 2px 8px rgba(0,0,0,0.3)', position: 'sticky', top: 0, zIndex: 20,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 36, height: 36, background: 'linear-gradient(135deg, #d97706, #b45309)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Package size={20} color="white" />
+          </div>
+          <div>
+            <div style={{ color: 'white', fontWeight: 800, fontSize: '1rem', lineHeight: 1.2 }}>Almoxarifado</div>
+            <div style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Magalhães Inteligência</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          <div style={{ textAlign: 'right' }}>
+            <p style={{ color: 'white', fontSize: '0.875rem', fontWeight: 600, margin: 0 }}>{user.name}</p>
+            <p style={{ color: '#64748b', fontSize: '0.72rem', margin: 0 }}>{user.email}</p>
+          </div>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, #d97706, #b45309)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '0.875rem' }}>
+            {user.name?.charAt(0).toUpperCase()}
+          </div>
+          <button
+            onClick={handleLogout}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#fca5a5', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+          >
+            <LogOut size={14} /> Sair
+          </button>
+        </div>
+      </header>
+
+      <main style={{ flex: 1, padding: '2rem', maxWidth: 1400, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+        <WarehouseModule />
+      </main>
+    </div>
+  );
+}
+
+// ─── APP FINANCEIRO (/) ───────────────────────────────────────────────────────
+function FinanceApp() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
 
-  // Checa se já existe token salvo no navegador
   useEffect(() => {
     const token = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
     if (token && savedUser) {
-      setUser(JSON.parse(savedUser));
-      // Exibe tutorial se preferência não foi desativada
-      const tutorialPref = localStorage.getItem('showTutorial');
-      if (tutorialPref !== 'false') {
-        setShowTutorial(true);
+      const parsedUser = JSON.parse(savedUser);
+      // Se usuário é só WAREHOUSE, redireciona para /almox
+      if (parsedUser.module === 'WAREHOUSE') {
+        window.location.href = '/almox';
+        return;
       }
+      setUser(parsedUser);
+      const tutorialPref = localStorage.getItem('showTutorial');
+      if (tutorialPref !== 'false') setShowTutorial(true);
     }
     setAuthChecked(true);
   }, []);
 
   const handleLogin = (userData) => {
-    setUser(userData);
-    // Mostra tutorial se o usuário ainda não desativou
-    const tutorialPref = localStorage.getItem('showTutorial');
-    if (tutorialPref !== 'false') {
-      setShowTutorial(true);
+    // Se usuário é só WAREHOUSE, redireciona
+    if (userData.module === 'WAREHOUSE') {
+      window.location.href = '/almox';
+      return;
     }
+    setUser(userData);
+    const tutorialPref = localStorage.getItem('showTutorial');
+    if (tutorialPref !== 'false') setShowTutorial(true);
   };
 
   const handleLogout = () => {
@@ -51,10 +127,7 @@ function App() {
     setCurrentView('dashboard');
   };
 
-  // Aguarda checar o token antes de renderizar
   if (!authChecked) return null;
-
-  // Exibe tela de login se não autenticado
   if (!user) return <Login onLogin={handleLogin} />;
 
   const renderView = () => {
@@ -67,7 +140,6 @@ function App() {
       case 'reports':    return <Reports />;
       case 'personal':   return <PersonalFinance />;
       case 'settings':   return <Settings />;
-      case 'warehouse':  return <WarehouseModule />;
       default:           return <Dashboard />;
     }
   };
@@ -82,7 +154,6 @@ function App() {
       case 'reports':    return 'Relatórios Financeiros';
       case 'personal':   return 'Finanças Pessoais';
       case 'settings':   return 'Configurações do Sistema';
-      case 'warehouse':  return 'Almoxarifado — Controle de Estoque';
       default:           return 'Painel Financeiro';
     }
   };
@@ -106,10 +177,10 @@ function App() {
             Transações
           </div>
           <button data-nav="pending" className={`nav-item ${currentView === 'pending' ? 'active' : ''}`} onClick={() => setCurrentView('pending')}>
-            <Clock size={20} /> A Pagar
+            <Clock size={20} /> Contas a Pagar
           </button>
           <button data-nav="receivable" className={`nav-item ${currentView === 'receivable' ? 'active' : ''}`} onClick={() => setCurrentView('receivable')}>
-            <ArrowRightLeft size={20} /> A Receber
+            <ArrowRightLeft size={20} /> Contas a Receber
           </button>
           <button data-nav="expenses" className={`nav-item ${currentView === 'expenses' ? 'active' : ''}`} onClick={() => setCurrentView('expenses')}>
             <Receipt size={20} /> Histórico Pago
@@ -125,14 +196,6 @@ function App() {
             <FileBarChart2 size={20} /> Relatórios
           </button>
 
-          {/* Separador Operações */}
-          <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', fontWeight: 700, color: '#d97706', marginTop: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: '0.8rem' }}>📦</span> Operações
-          </div>
-          <button data-nav="warehouse" className={`nav-item ${currentView === 'warehouse' ? 'active' : ''}`} onClick={() => setCurrentView('warehouse')} style={{ color: currentView === 'warehouse' ? 'white' : '#d97706', background: currentView === 'warehouse' ? 'linear-gradient(135deg, #d97706, #b45309)' : 'rgba(217,119,6,0.08)', fontWeight: 600 }}>
-            <Package size={20} /> Almoxarifado
-          </button>
-
           {/* Separador PF */}
           <div style={{ margin: '0.5rem 1rem', borderTop: '1px solid var(--border-color)' }} />
           <div style={{ padding: '0 1rem 0.5rem', fontSize: '0.7rem', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -141,6 +204,19 @@ function App() {
           <button data-nav="personal" className={`nav-item ${currentView === 'personal' ? 'active' : ''}`} onClick={() => setCurrentView('personal')} style={{ color: currentView === 'personal' ? 'white' : '#7c3aed', background: currentView === 'personal' ? 'linear-gradient(135deg, #7c3aed, #4f46e5)' : 'rgba(124,58,237,0.08)', fontWeight: 600 }}>
             <User size={20} /> Finanças Pessoais
           </button>
+
+          {/* Link para almoxarifado (só ADMIN vê) */}
+          {user.module === 'ADMIN' && (
+            <>
+              <div style={{ margin: '0.5rem 1rem', borderTop: '1px solid var(--border-color)' }} />
+              <a href="/almox" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0.75rem 1rem', borderRadius: 8, color: '#d97706', background: 'rgba(217,119,6,0.08)', fontWeight: 600, fontSize: '0.875rem', textDecoration: 'none', transition: 'all 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(217,119,6,0.15)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(217,119,6,0.08)'}
+              >
+                <Package size={20} /> Almoxarifado ↗
+              </a>
+            </>
+          )}
 
           <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
             <button data-nav="settings" className={`nav-item ${currentView === 'settings' ? 'active' : ''}`} onClick={() => setCurrentView('settings')}>
@@ -180,6 +256,12 @@ function App() {
       )}
     </div>
   );
+}
+
+// ─── ROTEADOR PRINCIPAL ───────────────────────────────────────────────────────
+function App() {
+  if (isWarehouseRoute()) return <WarehouseApp />;
+  return <FinanceApp />;
 }
 
 export default App;
