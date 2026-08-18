@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  Package, Warehouse, TrendingUp, TrendingDown, AlertTriangle,
+  Package, Warehouse, AlertTriangle,
   Plus, Search, Edit2, Trash2, X, Check, Upload, MapPin,
   Truck, BarChart2, ArrowUpCircle, ArrowDownCircle, ShoppingCart,
-  RotateCcw, Settings, Eye, FileText, ChevronDown, Filter,
+  RotateCcw, Settings, Eye, FileText,
   DollarSign, Hash, Tag, Box, Layers
 } from 'lucide-react';
 import API_URL from '../config.js';
@@ -577,25 +577,6 @@ export default function WarehouseModule() {
     await api.post('/api/warehouse/suppliers', newSup);
     setNewSup({ name: '', document: '', contact: '', email: '', phone: '' });
     loadAll();
-  };
-
-  // ─── ABC Curve for Reports ────────────────────────────────────────────────
-  const abcData = () => {
-    const totals = {};
-    movements.filter(m => m.type === 'SALE' || m.type === 'EXIT').forEach(m => {
-      totals[m.productId] = (totals[m.productId] || 0) + (m.totalPrice || 0);
-    });
-    const sorted = Object.entries(totals).map(([id, total]) => {
-      const p = products.find(x => x.id === id);
-      return { id, name: p?.name || id, code: p?.code || '', total };
-    }).sort((a, b) => b.total - a.total);
-    const grandTotal = sorted.reduce((s, x) => s + x.total, 0);
-    let acc = 0;
-    return sorted.map(x => {
-      acc += x.total;
-      const pct = grandTotal > 0 ? (acc / grandTotal) * 100 : 0;
-      return { ...x, pct, curve: pct <= 70 ? 'A' : pct <= 90 ? 'B' : 'C' };
-    });
   };
 
   if (loading) {
