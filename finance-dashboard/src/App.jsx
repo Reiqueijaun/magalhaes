@@ -74,11 +74,11 @@ function App() {
 
   const getPageTitle = () => {
     switch (currentView) {
-      case 'dashboard':  return 'Painel Financeiro e Fluxo de Caixa';
-      case 'expenses':   return 'Histórico de Despesas';
-      case 'pending':    return 'Contas a Pagar';
-      case 'receivable': return 'Contas a Receber';
-      case 'calendar':   return 'Calendário Financeiro';
+      case 'dashboard':  return 'Visão Geral & Fluxo de Caixa';
+      case 'calendar':   return 'Agenda & Calendário Diário';
+      case 'pending':    return 'Contas a Pagar & Boletos de Fornecedores';
+      case 'receivable': return 'Contas a Receber & Vendas de Peças';
+      case 'expenses':   return 'Extrato & Histórico de Pagamentos';
       case 'reports':    return 'Relatórios Financeiros';
       case 'personal':   return 'Finanças Pessoais';
       case 'settings':   return 'Configurações do Sistema';
@@ -104,27 +104,28 @@ function App() {
                 <LayoutDashboard size={20} /> Visão Geral
               </button>
 
+              <button data-nav="calendar" className={`nav-item ${currentView === 'calendar' ? 'active' : ''}`} onClick={() => setCurrentView('calendar')}>
+                <CalendarDays size={20} /> 📅 Agenda & Calendário
+              </button>
+
               <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', marginTop: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Transações
+                Gestão de Contas & Boletos
               </div>
               <button data-nav="pending" className={`nav-item ${currentView === 'pending' ? 'active' : ''}`} onClick={() => setCurrentView('pending')}>
-                <Clock size={20} /> Contas a Pagar
+                <Clock size={20} /> Contas a Pagar (Boletos)
               </button>
               <button data-nav="receivable" className={`nav-item ${currentView === 'receivable' ? 'active' : ''}`} onClick={() => setCurrentView('receivable')}>
                 <ArrowRightLeft size={20} /> Contas a Receber
               </button>
               <button data-nav="expenses" className={`nav-item ${currentView === 'expenses' ? 'active' : ''}`} onClick={() => setCurrentView('expenses')}>
-                <Receipt size={20} /> Histórico Pago
+                <Receipt size={20} /> Extrato & Histórico Pago
               </button>
 
               <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', marginTop: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Planejamento
+                Análise
               </div>
-              <button data-nav="calendar" className={`nav-item ${currentView === 'calendar' ? 'active' : ''}`} onClick={() => setCurrentView('calendar')}>
-                <CalendarDays size={20} /> Calendário
-              </button>
               <button data-nav="reports" className={`nav-item ${currentView === 'reports' ? 'active' : ''}`} onClick={() => setCurrentView('reports')}>
-                <FileBarChart2 size={20} /> Relatórios
+                <FileBarChart2 size={20} /> Relatórios Financeiros
               </button>
 
               <div style={{ margin: '0.5rem 1rem', borderTop: '1px solid var(--border-color)' }} />
