@@ -505,19 +505,26 @@ export default function WarehouseModule() {
 
   const loadAll = async () => {
     setLoading(true);
-    const [prods, movs, locs, sups, sum] = await Promise.all([
-      api.get('/api/warehouse/products'),
-      api.get('/api/warehouse/movements?limit=200'),
-      api.get('/api/warehouse/locations'),
-      api.get('/api/warehouse/suppliers'),
-      api.get('/api/warehouse/summary'),
-    ]);
-    setProducts(Array.isArray(prods) ? prods : []);
-    setMovements(Array.isArray(movs) ? movs : []);
-    setLocations(Array.isArray(locs) ? locs : []);
-    setSuppliers(Array.isArray(sups) ? sups : []);
-    setSummary(sum && !sum.error ? sum : null);
-    setLoading(false);
+    try {
+      const results = await Promise.allSettled([
+        api.get('/api/warehouse/products'),
+        api.get('/api/warehouse/movements?limit=200'),
+        api.get('/api/warehouse/locations'),
+        api.get('/api/warehouse/suppliers'),
+        api.get('/api/warehouse/summary'),
+      ]);
+      const val = (r) => (r.status === 'fulfilled' ? r.value : null);
+      const [prods, movs, locs, sups, sum] = results.map(val);
+      setProducts(Array.isArray(prods) ? prods : []);
+      setMovements(Array.isArray(movs) ? movs : []);
+      setLocations(Array.isArray(locs) ? locs : []);
+      setSuppliers(Array.isArray(sups) ? sups : []);
+      setSummary(sum && !sum.error ? sum : null);
+    } catch (e) {
+      console.error('Erro ao carregar almoxarifado:', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { loadAll(); }, []);
