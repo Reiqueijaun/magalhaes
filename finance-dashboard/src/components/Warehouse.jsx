@@ -24,7 +24,7 @@ const MOVEMENT_TYPES = {
 
 const UNITS = ['UN', 'KG', 'CX', 'MT', 'LT', 'M²', 'PC', 'RL', 'PR', 'TON'];
 
-const token = () => localStorage.getItem('warehouse_token') || localStorage.getItem('token');
+const token = () => localStorage.getItem('token');
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` });
 
 // ─── API calls ────────────────────────────────────────────────────────────────
