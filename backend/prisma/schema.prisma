@@ -114,6 +114,85 @@ model Budget {
   @@index([month, year, context])
 }
 
+// ─── ALMOXARIFADO ─────────────────────────────────────────────────────────────
+
+model StockSupplier {
+  id        String   @id @default(uuid())
+  name      String
+  document  String?  // CNPJ
+  contact   String?
+  email     String?
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products  Product[]
+}
+
+model StockLocation {
+  id       String  @id @default(uuid())
+  aisle    String  // Corredor (ex: A, B, C)
+  shelf    String  // Prateleira (ex: 01, 02)
+  position String  // Posição (ex: 01, 02)
+  label    String  // Ex: A-01-01 (gerado automaticamente)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+}
+
+model Product {
+  id               String   @id @default(uuid())
+  name             String
+  description      String?
+  code             String   @unique // Código interno
+  manufacturerCode String?  // Código do fabricante
+  imageUrl         String?  // Foto em Base64
+  unit             String   @default("UN") // UN, KG, CX, MT, LT...
+  category         String   @default("Geral")
+  minStock         Float    @default(0)
+  currentStock     Float    @default(0)
+  costPrice        Float    @default(0)
+  salePrice        Float    @default(0)
+  active           Boolean  @default(true)
+
+  locationId  String?
+  location    StockLocation? @relation(fields: [locationId], references: [id])
+
+  supplierId  String?
+  supplier    StockSupplier? @relation(fields: [supplierId], references: [id])
+
+  movements   StockMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([code])
+  @@index([category])
+  @@index([active])
+}
+
+model StockMovement {
+  id          String   @id @default(uuid())
+  type        String   // 'ENTRY', 'EXIT', 'SALE', 'ADJUSTMENT', 'RETURN'
+  quantity    Float
+  unitPrice   Float    @default(0)
+  totalPrice  Float    @default(0)
+  reason      String?  // Motivo / discriminação
+  document    String?  // NF, pedido, etc.
+  date        DateTime @default(now())
+  createdBy   String?  // Nome do usuário
+
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([type])
+  @@index([date])
+}
+
 model Goal {
   id            String   @id @default(uuid())
   name          String

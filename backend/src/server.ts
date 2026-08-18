@@ -133,6 +133,72 @@ async function runMigrations() {
     await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_transaction_context" ON "Transaction"(context);`).catch(() => {});
     await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_transaction_dueDate" ON "Transaction"("dueDate");`).catch(() => {});
     await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_transaction_companyId" ON "Transaction"("companyId");`).catch(() => {});
+    
+    // ─── ALMOXARIFADO ─────────────────────────────────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "StockSupplier" (
+        id TEXT NOT NULL PRIMARY KEY,
+        name TEXT NOT NULL,
+        document TEXT,
+        contact TEXT,
+        email TEXT,
+        phone TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "StockLocation" (
+        id TEXT NOT NULL PRIMARY KEY,
+        aisle TEXT NOT NULL,
+        shelf TEXT NOT NULL,
+        position TEXT NOT NULL,
+        label TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "Product" (
+        id TEXT NOT NULL PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        code TEXT NOT NULL UNIQUE,
+        "manufacturerCode" TEXT,
+        "imageUrl" TEXT,
+        unit TEXT NOT NULL DEFAULT 'UN',
+        category TEXT NOT NULL DEFAULT 'Geral',
+        "minStock" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "currentStock" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "costPrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "salePrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        active BOOLEAN NOT NULL DEFAULT true,
+        "locationId" TEXT,
+        "supplierId" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "StockMovement" (
+        id TEXT NOT NULL PRIMARY KEY,
+        type TEXT NOT NULL,
+        quantity DOUBLE PRECISION NOT NULL,
+        "unitPrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "totalPrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        reason TEXT,
+        document TEXT,
+        date TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "createdBy" TEXT,
+        "productId" TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_product_code" ON "Product"(code);`).catch(() => {});
+    await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_product_active" ON "Product"(active);`).catch(() => {});
+    await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_stockmovement_productId" ON "StockMovement"("productId");`).catch(() => {});
+    await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_stockmovement_type" ON "StockMovement"(type);`).catch(() => {});
+    await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_stockmovement_date" ON "StockMovement"(date);`).catch(() => {});
     console.log('✅ Migrações e índices aplicados com sucesso.');
   } catch (e) {
     console.error('⚠️ Erro nas migrações (provavelmente já aplicadas):', e);
@@ -605,6 +671,330 @@ app.patch('/api/pf/goals/:id/deposit', authMiddleware, async (req: Request, res:
 app.delete('/api/pf/goals/:id', authMiddleware, async (req: Request, res: Response) => {
   await (prisma as any).goal.delete({ where: { id: String(req.params.id) } });
   res.json({ message: 'Excluído.' });
+});
+
+// ─── ALMOXARIFADO ─────────────────────────────────────────────────────────────
+
+// Helper para gerar UUID simples
+function genId() {
+  return require('crypto').randomUUID();
+}
+
+// ── FORNECEDORES DE ESTOQUE ──────────────────────────────────────────────────
+app.get('/api/warehouse/suppliers', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const { rows } = await pool.query(`SELECT * FROM "StockSupplier" ORDER BY name ASC`);
+    await pool.end();
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: 'Erro ao buscar fornecedores.' }); }
+});
+
+app.post('/api/warehouse/suppliers', authMiddleware, async (req: Request, res: Response) => {
+  const { name, document, contact, email, phone } = req.body;
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const id = genId();
+    const { rows } = await pool.query(
+      `INSERT INTO "StockSupplier" (id, name, document, contact, email, phone) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [id, name, document || null, contact || null, email || null, phone || null]
+    );
+    await pool.end();
+    res.status(201).json(rows[0]);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao criar fornecedor.' }); }
+});
+
+app.delete('/api/warehouse/suppliers/:id', authMiddleware, async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    await pool.query(`DELETE FROM "StockSupplier" WHERE id=$1`, [id]);
+    await pool.end();
+    res.json({ message: 'Excluído.' });
+  } catch (e) { res.status(500).json({ error: 'Erro ao excluir fornecedor.' }); }
+});
+
+// ── LOCALIZAÇÕES ─────────────────────────────────────────────────────────────
+app.get('/api/warehouse/locations', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const { rows } = await pool.query(`SELECT * FROM "StockLocation" ORDER BY label ASC`);
+    await pool.end();
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: 'Erro ao buscar localizações.' }); }
+});
+
+app.post('/api/warehouse/locations', authMiddleware, async (req: Request, res: Response) => {
+  const { aisle, shelf, position } = req.body;
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const id = genId();
+    const label = `${String(aisle).toUpperCase()}-${String(shelf).padStart(2,'0')}-${String(position).padStart(2,'0')}`;
+    const { rows } = await pool.query(
+      `INSERT INTO "StockLocation" (id, aisle, shelf, position, label) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [id, aisle, shelf, position, label]
+    );
+    await pool.end();
+    res.status(201).json(rows[0]);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao criar localização.' }); }
+});
+
+app.delete('/api/warehouse/locations/:id', authMiddleware, async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    await pool.query(`DELETE FROM "StockLocation" WHERE id=$1`, [id]);
+    await pool.end();
+    res.json({ message: 'Excluído.' });
+  } catch (e) { res.status(500).json({ error: 'Erro ao excluir localização.' }); }
+});
+
+// ── PRODUTOS ─────────────────────────────────────────────────────────────────
+app.get('/api/warehouse/products', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const { rows } = await pool.query(`
+      SELECT p.*, 
+        sl.label as "locationLabel", sl.aisle, sl.shelf, sl.position,
+        ss.name as "supplierName", ss.document as "supplierDocument"
+      FROM "Product" p
+      LEFT JOIN "StockLocation" sl ON p."locationId" = sl.id
+      LEFT JOIN "StockSupplier" ss ON p."supplierId" = ss.id
+      ORDER BY p.name ASC
+    `);
+    // Remove imageUrl from listing for performance (fetch individually)
+    const result = rows.map((r: any) => { const { imageUrl, ...rest } = r; return { ...rest, hasImage: !!imageUrl }; });
+    await pool.end();
+    res.json(result);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao buscar produtos.' }); }
+});
+
+app.get('/api/warehouse/products/:id', authMiddleware, async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const { rows } = await pool.query(`
+      SELECT p.*,
+        sl.label as "locationLabel", sl.aisle, sl.shelf, sl.position,
+        ss.name as "supplierName", ss.document as "supplierDocument"
+      FROM "Product" p
+      LEFT JOIN "StockLocation" sl ON p."locationId" = sl.id
+      LEFT JOIN "StockSupplier" ss ON p."supplierId" = ss.id
+      WHERE p.id = $1
+    `, [id]);
+    await pool.end();
+    if (!rows[0]) return res.status(404).json({ error: 'Produto não encontrado.' });
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ error: 'Erro ao buscar produto.' }); }
+});
+
+app.get('/api/warehouse/products/:id/image', authMiddleware, async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const { rows } = await pool.query(`SELECT "imageUrl" FROM "Product" WHERE id=$1`, [id]);
+    await pool.end();
+    if (!rows[0] || !rows[0].imageUrl) return res.status(404).json({ error: 'Imagem não encontrada.' });
+    res.json({ imageUrl: rows[0].imageUrl });
+  } catch (e) { res.status(500).json({ error: 'Erro ao buscar imagem.' }); }
+});
+
+app.post('/api/warehouse/products', authMiddleware, async (req: Request, res: Response) => {
+  const { name, description, code, manufacturerCode, imageUrl, unit, category, minStock, costPrice, salePrice, locationId, supplierId } = req.body;
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const id = genId();
+    const { rows } = await pool.query(`
+      INSERT INTO "Product" (id, name, description, code, "manufacturerCode", "imageUrl", unit, category, "minStock", "costPrice", "salePrice", "locationId", "supplierId", "currentStock")
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,0)
+      RETURNING id, name, description, code, "manufacturerCode", unit, category, "minStock", "currentStock", "costPrice", "salePrice", "locationId", "supplierId", active, "createdAt", "updatedAt"
+    `, [id, name, description||null, code, manufacturerCode||null, imageUrl||null, unit||'UN', category||'Geral', Number(minStock)||0, Number(costPrice)||0, Number(salePrice)||0, locationId||null, supplierId||null]);
+    await pool.end();
+    res.status(201).json(rows[0]);
+  } catch (e: any) {
+    console.error(e);
+    if (e.code === '23505') return res.status(400).json({ error: 'Código já existe. Use um código único.' });
+    res.status(500).json({ error: 'Erro ao criar produto.' });
+  }
+});
+
+app.patch('/api/warehouse/products/:id', authMiddleware, async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  const { name, description, code, manufacturerCode, unit, category, minStock, costPrice, salePrice, locationId, supplierId, active } = req.body;
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    await pool.query(`
+      UPDATE "Product" SET
+        name=COALESCE($1,name), description=COALESCE($2,description), code=COALESCE($3,code),
+        "manufacturerCode"=COALESCE($4,"manufacturerCode"), unit=COALESCE($5,unit), category=COALESCE($6,category),
+        "minStock"=COALESCE($7,"minStock"), "costPrice"=COALESCE($8,"costPrice"), "salePrice"=COALESCE($9,"salePrice"),
+        "locationId"=$10, "supplierId"=$11, active=COALESCE($12,active), "updatedAt"=NOW()
+      WHERE id=$13
+    `, [name||null, description||null, code||null, manufacturerCode||null, unit||null, category||null,
+        minStock!=null?Number(minStock):null, costPrice!=null?Number(costPrice):null, salePrice!=null?Number(salePrice):null,
+        locationId||null, supplierId||null, active!=null?Boolean(active):null, id]);
+    const { rows } = await pool.query(`SELECT * FROM "Product" WHERE id=$1`, [id]);
+    await pool.end();
+    res.json(rows[0]);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao atualizar produto.' }); }
+});
+
+app.patch('/api/warehouse/products/:id/image', authMiddleware, async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  const { imageUrl } = req.body;
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    await pool.query(`UPDATE "Product" SET "imageUrl"=$1, "updatedAt"=NOW() WHERE id=$2`, [imageUrl, id]);
+    await pool.end();
+    res.json({ message: 'Imagem atualizada.' });
+  } catch (e) { res.status(500).json({ error: 'Erro ao atualizar imagem.' }); }
+});
+
+app.delete('/api/warehouse/products/:id', authMiddleware, async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    await pool.query(`DELETE FROM "StockMovement" WHERE "productId"=$1`, [id]);
+    await pool.query(`DELETE FROM "Product" WHERE id=$1`, [id]);
+    await pool.end();
+    res.json({ message: 'Produto e histórico excluídos.' });
+  } catch (e) { res.status(500).json({ error: 'Erro ao excluir produto.' }); }
+});
+
+// ── MOVIMENTAÇÕES ────────────────────────────────────────────────────────────
+app.get('/api/warehouse/movements', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const { productId, type, from, to, limit } = req.query;
+    let query = `SELECT m.*, p.name as "productName", p.code as "productCode", p.unit as "productUnit"
+      FROM "StockMovement" m
+      JOIN "Product" p ON m."productId" = p.id
+      WHERE 1=1`;
+    const params: any[] = [];
+    if (productId) { params.push(productId); query += ` AND m."productId"=$${params.length}`; }
+    if (type) { params.push(type); query += ` AND m.type=$${params.length}`; }
+    if (from) { params.push(from); query += ` AND m.date >= $${params.length}`; }
+    if (to) { params.push(to); query += ` AND m.date <= $${params.length}`; }
+    query += ` ORDER BY m.date DESC`;
+    if (limit) { params.push(Number(limit)); query += ` LIMIT $${params.length}`; }
+    const { rows } = await pool.query(query, params);
+    await pool.end();
+    res.json(rows);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao buscar movimentações.' }); }
+});
+
+app.post('/api/warehouse/movements', authMiddleware, async (req: Request, res: Response) => {
+  const { productId, type, quantity, unitPrice, reason, document, date } = req.body;
+  const user = (req as any).user;
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    
+    // Busca produto atual
+    const { rows: prodRows } = await pool.query(`SELECT * FROM "Product" WHERE id=$1`, [productId]);
+    if (!prodRows[0]) { await pool.end(); return res.status(404).json({ error: 'Produto não encontrado.' }); }
+    const prod = prodRows[0];
+    
+    const qty = Number(quantity);
+    const price = Number(unitPrice) || prod.costPrice;
+    const total = qty * price;
+    const id = genId();
+    const movDate = date ? new Date(date) : new Date();
+    
+    // Calcula novo estoque
+    let newStock = prod.currentStock;
+    if (type === 'ENTRY' || type === 'RETURN') newStock += qty;
+    else if (type === 'EXIT' || type === 'SALE' || type === 'ADJUSTMENT') newStock = Math.max(0, newStock - qty);
+    
+    // Insere movimentação
+    const { rows } = await pool.query(`
+      INSERT INTO "StockMovement" (id, "productId", type, quantity, "unitPrice", "totalPrice", reason, document, date, "createdBy")
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *
+    `, [id, productId, type, qty, price, total, reason||null, document||null, movDate, user?.name||null]);
+    
+    // Atualiza estoque do produto
+    await pool.query(`UPDATE "Product" SET "currentStock"=$1, "updatedAt"=NOW() WHERE id=$2`, [newStock, productId]);
+    
+    await pool.end();
+    res.status(201).json({ ...rows[0], newStock });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao registrar movimentação.' }); }
+});
+
+// ── DASHBOARD / RESUMO DO ESTOQUE ────────────────────────────────────────────
+app.get('/api/warehouse/summary', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    const [totals, lowStock, movements] = await Promise.all([
+      pool.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE active=true) as "totalProducts",
+          SUM("currentStock" * "costPrice") FILTER (WHERE active=true) as "totalValue",
+          SUM("currentStock") FILTER (WHERE active=true) as "totalItems",
+          COUNT(*) FILTER (WHERE active=true AND "currentStock" <= "minStock" AND "minStock" > 0) as "lowStockCount"
+        FROM "Product"
+      `),
+      pool.query(`
+        SELECT p.id, p.name, p.code, p."currentStock", p."minStock", p.unit, sl.label as "locationLabel"
+        FROM "Product" p
+        LEFT JOIN "StockLocation" sl ON p."locationId" = sl.id
+        WHERE p.active=true AND p."currentStock" <= p."minStock" AND p."minStock" > 0
+        ORDER BY (p."currentStock" / NULLIF(p."minStock",0)) ASC
+        LIMIT 10
+      `),
+      pool.query(`
+        SELECT type, COUNT(*) as count, SUM("totalPrice") as total
+        FROM "StockMovement"
+        WHERE date >= $1
+        GROUP BY type
+      `, [startOfMonth]),
+    ]);
+    
+    await pool.end();
+    res.json({
+      totalProducts: parseInt(totals.rows[0].totalProducts) || 0,
+      totalValue: parseFloat(totals.rows[0].totalValue) || 0,
+      totalItems: parseFloat(totals.rows[0].totalItems) || 0,
+      lowStockCount: parseInt(totals.rows[0].lowStockCount) || 0,
+      lowStockItems: lowStock.rows,
+      movementsByType: movements.rows,
+    });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao buscar resumo do estoque.' }); }
+});
+
+app.get('/api/warehouse/low-stock', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const { rows } = await pool.query(`
+      SELECT p.*, sl.label as "locationLabel", ss.name as "supplierName"
+      FROM "Product" p
+      LEFT JOIN "StockLocation" sl ON p."locationId" = sl.id
+      LEFT JOIN "StockSupplier" ss ON p."supplierId" = ss.id
+      WHERE p.active=true AND p."currentStock" <= p."minStock" AND p."minStock" > 0
+      ORDER BY (p."currentStock" / NULLIF(p."minStock",0)) ASC
+    `);
+    await pool.end();
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: 'Erro ao buscar produtos com estoque baixo.' }); }
 });
 
 app.listen(port, () => {

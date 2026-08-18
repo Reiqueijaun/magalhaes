@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Receipt, Clock, Wallet, Settings as SettingsIcon, LogOut, ArrowRightLeft, CalendarDays, FileBarChart2, User } from 'lucide-react';
+import { LayoutDashboard, Receipt, Clock, Wallet, Settings as SettingsIcon, LogOut, ArrowRightLeft, CalendarDays, FileBarChart2, User, Package } from 'lucide-react';
 import Reports from './components/Reports';
 import PersonalFinance from './components/PersonalFinance';
 import Dashboard from './components/Dashboard';
@@ -11,6 +11,7 @@ import Settings from './components/Settings';
 import Login from './components/Login';
 import Notifications from './components/Notifications';
 import Tutorial from './components/Tutorial';
+import WarehouseModule from './components/Warehouse';
 
 
 function App() {
@@ -66,6 +67,7 @@ function App() {
       case 'reports':    return <Reports />;
       case 'personal':   return <PersonalFinance />;
       case 'settings':   return <Settings />;
+      case 'warehouse':  return <WarehouseModule />;
       default:           return <Dashboard />;
     }
   };
@@ -80,6 +82,7 @@ function App() {
       case 'reports':    return 'Relatórios Financeiros';
       case 'personal':   return 'Finanças Pessoais';
       case 'settings':   return 'Configurações do Sistema';
+      case 'warehouse':  return 'Almoxarifado — Controle de Estoque';
       default:           return 'Painel Financeiro';
     }
   };
@@ -120,6 +123,14 @@ function App() {
           </button>
           <button data-nav="reports" className={`nav-item ${currentView === 'reports' ? 'active' : ''}`} onClick={() => setCurrentView('reports')}>
             <FileBarChart2 size={20} /> Relatórios
+          </button>
+
+          {/* Separador Operações */}
+          <div style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', fontWeight: 700, color: '#d97706', marginTop: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: '0.8rem' }}>📦</span> Operações
+          </div>
+          <button data-nav="warehouse" className={`nav-item ${currentView === 'warehouse' ? 'active' : ''}`} onClick={() => setCurrentView('warehouse')} style={{ color: currentView === 'warehouse' ? 'white' : '#d97706', background: currentView === 'warehouse' ? 'linear-gradient(135deg, #d97706, #b45309)' : 'rgba(217,119,6,0.08)', fontWeight: 600 }}>
+            <Package size={20} /> Almoxarifado
           </button>
 
           {/* Separador PF */}
