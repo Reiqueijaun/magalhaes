@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, CheckCircle2, FileText, Loader, Calendar, AlertCircle, Clock, TrendingDown, Trash2, Building, Tag, UserCheck, CreditCard } from 'lucide-react';
+import { Plus, CheckCircle2, FileText, Loader, Calendar, AlertCircle, Clock, TrendingDown, Trash2, Building2, Tag, UserCheck, CreditCard, Search, Filter } from 'lucide-react';
 import { authFetch } from '../config';
 import { formatCurrency, parseCurrency } from '../utils';
 import PayModal from './PayModal';
@@ -7,10 +7,9 @@ import ConfirmModal from './ConfirmModal';
 
 const fmt = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
-export default function Pending() {
+export default function Pending({ selectedCompanyId = 'all', companies = [] }) {
   const [tab, setTab] = useState('baixa');
   const [transactions, setTransactions] = useState([]);
-  const [companies, setCompanies] = useState([]);
   const [categories, setCategories] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [bankAccounts, setBankAccounts] = useState([]);
@@ -23,8 +22,19 @@ export default function Pending() {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
-  // Filtro rápido
-  const [quickFilter, setQuickFilter] = useState('all');
+  // Filtros Multidimensionais
+  const [quickFilter, setQuickFilter] = useState('all'); // 'all', 'today', '7', '30', 'month'
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterSupplier, setFilterSupplier] = useState('all');
+  const [filterCompany, setFilterCompany] = useState(selectedCompanyId || 'all');
+  const [search, setSearch] = useState('');
+
+  // Sincroniza filtro de empresa se mudar no topo
+  useEffect(() => {
+    if (selectedCompanyId) {
+      setFilterCompany(selectedCompanyId);
+    }
+  }, [selectedCompanyId]);
 
   // Form fields
   const [desc, setDesc] = useState('');
@@ -38,9 +48,8 @@ export default function Pending() {
 
   const fetchTransactions = async () => {
     try {
-      const [transRes, compRes, catRes, entRes, bankRes] = await Promise.all([
+      const [transRes, catRes, entRes, bankRes] = await Promise.all([
         authFetch('/api/transactions'),
-        authFetch('/api/companies'),
         authFetch('/api/categories'),
         authFetch('/api/entities'),
         authFetch('/api/bank-accounts'),
@@ -49,7 +58,6 @@ export default function Pending() {
         const data = await transRes.json();
         setTransactions(data.filter(t => t.type === 'OUT' && t.status === 'PENDING' && (!t.context || t.context === 'PJ')));
       }
-      if (compRes.ok) setCompanies(await compRes.json());
       if (catRes.ok) {
         const cats = await catRes.json();
         setCategories(cats.filter(c => c.type === 'OUT'));
@@ -68,17 +76,38 @@ export default function Pending() {
 
   useEffect(() => { fetchTransactions(); }, []);
 
+  // Filtragem Multidimensional
   const filtered = useMemo(() => {
     const now = new Date(); now.setHours(0,0,0,0);
     return transactions.filter(t => {
       const due = new Date(t.dueDate);
+
+      // Filtro de Empresa / Unidade
+      if (filterCompany !== 'all' && t.companyId !== filterCompany) return false;
+
+      // Filtro de Categoria
+      if (filterCategory !== 'all' && t.categoryId !== filterCategory) return false;
+
+      // Filtro de Fornecedor
+      if (filterSupplier !== 'all' && t.entityId !== filterSupplier) return false;
+
+      // Busca textual
+      const s = search.toLowerCase();
+      if (s) {
+        const matchDesc = t.description.toLowerCase().includes(s);
+        const matchSupplier = (t.entity?.name || '').toLowerCase().includes(s);
+        const matchCat = (t.category?.name || '').toLowerCase().includes(s);
+        if (!matchDesc && !matchSupplier && !matchCat) return false;
+      }
+
+      // Filtro de Vencimento
       if (quickFilter === 'today') return due <= new Date();
       if (quickFilter === '7') { const l = new Date(now); l.setDate(l.getDate()+7); return due <= l; }
       if (quickFilter === '30') { const l = new Date(now); l.setDate(l.getDate()+30); return due <= l; }
       if (quickFilter === 'month') return due <= new Date(now.getFullYear(), now.getMonth()+1, 0, 23,59,59);
       return true;
     });
-  }, [transactions, quickFilter]);
+  }, [transactions, quickFilter, filterCompany, filterCategory, filterSupplier, search]);
 
   const atrasadas = filtered.filter(t => new Date(t.dueDate) < new Date(new Date().setHours(0,0,0,0)));
   const hoje = filtered.filter(t => new Date(t.dueDate).toDateString() === new Date().toDateString());
@@ -102,7 +131,7 @@ export default function Pending() {
           type: 'OUT', 
           status: 'PENDING', 
           dueDate: dataVenc, 
-          companyId: companyId || null,
+          companyId: companyId || (filterCompany !== 'all' ? filterCompany : null),
           categoryId: categoryId || null,
           entityId: entityId || null,
           bankAccountId: bankAccountId || null,
@@ -242,10 +271,10 @@ export default function Pending() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
       {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
         {[
           {
-            icon: TrendingDown, label: 'Total a Pagar Pendente', value: fmt(totalPendente), color: '#ef4444', bg: '#fee2e2',
+            icon: TrendingDown, label: 'Total a Pagar Filtrado', value: fmt(totalPendente), color: '#ef4444', bg: '#fee2e2',
             sub: `${filtered.length} boleto(s)/conta(s) pendente(s)`
           },
           {
@@ -285,23 +314,103 @@ export default function Pending() {
 
       {/* TAB: Dar Baixa */}
       {tab === 'baixa' && (
-        <div>
-          {/* Filter chips */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
-            {FILTERS.map(f => (
-              <button key={f.v} onClick={() => setQuickFilter(f.v)} style={{ padding: '6px 14px', borderRadius: 20, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', border: quickFilter === f.v ? '2px solid #ef4444' : '1px solid #e2e8f0', background: quickFilter === f.v ? '#fee2e2' : 'white', color: quickFilter === f.v ? '#dc2626' : '#64748b', transition: 'all 0.15s' }}>{f.l}</button>
-            ))}
-            <label style={{ marginLeft: 'auto', padding: '6px 14px', background: '#eef1f8', borderRadius: 20, fontSize: '0.8rem', fontWeight: 600, color: '#243b9d', cursor: ocrLoading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #c7d2fe' }}>
-              {ocrLoading ? <Loader size={14} /> : <FileText size={14} />} {ocrLoading ? 'Lendo boleto...' : 'Leitor de Boleto (PDF/Img)'}
-              <input type="file" accept="application/pdf,image/*" style={{ display: 'none' }} onChange={handleBoletoUpload} disabled={ocrLoading} />
-            </label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          
+          {/* ─── BARRA DE FILTROS MULTIDIMENSIONAIS ────────────────────────── */}
+          <div style={{ background: 'white', padding: '1rem 1.25rem', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            
+            {/* Linha 1: Dropdowns de Unidade, Categoria, Fornecedor e Busca */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', alignItems: 'center' }}>
+              
+              {/* Dropdown Unidade */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
+                <Building2 size={15} color="#243b9d" />
+                <select 
+                  value={filterCompany} 
+                  onChange={e => setFilterCompany(e.target.value)}
+                  style={{ border: 'none', background: 'transparent', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', width: '100%', outline: 'none' }}
+                >
+                  <option value="all">🏢 Todas as Unidades</option>
+                  {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+
+              {/* Dropdown Categoria */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
+                <Tag size={15} color="#243b9d" />
+                <select 
+                  value={filterCategory} 
+                  onChange={e => setFilterCategory(e.target.value)}
+                  style={{ border: 'none', background: 'transparent', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', width: '100%', outline: 'none' }}
+                >
+                  <option value="all">🏷️ Todas as Categorias</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+
+              {/* Dropdown Fornecedor */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
+                <UserCheck size={15} color="#243b9d" />
+                <select 
+                  value={filterSupplier} 
+                  onChange={e => setFilterSupplier(e.target.value)}
+                  style={{ border: 'none', background: 'transparent', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', width: '100%', outline: 'none' }}
+                >
+                  <option value="all">🚚 Todos os Fornecedores</option>
+                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+
+              {/* Input Busca */}
+              <div style={{ position: 'relative' }}>
+                <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                <input
+                  type="text"
+                  placeholder="Buscar descrição do boleto..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  style={{ width: '100%', padding: '0.45rem 0.6rem 0.45rem 2rem', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: '0.82rem' }}
+                />
+              </div>
+
+            </div>
+
+            {/* Linha 2: Chips de Vencimento e Leitor OCR */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', marginRight: 4 }}>Vencimento:</span>
+              {FILTERS.map(f => (
+                <button 
+                  key={f.v} 
+                  onClick={() => setQuickFilter(f.v)} 
+                  style={{ 
+                    padding: '4px 12px', 
+                    borderRadius: 20, 
+                    fontSize: '0.78rem', 
+                    fontWeight: 600, 
+                    cursor: 'pointer', 
+                    border: quickFilter === f.v ? '2px solid #ef4444' : '1px solid #e2e8f0', 
+                    background: quickFilter === f.v ? '#fee2e2' : 'white', 
+                    color: quickFilter === f.v ? '#dc2626' : '#64748b', 
+                    transition: 'all 0.15s' 
+                  }}
+                >
+                  {f.l}
+                </button>
+              ))}
+
+              <label style={{ marginLeft: 'auto', padding: '5px 12px', background: '#eef1f8', borderRadius: 20, fontSize: '0.78rem', fontWeight: 600, color: '#243b9d', cursor: ocrLoading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 5, border: '1px solid #c7d2fe' }}>
+                {ocrLoading ? <Loader size={13} /> : <FileText size={13} />} {ocrLoading ? 'Lendo boleto...' : 'Leitor de Boleto (PDF)'}
+                <input type="file" accept="application/pdf,image/*" style={{ display: 'none' }} onChange={handleBoletoUpload} disabled={ocrLoading} />
+              </label>
+            </div>
+
           </div>
 
           {loading ? <p style={{ color: '#94a3b8', textAlign: 'center', padding: '2rem' }}>Carregando boletos pendentes...</p> : filtered.length === 0 ? (
             <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', padding: '3.5rem', textAlign: 'center', color: '#94a3b8' }}>
               <CheckCircle2 size={44} style={{ margin: '0 auto 12px', opacity: 0.3, display: 'block', color: '#10b981' }} />
-              <p style={{ fontWeight: 700, fontSize: '1.1rem', color: '#1e293b' }}>Nenhum boleto pendente! 🎉</p>
-              <p style={{ fontSize: '0.875rem' }}>Todas as contas filtradas estão em dia. Use a aba "Lançar Novo Boleto" para cadastrar novas compras de peças ou despesas.</p>
+              <p style={{ fontWeight: 700, fontSize: '1.1rem', color: '#1e293b' }}>Nenhum boleto encontrado com os filtros atuais!</p>
+              <p style={{ fontSize: '0.85rem' }}>Tente alterar a unidade, categoria ou período selecionado.</p>
             </div>
           ) : (
             <div>
@@ -427,7 +536,7 @@ export default function Pending() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <label style={{ fontWeight: 600, fontSize: '0.85rem', color: '#334155', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <Building size={14} color="#243b9d" /> Unidade / Empresa
+                  <Building2 size={14} color="#243b9d" /> Unidade / Empresa
                 </label>
                 <select value={companyId} onChange={e => setCompanyId(e.target.value)} style={{ padding: '0.65rem 0.85rem', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: '0.88rem' }}>
                   <option value="">— Sem empresa específica —</option>

@@ -41,7 +41,7 @@ function getPeriodDates(period) {
   }
 }
 
-export default function Reports() {
+export default function Reports({ selectedCompanyId = 'all', companies = [] }) {
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
   const [entities, setEntities] = useState([]);
@@ -60,8 +60,15 @@ export default function Reports() {
   const [filterStatus, setFilterStatus] = useState('all'); // all | PAID | PENDING
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterEntity, setFilterEntity] = useState('all');
+  const [filterCompany, setFilterCompany] = useState(selectedCompanyId || 'all');
   const [filterMinValue, setFilterMinValue] = useState('');
   const [filterMaxValue, setFilterMaxValue] = useState('');
+
+  useEffect(() => {
+    if (selectedCompanyId) {
+      setFilterCompany(selectedCompanyId);
+    }
+  }, [selectedCompanyId]);
 
   useEffect(() => {
     const load = async () => {
@@ -94,6 +101,7 @@ export default function Reports() {
     return transactions.filter(t => {
       const refDate = new Date(t.status === 'PAID' && t.paymentDate ? t.paymentDate : t.dueDate);
       if (refDate < dates.from || refDate > dates.to) return false;
+      if (filterCompany !== 'all' && t.companyId !== filterCompany) return false;
       if (filterType !== 'all' && t.type !== filterType) return false;
       if (filterStatus !== 'all' && t.status !== filterStatus) return false;
       if (filterCategory !== 'all' && t.categoryId !== filterCategory) return false;
@@ -102,7 +110,7 @@ export default function Reports() {
       if (filterMaxValue && t.amount > parseFloat(filterMaxValue)) return false;
       return true;
     });
-  }, [generated, transactions, period, customFrom, customTo, filterType, filterStatus, filterCategory, filterEntity, filterMinValue, filterMaxValue]);
+  }, [generated, transactions, period, customFrom, customTo, filterCompany, filterType, filterStatus, filterCategory, filterEntity, filterMinValue, filterMaxValue]);
 
   const summary = useMemo(() => {
     const totalOut = filteredData.filter(t => t.type === 'OUT').reduce((a, b) => a + b.amount, 0);
@@ -321,6 +329,15 @@ export default function Reports() {
                 <Download size={14} /> PDF
               </button>
             )}
+          </div>
+
+          {/* Unidade / Empresa */}
+          <div>
+            <label style={labelStyle}>Unidade / Empresa</label>
+            <select style={selectStyle} value={filterCompany} onChange={e => { setFilterCompany(e.target.value); setGenerated(false); }}>
+              <option value="all">🏢 Todas as Unidades</option>
+              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
           </div>
 
           {/* Período */}

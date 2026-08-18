@@ -1,21 +1,32 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Paperclip, Trash2, Calendar, TrendingDown, DollarSign, Building, Tag, UserCheck, CreditCard, Filter } from 'lucide-react';
+import { Plus, Search, Paperclip, Trash2, Calendar, TrendingDown, DollarSign, Building2, Tag, UserCheck, CreditCard, Filter } from 'lucide-react';
 import { authFetch } from '../config';
 import { formatCurrency, parseCurrency } from '../utils';
 import ConfirmModal from './ConfirmModal';
 
 const fmt = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
-export default function Expenses() {
+export default function Expenses({ selectedCompanyId = 'all', companies = [] }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
   const [entities, setEntities] = useState([]);
-  const [companies, setCompanies] = useState([]);
   const [bankAccounts, setBankAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [periodFilter, setPeriodFilter] = useState('month'); // 'today', '7', 'month', 'year', 'all'
+
+  // Filtros Multidimensionais
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterSupplier, setFilterSupplier] = useState('all');
+  const [filterCompany, setFilterCompany] = useState(selectedCompanyId || 'all');
+
+  // Sincroniza filtro de empresa se mudar no topo
+  useEffect(() => {
+    if (selectedCompanyId) {
+      setFilterCompany(selectedCompanyId);
+    }
+  }, [selectedCompanyId]);
 
   // Delete modal state
   const [deleteItem, setDeleteItem] = useState(null);
@@ -33,22 +44,19 @@ export default function Expenses() {
 
   const fetchData = async () => {
     try {
-      const [transRes, catRes, entRes, compRes, bankRes] = await Promise.all([
+      const [transRes, catRes, entRes, bankRes] = await Promise.all([
         authFetch('/api/transactions'),
         authFetch('/api/categories'),
         authFetch('/api/entities'),
-        authFetch('/api/companies'),
         authFetch('/api/bank-accounts'),
       ]);
       const trans = await transRes.json();
       const cats = await catRes.json();
       const ents = await entRes.json();
-      const comps = await compRes.json();
       const banks = await bankRes.json();
       setExpenses(trans.filter(t => t.type === 'OUT' && t.status === 'PAID' && (!t.context || t.context === 'PJ')));
       setCategories(cats.filter(c => c.type === 'OUT'));
       setEntities(ents.filter(e => e.type === 'SUPPLIER'));
-      setCompanies(comps);
       setBankAccounts(banks);
     } catch (err) {
       console.error(err);
@@ -59,7 +67,7 @@ export default function Expenses() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // Filtro por período
+  // Filtro Multidimensional por período, empresa, categoria e fornecedor
   const filteredExpenses = useMemo(() => {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -67,14 +75,23 @@ export default function Expenses() {
     return expenses.filter(e => {
       const pDate = new Date(e.paymentDate || e.dueDate);
       
+      // Filtro de Empresa / Unidade
+      if (filterCompany !== 'all' && e.companyId !== filterCompany) return false;
+
+      // Filtro de Categoria
+      if (filterCategory !== 'all' && e.categoryId !== filterCategory) return false;
+
+      // Filtro de Fornecedor
+      if (filterSupplier !== 'all' && e.entityId !== filterSupplier) return false;
+
       // Match de texto
       const s = search.toLowerCase();
-      const matchSearch = !s || 
-        e.description.toLowerCase().includes(s) || 
-        (e.entity?.name || '').toLowerCase().includes(s) || 
-        (e.category?.name || '').toLowerCase().includes(s);
-
-      if (!matchSearch) return false;
+      if (s) {
+        const matchSearch = e.description.toLowerCase().includes(s) || 
+          (e.entity?.name || '').toLowerCase().includes(s) || 
+          (e.category?.name || '').toLowerCase().includes(s);
+        if (!matchSearch) return false;
+      }
 
       if (periodFilter === 'today') {
         return pDate.toDateString() === now.toDateString();
@@ -92,7 +109,7 @@ export default function Expenses() {
       }
       return true; // 'all'
     });
-  }, [expenses, search, periodFilter]);
+  }, [expenses, search, periodFilter, filterCompany, filterCategory, filterSupplier]);
 
   const totalPagoPeriodo = filteredExpenses.reduce((acc, t) => acc + t.amount, 0);
   const mediaPagamento = filteredExpenses.length > 0 ? totalPagoPeriodo / filteredExpenses.length : 0;
@@ -114,7 +131,7 @@ export default function Expenses() {
           isRecurring: false,
           categoryId: categoryId || null,
           entityId: entityId || null,
-          companyId: companyId || null,
+          companyId: companyId || (filterCompany !== 'all' ? filterCompany : null),
           bankAccountId: bankAccountId || null,
         })
       });
@@ -255,19 +272,76 @@ export default function Expenses() {
 
       </div>
 
-      {/* Barra de Filtros de Período e Busca */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', background: 'white', padding: '1rem 1.25rem', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+      {/* ─── BARRA DE FILTROS MULTIDIMENSIONAIS ──────────────────────────── */}
+      <div style={{ background: 'white', padding: '1rem 1.25rem', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         
-        {/* Chips de Período (Hoje, Mês, Ano) */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {/* Linha 1: Dropdowns de Unidade, Categoria, Fornecedor e Busca */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', alignItems: 'center' }}>
+          
+          {/* Dropdown Unidade */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
+            <Building2 size={15} color="#243b9d" />
+            <select 
+              value={filterCompany} 
+              onChange={e => setFilterCompany(e.target.value)}
+              style={{ border: 'none', background: 'transparent', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', width: '100%', outline: 'none' }}
+            >
+              <option value="all">🏢 Todas as Unidades</option>
+              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+
+          {/* Dropdown Categoria */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
+            <Tag size={15} color="#243b9d" />
+            <select 
+              value={filterCategory} 
+              onChange={e => setFilterCategory(e.target.value)}
+              style={{ border: 'none', background: 'transparent', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', width: '100%', outline: 'none' }}
+            >
+              <option value="all">🏷️ Todas as Categorias</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+
+          {/* Dropdown Fornecedor */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
+            <UserCheck size={15} color="#243b9d" />
+            <select 
+              value={filterSupplier} 
+              onChange={e => setFilterSupplier(e.target.value)}
+              style={{ border: 'none', background: 'transparent', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', width: '100%', outline: 'none' }}
+            >
+              <option value="all">🚚 Todos os Fornecedores</option>
+              {entities.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+
+          {/* Input Busca */}
+          <div style={{ position: 'relative' }}>
+            <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+            <input
+              type="text"
+              placeholder="Buscar histórico..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ width: '100%', padding: '0.45rem 0.6rem 0.45rem 2rem', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: '0.82rem' }}
+            />
+          </div>
+
+        </div>
+
+        {/* Linha 2: Chips de Período e Botão de Novo */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', marginRight: 4 }}>Período:</span>
           {PERIOD_OPTIONS.map(opt => (
             <button
               key={opt.id}
               onClick={() => setPeriodFilter(opt.id)}
               style={{
-                padding: '6px 14px',
+                padding: '4px 12px',
                 borderRadius: 20,
-                fontSize: '0.82rem',
+                fontSize: '0.78rem',
                 fontWeight: 700,
                 cursor: 'pointer',
                 border: periodFilter === opt.id ? '2px solid #243b9d' : '1px solid #e2e8f0',
@@ -279,31 +353,18 @@ export default function Expenses() {
               {opt.label}
             </button>
           ))}
-        </div>
-
-        {/* Busca e Botão Novo */}
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flex: 1, justifyContent: 'flex-end', minWidth: 260 }}>
-          <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
-            <Search size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-            <input
-              type="text"
-              placeholder="Buscar despesa, fornecedor..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ width: '100%', padding: '0.5rem 0.75rem 0.5rem 2rem', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: '0.85rem' }}
-            />
-          </div>
 
           <button
             onClick={() => setIsModalOpen(true)}
             style={{
-              padding: '0.55rem 1.1rem',
+              marginLeft: 'auto',
+              padding: '0.45rem 1rem',
               background: 'linear-gradient(135deg, #243b9d, #1d3080)',
               color: 'white',
               border: 'none',
               borderRadius: 8,
               fontWeight: 700,
-              fontSize: '0.85rem',
+              fontSize: '0.82rem',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -312,7 +373,7 @@ export default function Expenses() {
               boxShadow: '0 2px 6px rgba(36,59,157,0.2)'
             }}
           >
-            <Plus size={16} /> + Lançar Despesa Já Paga
+            <Plus size={15} /> + Lançar Despesa Paga
           </button>
         </div>
 
@@ -325,8 +386,8 @@ export default function Expenses() {
         ) : filteredExpenses.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '3.5rem', color: '#94a3b8' }}>
             <Calendar size={40} style={{ margin: '0 auto 12px', opacity: 0.3, display: 'block' }} />
-            <p style={{ fontWeight: 700, fontSize: '1.05rem', color: '#1e293b' }}>Nenhum pagamento registrado neste período</p>
-            <p style={{ fontSize: '0.85rem' }}>Alterne o filtro para "Todo o Histórico" ou registre uma nova despesa paga.</p>
+            <p style={{ fontWeight: 700, fontSize: '1.05rem', color: '#1e293b' }}>Nenhum pagamento encontrado com os filtros atuais</p>
+            <p style={{ fontSize: '0.85rem' }}>Alterne os filtros de unidade, categoria ou período selecionado.</p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>

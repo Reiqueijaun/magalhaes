@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Plus, CheckCircle2, Calendar, TrendingUp, Clock, Trash2, Building, Tag, UserCheck, CreditCard } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Plus, CheckCircle2, Calendar, TrendingUp, Clock, Trash2, Building2, Tag, UserCheck, CreditCard, Search, Filter } from 'lucide-react';
 import { authFetch } from '../config';
 import { formatCurrency, parseCurrency } from '../utils';
 import PayModal from './PayModal';
@@ -7,10 +7,9 @@ import ConfirmModal from './ConfirmModal';
 
 const fmt = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
-export default function Receivable() {
+export default function Receivable({ selectedCompanyId = 'all', companies = [] }) {
   const [tab, setTab] = useState('confirmar');
   const [transactions, setTransactions] = useState([]);
-  const [companies, setCompanies] = useState([]);
   const [categories, setCategories] = useState([]);
   const [clients, setClients] = useState([]);
   const [bankAccounts, setBankAccounts] = useState([]);
@@ -21,6 +20,19 @@ export default function Receivable() {
   const [deleting, setDeleting] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+
+  // Filtros Multidimensionais
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterClient, setFilterClient] = useState('all');
+  const [filterCompany, setFilterCompany] = useState(selectedCompanyId || 'all');
+  const [search, setSearch] = useState('');
+
+  // Sincroniza filtro de empresa se mudar no topo
+  useEffect(() => {
+    if (selectedCompanyId) {
+      setFilterCompany(selectedCompanyId);
+    }
+  }, [selectedCompanyId]);
 
   const [desc, setDesc] = useState('');
   const [valor, setValor] = useState('');
@@ -33,9 +45,8 @@ export default function Receivable() {
 
   const fetchTransactions = async () => {
     try {
-      const [transRes, compRes, catRes, entRes, bankRes] = await Promise.all([
+      const [transRes, catRes, entRes, bankRes] = await Promise.all([
         authFetch('/api/transactions'),
-        authFetch('/api/companies'),
         authFetch('/api/categories'),
         authFetch('/api/entities'),
         authFetch('/api/bank-accounts'),
@@ -44,7 +55,6 @@ export default function Receivable() {
         const data = await transRes.json();
         setTransactions(data.filter(t => t.type === 'IN' && t.status === 'PENDING' && (!t.context || t.context === 'PJ')));
       }
-      if (compRes.ok) setCompanies(await compRes.json());
       if (catRes.ok) {
         const cats = await catRes.json();
         setCategories(cats.filter(c => c.type === 'IN'));
@@ -63,6 +73,31 @@ export default function Receivable() {
 
   useEffect(() => { fetchTransactions(); }, []);
 
+  // Filtragem Multidimensional
+  const filtered = useMemo(() => {
+    return transactions.filter(t => {
+      // Filtro de Empresa / Unidade
+      if (filterCompany !== 'all' && t.companyId !== filterCompany) return false;
+
+      // Filtro de Categoria
+      if (filterCategory !== 'all' && t.categoryId !== filterCategory) return false;
+
+      // Filtro de Cliente
+      if (filterClient !== 'all' && t.entityId !== filterClient) return false;
+
+      // Busca textual
+      const s = search.toLowerCase();
+      if (s) {
+        const matchDesc = t.description.toLowerCase().includes(s);
+        const matchClient = (t.entity?.name || '').toLowerCase().includes(s);
+        const matchCat = (t.category?.name || '').toLowerCase().includes(s);
+        if (!matchDesc && !matchClient && !matchCat) return false;
+      }
+
+      return true;
+    });
+  }, [transactions, filterCompany, filterCategory, filterClient, search]);
+
   const handleSave = async (e) => {
     e.preventDefault();
     if (!valor || !dataVenc || !desc) { 
@@ -79,7 +114,7 @@ export default function Receivable() {
           type: 'IN', 
           status: 'PENDING', 
           dueDate: dataVenc, 
-          companyId: companyId || null,
+          companyId: companyId || (filterCompany !== 'all' ? filterCompany : null),
           categoryId: categoryId || null,
           entityId: entityId || null,
           bankAccountId: bankAccountId || null,
@@ -130,10 +165,10 @@ export default function Receivable() {
   };
 
   const now = new Date();
-  const vencidos = transactions.filter(t => new Date(t.dueDate) < new Date(new Date().setHours(0,0,0,0)));
-  const hoje = transactions.filter(t => new Date(t.dueDate).toDateString() === now.toDateString());
-  const futuros = transactions.filter(t => new Date(t.dueDate) > now && new Date(t.dueDate).toDateString() !== now.toDateString());
-  const totalPendente = transactions.reduce((a,b) => a+b.amount, 0);
+  const vencidos = filtered.filter(t => new Date(t.dueDate) < new Date(new Date().setHours(0,0,0,0)));
+  const hoje = filtered.filter(t => new Date(t.dueDate).toDateString() === now.toDateString());
+  const futuros = filtered.filter(t => new Date(t.dueDate) > now && new Date(t.dueDate).toDateString() !== now.toDateString());
+  const totalPendente = filtered.reduce((a,b) => a+b.amount, 0);
 
   const renderCard = (item) => {
     const dueDate = new Date(item.dueDate);
@@ -186,11 +221,11 @@ export default function Receivable() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
       {/* Summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
         {[
           {
-            icon: TrendingUp, label: 'Total a Receber Previsto', value: fmt(totalPendente), color: '#10b981', bg: '#d1fae5',
-            sub: `${transactions.length} cobrança(s) em aberto`
+            icon: TrendingUp, label: 'Total a Receber Filtrado', value: fmt(totalPendente), color: '#10b981', bg: '#d1fae5',
+            sub: `${filtered.length} cobrança(s) em aberto`
           },
           {
             icon: Clock, label: 'A Receber Hoje / Atrasado', value: fmt([...vencidos,...hoje].reduce((a,b)=>a+b.amount,0)), color: '#0284c7', bg: '#e0f2fe',
@@ -219,7 +254,7 @@ export default function Receivable() {
       <div style={{ display: 'flex', background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', padding: 6, gap: 6, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
         <button onClick={() => setTab('confirmar')} style={{ flex: 1, padding: '0.75rem', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', background: tab === 'confirmar' ? 'linear-gradient(135deg, #10b981, #059669)' : 'transparent', color: tab === 'confirmar' ? 'white' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <CheckCircle2 size={18} /> Confirmar Recebimentos
-          {transactions.length > 0 && <span style={{ background: tab === 'confirmar' ? 'rgba(255,255,255,0.3)' : '#d1fae5', color: tab === 'confirmar' ? 'white' : '#10b981', borderRadius: 99, fontSize: '0.75rem', fontWeight: 800, padding: '2px 8px' }}>{transactions.length}</span>}
+          {filtered.length > 0 && <span style={{ background: tab === 'confirmar' ? 'rgba(255,255,255,0.3)' : '#d1fae5', color: tab === 'confirmar' ? 'white' : '#10b981', borderRadius: 99, fontSize: '0.75rem', fontWeight: 800, padding: '2px 8px' }}>{filtered.length}</span>}
         </button>
         <button onClick={() => setTab('lancamento')} style={{ flex: 1, padding: '0.75rem', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', background: tab === 'lancamento' ? 'linear-gradient(135deg, #243b9d, #1d3080)' : 'transparent', color: tab === 'lancamento' ? 'white' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <Plus size={18} /> + Registrar Nova Cobrança / Venda
@@ -228,12 +263,71 @@ export default function Receivable() {
 
       {/* TAB: Confirmar recebimentos */}
       {tab === 'confirmar' && (
-        <div>
-          {loading ? <p style={{ color: '#94a3b8', textAlign: 'center', padding: '2rem' }}>Carregando cobranças...</p> : transactions.length === 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          
+          {/* ─── BARRA DE FILTROS MULTIDIMENSIONAIS ────────────────────────── */}
+          <div style={{ background: 'white', padding: '1rem 1.25rem', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', alignItems: 'center' }}>
+              
+              {/* Dropdown Unidade */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
+                <Building2 size={15} color="#10b981" />
+                <select 
+                  value={filterCompany} 
+                  onChange={e => setFilterCompany(e.target.value)}
+                  style={{ border: 'none', background: 'transparent', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', width: '100%', outline: 'none' }}
+                >
+                  <option value="all">🏢 Todas as Unidades</option>
+                  {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+
+              {/* Dropdown Categoria */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
+                <Tag size={15} color="#10b981" />
+                <select 
+                  value={filterCategory} 
+                  onChange={e => setFilterCategory(e.target.value)}
+                  style={{ border: 'none', background: 'transparent', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', width: '100%', outline: 'none' }}
+                >
+                  <option value="all">🏷️ Todas as Categorias</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+
+              {/* Dropdown Cliente */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
+                <UserCheck size={15} color="#10b981" />
+                <select 
+                  value={filterClient} 
+                  onChange={e => setFilterClient(e.target.value)}
+                  style={{ border: 'none', background: 'transparent', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', width: '100%', outline: 'none' }}
+                >
+                  <option value="all">👤 Todos os Clientes</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+
+              {/* Input Busca */}
+              <div style={{ position: 'relative' }}>
+                <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                <input
+                  type="text"
+                  placeholder="Buscar cliente, serviço..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  style={{ width: '100%', padding: '0.45rem 0.6rem 0.45rem 2rem', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: '0.82rem' }}
+                />
+              </div>
+
+            </div>
+          </div>
+
+          {loading ? <p style={{ color: '#94a3b8', textAlign: 'center', padding: '2rem' }}>Carregando cobranças...</p> : filtered.length === 0 ? (
             <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', padding: '3.5rem', textAlign: 'center', color: '#94a3b8' }}>
               <CheckCircle2 size={44} style={{ margin: '0 auto 12px', opacity: 0.3, display: 'block', color: '#10b981' }} />
-              <p style={{ fontWeight: 700, fontSize: '1.1rem', color: '#1e293b' }}>Nenhuma cobrança pendente!</p>
-              <p style={{ fontSize: '0.875rem' }}>Todas as vendas e valores a receber estão em dia. Use a aba "Registrar Nova Cobrança" para adicionar.</p>
+              <p style={{ fontWeight: 700, fontSize: '1.1rem', color: '#1e293b' }}>Nenhuma cobrança encontrada com os filtros atuais!</p>
+              <p style={{ fontSize: '0.85rem' }}>Tente alterar a unidade ou categoria selecionada.</p>
             </div>
           ) : (
             <div>
@@ -250,7 +344,7 @@ export default function Receivable() {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                     <span style={{ fontWeight: 800, color: '#7c3aed', fontSize: '0.875rem' }}>🔮 PREVISTOS PARA OS PRÓXIMOS DIAS ({futuros.length})</span>
-                    <span style={{ fontWeight: 800, color: '#7c3aed', marginLeft: 'auto', fontSize: '0.875rem' }}>{fmt(futuros.reduce((a,b)=>a+b.amount,0))}</span>
+                    <span style={{ fontWeight: 700, color: '#7c3aed', marginLeft: 'auto', fontSize: '0.875rem' }}>{fmt(futuros.reduce((a,b)=>a+b.amount,0))}</span>
                   </div>
                   {futuros.map(renderCard)}
                 </div>
@@ -350,7 +444,7 @@ export default function Receivable() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <label style={{ fontWeight: 600, fontSize: '0.85rem', color: '#334155', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <Building size={14} color="#10b981" /> Unidade / Empresa
+                  <Building2 size={14} color="#10b981" /> Unidade / Empresa
                 </label>
                 <select value={companyId} onChange={e => setCompanyId(e.target.value)} style={{ padding: '0.65rem 0.85rem', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: '0.88rem' }}>
                   <option value="">— Sem empresa específica —</option>

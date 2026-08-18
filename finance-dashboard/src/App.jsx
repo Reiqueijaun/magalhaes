@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Receipt, Clock, Wallet,
   Settings as SettingsIcon, LogOut, ArrowRightLeft,
-  CalendarDays, FileBarChart2, User, Package
+  CalendarDays, FileBarChart2, User, Package, Building2
 } from 'lucide-react';
 import Reports from './components/Reports';
 import PersonalFinance from './components/PersonalFinance';
@@ -16,12 +16,28 @@ import Login from './components/Login';
 import Notifications from './components/Notifications';
 import Tutorial from './components/Tutorial';
 import WarehouseModule from './components/Warehouse';
+import { authFetch } from './config';
 
 function App() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+
+  // Unidades de Negócio / Empresas
+  const [companies, setCompanies] = useState([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('all');
+
+  const fetchCompanies = async () => {
+    try {
+      const res = await authFetch('/api/companies');
+      if (res.ok) {
+        setCompanies(await res.json());
+      }
+    } catch (e) {
+      console.error('Erro ao carregar unidades:', e);
+    }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -32,6 +48,7 @@ function App() {
       if (parsedUser.module === 'WAREHOUSE') {
         setCurrentView('warehouse');
       }
+      fetchCompanies();
       const tutorialPref = localStorage.getItem('showTutorial');
       if (tutorialPref !== 'false') setShowTutorial(true);
     }
@@ -43,6 +60,7 @@ function App() {
     if (userData.module === 'WAREHOUSE') {
       setCurrentView('warehouse');
     }
+    fetchCompanies();
     const tutorialPref = localStorage.getItem('showTutorial');
     if (tutorialPref !== 'false') setShowTutorial(true);
   };
@@ -59,16 +77,16 @@ function App() {
 
   const renderView = () => {
     switch (currentView) {
-      case 'dashboard':  return <Dashboard />;
-      case 'expenses':   return <Expenses />;
-      case 'pending':    return <Pending />;
-      case 'receivable': return <Receivable />;
-      case 'calendar':   return <CalendarView />;
-      case 'reports':    return <Reports />;
+      case 'dashboard':  return <Dashboard selectedCompanyId={selectedCompanyId} companies={companies} />;
+      case 'expenses':   return <Expenses selectedCompanyId={selectedCompanyId} companies={companies} />;
+      case 'pending':    return <Pending selectedCompanyId={selectedCompanyId} companies={companies} />;
+      case 'receivable': return <Receivable selectedCompanyId={selectedCompanyId} companies={companies} />;
+      case 'calendar':   return <CalendarView selectedCompanyId={selectedCompanyId} companies={companies} />;
+      case 'reports':    return <Reports selectedCompanyId={selectedCompanyId} companies={companies} />;
       case 'personal':   return <PersonalFinance />;
       case 'settings':   return <Settings />;
       case 'warehouse':  return <WarehouseModule />;
-      default:           return <Dashboard />;
+      default:           return <Dashboard selectedCompanyId={selectedCompanyId} companies={companies} />;
     }
   };
 
@@ -91,7 +109,7 @@ function App() {
     <div className="app-container">
       <aside className="sidebar">
         <div id="tutorial-sidebar-header" className="sidebar-header">
-          <div className="icon-bg blue" style={{ width: 32, height: 32, borderRadius: 8 }}>
+          <div className="icon-bg blue" style={{ width: 34, height: 34, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Wallet size={18} />
           </div>
           <span className="brand-title">Magalhães</span>
@@ -172,16 +190,35 @@ function App() {
       </aside>
 
       <main className="main-content">
-        <header className="topbar">
-          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-main)', fontWeight: 600 }}>{getPageTitle()}</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-            {user.module !== 'WAREHOUSE' && <Notifications onNavigate={setCurrentView} />}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '1px solid var(--border-color)', paddingLeft: '1.5rem' }}>
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ fontSize: '0.875rem', fontWeight: 600 }}>{user.name}</p>
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{user.module === 'WAREHOUSE' ? 'Almoxarifado' : 'Administrador'}</p>
+        <header className="topbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.25rem', color: 'var(--text-main)', fontWeight: 700, margin: 0 }}>{getPageTitle()}</h2>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+            {/* Seletor Global de Unidade de Negócio / Empresa */}
+            {user.module !== 'WAREHOUSE' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f8fafc', padding: '6px 14px', borderRadius: 10, border: '1px solid #cbd5e1', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+                <Building2 size={16} color="#243b9d" />
+                <select 
+                  value={selectedCompanyId} 
+                  onChange={e => setSelectedCompanyId(e.target.value)} 
+                  style={{ border: 'none', background: 'transparent', fontWeight: 700, fontSize: '0.85rem', color: '#1e293b', cursor: 'pointer', outline: 'none' }}
+                >
+                  <option value="all">🏢 Todas as Unidades / Empresas</option>
+                  {companies.map(c => <option key={c.id} value={c.id}>🏢 {c.name}</option>)}
+                </select>
               </div>
-              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-blue), #1d3080)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.875rem' }}>
+            )}
+
+            {user.module !== 'WAREHOUSE' && <Notifications onNavigate={setCurrentView} />}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderLeft: '1px solid var(--border-color)', paddingLeft: '1.25rem' }}>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ fontSize: '0.85rem', fontWeight: 700, margin: 0 }}>{user.name}</p>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{user.module === 'WAREHOUSE' ? 'Almoxarifado' : 'Administrador'}</p>
+              </div>
+              <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-blue), #1d3080)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.85rem', boxShadow: '0 2px 6px rgba(36,59,157,0.25)' }}>
                 {user.name?.charAt(0).toUpperCase()}
               </div>
             </div>

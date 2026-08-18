@@ -483,24 +483,35 @@ app.post('/api/ocr/boleto', authMiddleware, async (req: Request, res: Response) 
 // ─── RESUMO / DASHBOARD (protegido) ───────────────────────────────────────────
 app.get('/api/summary', authMiddleware, async (req: Request, res: Response) => {
   try {
+    const companyId = req.query.companyId && req.query.companyId !== 'all' ? String(req.query.companyId) : undefined;
+    const filterCompany = companyId ? { companyId } : {};
+
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
     const [receitaMes, despesasMes, contasHoje, aReceberHoje] = await Promise.all([
-      prisma.transaction.aggregate({ where: { type: 'IN', status: 'PAID', paymentDate: { gte: startOfMonth, lte: endOfMonth } }, _sum: { amount: true } }),
-      prisma.transaction.aggregate({ where: { type: 'OUT', status: 'PAID', paymentDate: { gte: startOfMonth, lte: endOfMonth } }, _sum: { amount: true } }),
-      prisma.transaction.aggregate({ where: { type: 'OUT', status: 'PENDING', dueDate: { lte: now } }, _sum: { amount: true }, _count: true }),
-      prisma.transaction.aggregate({ where: { type: 'IN', status: 'PENDING', dueDate: { lte: now } }, _sum: { amount: true } }),
+      prisma.transaction.aggregate({ where: { ...filterCompany, type: 'IN', status: 'PAID', paymentDate: { gte: startOfMonth, lte: endOfMonth } }, _sum: { amount: true } }),
+      prisma.transaction.aggregate({ where: { ...filterCompany, type: 'OUT', status: 'PAID', paymentDate: { gte: startOfMonth, lte: endOfMonth } }, _sum: { amount: true } }),
+      prisma.transaction.aggregate({ where: { ...filterCompany, type: 'OUT', status: 'PENDING', dueDate: { lte: now } }, _sum: { amount: true }, _count: true }),
+      prisma.transaction.aggregate({ where: { ...filterCompany, type: 'IN', status: 'PENDING', dueDate: { lte: now } }, _sum: { amount: true } }),
     ]);
+
     const receita = receitaMes._sum.amount || 0;
     const despesas = despesasMes._sum.amount || 0;
     const rentabilidade = receita > 0 ? (((receita - despesas) / receita) * 100).toFixed(1) : '0';
+
     res.json({
-      receitaMes: receita, despesasMes: despesas, rentabilidade,
+      receitaMes: receita,
+      despesasMes: despesas,
+      rentabilidade,
       contasVencidasHoje: { total: contasHoje._sum.amount || 0, count: contasHoje._count },
       aReceberHoje: aReceberHoje._sum.amount || 0,
     });
-  } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao calcular resumo.' }); }
+  } catch (e) { 
+    console.error(e); 
+    res.status(500).json({ error: 'Erro ao calcular resumo.' }); 
+  }
 });
 
 // ─── CATEGORIAS (protegidas) ───────────────────────────────────────────────────

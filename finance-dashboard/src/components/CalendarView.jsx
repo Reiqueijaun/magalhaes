@@ -7,7 +7,7 @@ import ConfirmModal from './ConfirmModal';
 
 const fmt = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
-export default function CalendarView() {
+export default function CalendarView({ selectedCompanyId = 'all', companies = [] }) {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -19,7 +19,6 @@ export default function CalendarView() {
   const [payTransaction, setPayTransaction] = useState(null);
   const [deleteItem, setDeleteItem] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [activeTabDay, setActiveTabDay] = useState('all');
 
   const mesesNomes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const diasDaSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -54,37 +53,45 @@ export default function CalendarView() {
     fetchTransactions();
   }, []);
 
+  // Transações filtradas pela unidade selecionada
+  const filteredTransactions = useMemo(() => {
+    if (!selectedCompanyId || selectedCompanyId === 'all') {
+      return transactions;
+    }
+    return transactions.filter(t => t.companyId === selectedCompanyId);
+  }, [transactions, selectedCompanyId]);
+
   // Cálculos do Briefing Diário
   const todayStr = now.toDateString();
   const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   
   // A Pagar Hoje
   const pagarHoje = useMemo(() => {
-    return transactions.filter(t => t.type === 'OUT' && t.status === 'PENDING' && new Date(t.dueDate).toDateString() === todayStr);
-  }, [transactions, todayStr]);
+    return filteredTransactions.filter(t => t.type === 'OUT' && t.status === 'PENDING' && new Date(t.dueDate).toDateString() === todayStr);
+  }, [filteredTransactions, todayStr]);
   const totalPagarHoje = pagarHoje.reduce((a,b) => a + b.amount, 0);
 
   // A Receber Hoje
   const receberHoje = useMemo(() => {
-    return transactions.filter(t => t.type === 'IN' && t.status === 'PENDING' && new Date(t.dueDate).toDateString() === todayStr);
-  }, [transactions, todayStr]);
+    return filteredTransactions.filter(t => t.type === 'IN' && t.status === 'PENDING' && new Date(t.dueDate).toDateString() === todayStr);
+  }, [filteredTransactions, todayStr]);
   const totalReceberHoje = receberHoje.reduce((a,b) => a + b.amount, 0);
 
   // Atrasadas (Vencidas antes de hoje)
   const atrasadas = useMemo(() => {
-    return transactions.filter(t => t.type === 'OUT' && t.status === 'PENDING' && new Date(t.dueDate) < startToday);
-  }, [transactions, startToday]);
+    return filteredTransactions.filter(t => t.type === 'OUT' && t.status === 'PENDING' && new Date(t.dueDate) < startToday);
+  }, [filteredTransactions, startToday]);
   const totalAtrasadas = atrasadas.reduce((a,b) => a + b.amount, 0);
 
   // Quase Vencendo (Próximos 3 dias a partir de amanhã)
   const quaseVencendo = useMemo(() => {
     const limit = new Date(startToday);
     limit.setDate(limit.getDate() + 3);
-    return transactions.filter(t => {
+    return filteredTransactions.filter(t => {
       const due = new Date(t.dueDate);
       return t.type === 'OUT' && t.status === 'PENDING' && due > startToday && due <= limit;
     });
-  }, [transactions, startToday]);
+  }, [filteredTransactions, startToday]);
   const totalQuaseVencendo = quaseVencendo.reduce((a,b) => a + b.amount, 0);
 
   // Calendário Grid logic
@@ -97,7 +104,7 @@ export default function CalendarView() {
   while (cells.length % 7 !== 0) cells.push(null);
 
   const eventsByDay = {};
-  transactions.forEach(t => {
+  filteredTransactions.forEach(t => {
     const date = new Date(t.status === 'PAID' && t.paymentDate ? t.paymentDate : t.dueDate);
     if (date.getFullYear() === viewYear && date.getMonth() === viewMonth) {
       const d = date.getDate();
