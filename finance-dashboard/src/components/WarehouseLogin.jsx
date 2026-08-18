@@ -155,7 +155,7 @@ export default function WarehouseLogin({ onLogin }) {
 
           <div style={{ marginTop: '1.5rem', padding: '0.75rem', background: 'rgba(217,119,6,0.08)', borderRadius: 10, border: '1px solid rgba(217,119,6,0.2)', fontSize: '0.78rem', color: '#d97706', textAlign: 'center' }}>
             🔒 Área restrita a usuários do almoxarifado.<br />
-            Para acesso ao financeiro, utilize <strong style={{ color: '#fbbf24' }}>magalhaes.com/</strong>
+            Para acesso ao financeiro, <a href="/" style={{ color: '#fbbf24', fontWeight: 'bold', textDecoration: 'none' }}>volte ao Início ↗</a>
           </div>
         </div>
 

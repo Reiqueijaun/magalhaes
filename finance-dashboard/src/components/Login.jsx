@@ -167,6 +167,13 @@ export default function Login({ onLogin }) {
             </button>
           )}
         </form>
+
+        <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0', textAlign: 'center' }}>
+          <p style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '0.75rem' }}>Trabalha no estoque?</p>
+          <a href="/almox" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '0.75rem', background: '#fcf8f3', color: '#d97706', border: '1px solid #fde68a', borderRadius: 10, textDecoration: 'none', fontWeight: 700, fontSize: '0.9rem', transition: 'all 0.2s' }}>
+            📦 Acessar Almoxarifado ↗
+          </a>
+        </div>
       </div>
     </div>
   );
