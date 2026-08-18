@@ -137,9 +137,12 @@ function App() {
             </>
           )}
 
-          {(user.module === 'ADMIN' || user.module === 'WAREHOUSE') && (
+          {(user.role === 'ADMIN' || user.module === 'ADMIN' || !user.module || user.module === 'WAREHOUSE') && (
             <>
               <div style={{ margin: '0.5rem 1rem', borderTop: '1px solid var(--border-color)' }} />
+              <div style={{ padding: '0 1rem 0.5rem', fontSize: '0.7rem', fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: '0.8rem' }}>📦</span> Estoque
+              </div>
               <button 
                 className={`nav-item ${currentView === 'warehouse' ? 'active' : ''}`} 
                 onClick={() => setCurrentView('warehouse')}
