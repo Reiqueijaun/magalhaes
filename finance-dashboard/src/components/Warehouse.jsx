@@ -180,7 +180,7 @@ function ProductModal({ product, locations, suppliers, categories, onSave, onClo
             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Categoria</label>
             <select value={form.category} onChange={e => f('category', e.target.value)} style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem' }}>
               <option value="Geral">Geral</option>
-              {categories?.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+              {(categories||[]).filter(Boolean).map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
           </div>
 
@@ -295,7 +295,7 @@ function MovementModal({ products, onSave, onClose, defaultType }) {
             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Produto *</label>
             <select value={form.productId} onChange={e => f('productId', e.target.value)} style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem' }}>
               <option value="">— Selecione o produto —</option>
-              {products.map(p => <option key={p.id} value={p.id}>{p.code} — {p.name} (Estoque: {fmtNum(p.currentStock, 2)} {p.unit})</option>)}
+              {products.filter(Boolean).map(p => <option key={p.id} value={p.id}>{p.code} — {p.name} (Estoque: {fmtNum(p.currentStock, 2)} {p.unit})</option>)}
             </select>
           </div>
 
@@ -513,8 +513,8 @@ export default function WarehouseModule() {
 
   const askConfirm = (title, message, onConfirm) => setConfirmModal({ title, message, onConfirm });
 
-  const loadAll = async () => {
-    setLoading(true);
+  const loadAll = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const results = await Promise.allSettled([
         api.get('/api/warehouse/products'),
@@ -533,14 +533,14 @@ export default function WarehouseModule() {
     } catch (e) {
       console.error('Erro ao carregar almoxarifado:', e);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => { loadAll(true); }, []);
 
   // Filtered products
-  const uniqueCategories = [...new Set(products.map(p => p.category))].filter(Boolean).sort();
+  const uniqueCategories = [...new Set(products.filter(Boolean).map(p => p.category))].filter(Boolean).sort();
   const filteredProducts = products.filter(p => {
     const s = search.toLowerCase();
     const matchSearch = !s || p.name.toLowerCase().includes(s) || p.code.toLowerCase().includes(s) || (p.manufacturerCode || '').toLowerCase().includes(s);
@@ -550,6 +550,7 @@ export default function WarehouseModule() {
 
   // Filtered movements
   const filteredMovements = movements.filter(m => {
+    if (!m) return false;
     if (movFilter.type && m.type !== movFilter.type) return false;
     if (movFilter.productId && m.productId !== movFilter.productId) return false;
     if (movFilter.from && new Date(m.date) < new Date(movFilter.from)) return false;
@@ -557,7 +558,7 @@ export default function WarehouseModule() {
     return true;
   });
 
-  const sales = movements.filter(m => m.type === 'SALE' || m.type === 'EXIT').filter(m => {
+  const sales = movements.filter(m => m && (m.type === 'SALE' || m.type === 'EXIT')).filter(m => {
     if (movFilter.productId && m.productId !== movFilter.productId) return false;
     if (movFilter.from && new Date(m.date) < new Date(movFilter.from)) return false;
     if (movFilter.to && new Date(m.date) > new Date(movFilter.to + 'T23:59:59')) return false;
@@ -602,21 +603,21 @@ export default function WarehouseModule() {
     if (!newLoc.aisle || !newLoc.shelf || !newLoc.position) return alert('Preencha corredor, prateleira e posição.');
     await api.post('/api/warehouse/locations', newLoc);
     setNewLoc({ aisle: '', shelf: '', position: '' });
-    loadAll();
+    loadAll(false);
   };
 
   const handleAddSupplier = async () => {
     if (!newSup.name) return alert('Nome do fornecedor é obrigatório.');
     await api.post('/api/warehouse/suppliers', newSup);
     setNewSup({ name: '', document: '', contact: '', email: '', phone: '' });
-    loadAll();
+    loadAll(false);
   };
 
   const handleAddCategory = async () => {
     if (!newCat.name) return alert('Nome da categoria é obrigatório.');
     await api.post('/api/warehouse/categories', newCat);
     setNewCat({ name: '', color: '#64748b' });
-    loadAll();
+    loadAll(false);
   };
 
   const handleDeleteCategory = async (id) => {
@@ -877,7 +878,7 @@ export default function WarehouseModule() {
             </select>
             <select value={movFilter.productId} onChange={e => setMovFilter(p => ({ ...p, productId: e.target.value }))} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white', minWidth: 200 }}>
               <option value="">Todos os produtos</option>
-              {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {products.filter(Boolean).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
             <input type="date" value={movFilter.from} onChange={e => setMovFilter(p => ({ ...p, from: e.target.value }))} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white' }} />
             <input type="date" value={movFilter.to} onChange={e => setMovFilter(p => ({ ...p, to: e.target.value }))} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white' }} />
@@ -904,7 +905,7 @@ export default function WarehouseModule() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredMovements.map(m => (
+                      {filteredMovements.filter(Boolean).map(m => (
                         <tr key={m.id} style={{ borderTop: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '9px 14px', fontSize: '0.78rem', color: '#64748b', whiteSpace: 'nowrap' }}>{fmtDateTime(m.date)}</td>
                           <td style={{ padding: '9px 14px' }}><Badge type={m.type} /></td>
@@ -939,7 +940,7 @@ export default function WarehouseModule() {
           <div style={{ display: 'flex', gap: 10, marginBottom: '1rem', flexWrap: 'wrap' }}>
             <select value={movFilter.productId} onChange={e => setMovFilter(p => ({ ...p, productId: e.target.value }))} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white', minWidth: 200 }}>
               <option value="">Todos os produtos</option>
-              {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {products.filter(Boolean).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
             <input type="date" value={movFilter.from} onChange={e => setMovFilter(p => ({ ...p, from: e.target.value }))} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white' }} />
             <input type="date" value={movFilter.to} onChange={e => setMovFilter(p => ({ ...p, to: e.target.value }))} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white' }} />
@@ -972,7 +973,7 @@ export default function WarehouseModule() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sales.map(m => (
+                    {sales.filter(Boolean).map(m => (
                       <tr key={m.id} style={{ borderTop: '1px solid #f1f5f9' }}>
                         <td style={{ padding: '9px 14px', fontSize: '0.78rem', color: '#64748b' }}>{fmtDate(m.date)}</td>
                         <td style={{ padding: '9px 14px' }}><Badge type={m.type} /></td>
@@ -1157,7 +1158,7 @@ export default function WarehouseModule() {
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', padding: '1.5rem' }}>
-                    {categories?.map(c => (
+                    {(categories||[]).filter(Boolean).map(c => (
                       <div key={c.id} style={{ padding: '1rem', border: `1px solid ${c.color}44`, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: `${c.color}11` }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ width: 12, height: 12, borderRadius: '50%', background: c.color }} />
@@ -1181,7 +1182,7 @@ export default function WarehouseModule() {
           locations={locations}
           suppliers={suppliers}
           categories={categories}
-          onSave={() => { setShowProductModal(false); setEditProduct(null); loadAll(); }}
+          onSave={() => { setShowProductModal(false); setEditProduct(null); loadAll(false); }}
           onClose={() => { setShowProductModal(false); setEditProduct(null); }}
         />
       )}
@@ -1190,7 +1191,7 @@ export default function WarehouseModule() {
         <MovementModal
           products={products}
           defaultType={movDefaultType}
-          onSave={() => { setShowMovModal(false); loadAll(); }}
+          onSave={() => { setShowMovModal(false); loadAll(false); }}
           onClose={() => setShowMovModal(false)}
         />
       )}
