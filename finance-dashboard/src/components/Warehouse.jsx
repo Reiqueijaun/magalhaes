@@ -508,6 +508,11 @@ export default function WarehouseModule() {
   const [newSup, setNewSup] = useState({ name: '', document: '', contact: '', email: '', phone: '' });
   const [newCat, setNewCat] = useState({ name: '', color: '#64748b' });
 
+  // Confirm modal
+  const [confirmModal, setConfirmModal] = useState(null); // { title, message, onConfirm }
+
+  const askConfirm = (title, message, onConfirm) => setConfirmModal({ title, message, onConfirm });
+
   const loadAll = async () => {
     setLoading(true);
     try {
@@ -560,21 +565,37 @@ export default function WarehouseModule() {
   });
 
   const handleDeleteProduct = async (id) => {
-    if (!confirm('Excluir produto e todo seu histórico?')) return;
-    await api.del(`/api/warehouse/products/${id}`);
-    loadAll();
+    askConfirm(
+      'Excluir Produto',
+      'Tem certeza? O produto e todo o histórico de movimentações serão excluídos permanentemente.',
+      async () => {
+        await api.del(`/api/warehouse/products/${id}`);
+        setProducts(p => p.filter(x => x.id !== id));
+        setMovements(m => m.filter(x => x.productId !== id));
+      }
+    );
   };
 
   const handleDeleteLocation = async (id) => {
-    if (!confirm('Excluir esta localização?')) return;
-    await api.del(`/api/warehouse/locations/${id}`);
-    loadAll();
+    askConfirm(
+      'Excluir Localização',
+      'Tem certeza que deseja excluir esta localização?',
+      async () => {
+        await api.del(`/api/warehouse/locations/${id}`);
+        setLocations(l => l.filter(x => x.id !== id));
+      }
+    );
   };
 
   const handleDeleteSupplier = async (id) => {
-    if (!confirm('Excluir este fornecedor?')) return;
-    await api.del(`/api/warehouse/suppliers/${id}`);
-    loadAll();
+    askConfirm(
+      'Excluir Fornecedor',
+      'Tem certeza que deseja excluir este fornecedor?',
+      async () => {
+        await api.del(`/api/warehouse/suppliers/${id}`);
+        setSuppliers(s => s.filter(x => x.id !== id));
+      }
+    );
   };
 
   const handleAddLocation = async () => {
@@ -599,10 +620,14 @@ export default function WarehouseModule() {
   };
 
   const handleDeleteCategory = async (id) => {
-    if (confirm('Tem certeza? Isso excluirá apenas a categoria, os produtos ficarão com categoria "Geral".')) {
-      await api.del(`/api/warehouse/categories/${id}`);
-      loadAll();
-    }
+    askConfirm(
+      'Excluir Categoria',
+      'Tem certeza? Os produtos desta categoria ficarão com a categoria "Geral".',
+      async () => {
+        await api.del(`/api/warehouse/categories/${id}`);
+        setCategories(c => c.filter(x => x.id !== id));
+      }
+    );
   };
 
   if (loading) {
@@ -618,6 +643,28 @@ export default function WarehouseModule() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, margin: '0 auto', width: '100%' }}>
+      {/* Modal de Confirmação */}
+      {confirmModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(4px)' }}>
+          <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 420, boxShadow: '0 25px 50px rgba(0,0,0,0.2)', animation: 'modalIn 0.2s ease', overflow: 'hidden' }}>
+            <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #fee2e2', background: 'linear-gradient(135deg, #ef4444, #dc2626)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <AlertTriangle size={20} color="white" />
+              <span style={{ color: 'white', fontWeight: 700, fontSize: '1rem' }}>{confirmModal.title}</span>
+            </div>
+            <div style={{ padding: '1.5rem' }}>
+              <p style={{ fontSize: '0.9rem', color: '#475569', margin: 0, lineHeight: 1.6 }}>{confirmModal.message}</p>
+            </div>
+            <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={() => setConfirmModal(null)} style={{ padding: '0.6rem 1.2rem', background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem', color: '#64748b' }}>
+                Cancelar
+              </button>
+              <button onClick={async () => { await confirmModal.onConfirm(); setConfirmModal(null); }} style={{ padding: '0.6rem 1.4rem', background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Trash2 size={15} /> Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #243b9d 100%)', borderRadius: 16, padding: '1.5rem 2rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 8px 24px rgba(36,59,157,0.3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
