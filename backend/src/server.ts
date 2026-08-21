@@ -304,7 +304,7 @@ app.get('/api/auth/users', authMiddleware, async (req: Request, res: Response) =
 
 // Atualizar módulo do usuário
 app.patch('/api/auth/users/:id/module', authMiddleware, async (req: Request, res: Response) => {
-  const id = String(req.params.id);
+  const id = String(String(req.params.id));
   const { module } = req.body;
   if (!['FINANCE', 'WAREHOUSE', 'ADMIN'].includes(module)) {
     res.status(400).json({ error: 'Módulo inválido. Use FINANCE, WAREHOUSE ou ADMIN.' }); return;
@@ -362,7 +362,7 @@ app.get('/api/transactions', authMiddleware, async (req: Request, res: Response)
 });
 
 app.get('/api/transactions/:id/attachment', authMiddleware, async (req: Request, res: Response) => {
-  const id = String(req.params.id);
+  const id = String(String(req.params.id));
   try {
     const t = await prisma.transaction.findUnique({
       where: { id },
@@ -396,7 +396,7 @@ app.post('/api/transactions', authMiddleware, async (req: Request, res: Response
 });
 
 app.patch('/api/transactions/:id/attach', authMiddleware, async (req: Request, res: Response) => {
-  const id = String(req.params.id);
+  const id = String(String(req.params.id));
   const { attachmentUrl } = req.body;
   try {
     const t = await prisma.transaction.update({ where: { id }, data: { attachmentUrl } });
@@ -405,7 +405,7 @@ app.patch('/api/transactions/:id/attach', authMiddleware, async (req: Request, r
 });
 
 app.patch('/api/transactions/:id/pay', authMiddleware, async (req: Request, res: Response) => {
-  const id = String(req.params.id);
+  const id = String(String(req.params.id));
   const { paymentDate, bankAccountId, amount } = req.body;
   try {
     const payDate = paymentDate ? new Date(paymentDate) : new Date();
@@ -440,7 +440,7 @@ app.patch('/api/transactions/:id/pay', authMiddleware, async (req: Request, res:
 });
 
 app.delete('/api/transactions/:id', authMiddleware, async (req: Request, res: Response) => {
-  const id = String(req.params.id);
+  const id = String(String(req.params.id));
   try {
     await prisma.transaction.delete({ where: { id } });
     res.json({ message: 'Excluído.' });
@@ -523,7 +523,7 @@ app.post('/api/categories', authMiddleware, async (req: Request, res: Response) 
   res.status(201).json(await prisma.category.create({ data: { name, type, color } }));
 });
 app.delete('/api/categories/:id', authMiddleware, async (req: Request, res: Response) => {
-  await prisma.category.delete({ where: { id: String(req.params.id) } });
+  await prisma.category.delete({ where: { id: String(String(req.params.id)) } });
   res.json({ message: 'Excluído.' });
 });
 
@@ -536,7 +536,7 @@ app.post('/api/entities', authMiddleware, async (req: Request, res: Response) =>
   res.status(201).json(await prisma.entity.create({ data: { name, document, type } }));
 });
 app.delete('/api/entities/:id', authMiddleware, async (req: Request, res: Response) => {
-  await prisma.entity.delete({ where: { id: String(req.params.id) } });
+  await prisma.entity.delete({ where: { id: String(String(req.params.id)) } });
   res.json({ message: 'Excluído.' });
 });
 
@@ -549,7 +549,7 @@ app.post('/api/companies', authMiddleware, async (req: Request, res: Response) =
   res.status(201).json(await (prisma as any).company.create({ data: { name, document } }));
 });
 app.delete('/api/companies/:id', authMiddleware, async (req: Request, res: Response) => {
-  await (prisma as any).company.delete({ where: { id: String(req.params.id) } });
+  await (prisma as any).company.delete({ where: { id: String(String(req.params.id)) } });
   res.json({ message: 'Excluído.' });
 });
 
@@ -561,7 +561,7 @@ app.post('/api/bank-accounts', authMiddleware, async (req: Request, res: Respons
   res.status(201).json(await (prisma as any).bankAccount.create({ data: { name, agency, account } }));
 });
 app.delete('/api/bank-accounts/:id', authMiddleware, async (req: Request, res: Response) => {
-  await (prisma as any).bankAccount.delete({ where: { id: String(req.params.id) } });
+  await (prisma as any).bankAccount.delete({ where: { id: String(String(req.params.id)) } });
   res.json({ message: 'Excluído.' });
 });
 
@@ -601,7 +601,7 @@ app.post('/api/pf/categories', authMiddleware, async (req: Request, res: Respons
 });
 
 app.delete('/api/pf/categories/:id', authMiddleware, async (req: Request, res: Response) => {
-  await (prisma as any).category.delete({ where: { id: String(req.params.id) } });
+  await (prisma as any).category.delete({ where: { id: String(String(req.params.id)) } });
   res.json({ message: 'Excluído.' });
 });
 
@@ -647,7 +647,7 @@ app.post('/api/pf/transactions', authMiddleware, async (req: Request, res: Respo
 });
 
 app.patch('/api/pf/transactions/:id/pay', authMiddleware, async (req: Request, res: Response) => {
-  const id = String(req.params.id);
+  const id = String(String(req.params.id));
   const { paymentDate, bankAccountId, amount } = req.body;
   try {
     const payDate = paymentDate ? new Date(paymentDate) : new Date();
@@ -669,7 +669,7 @@ app.patch('/api/pf/transactions/:id/pay', authMiddleware, async (req: Request, r
 });
 
 app.delete('/api/pf/transactions/:id', authMiddleware, async (req: Request, res: Response) => {
-  await (prisma as any).transaction.delete({ where: { id: String(req.params.id) } });
+  await (prisma as any).transaction.delete({ where: { id: String(String(req.params.id)) } });
   res.json({ message: 'Excluído.' });
 });
 
@@ -699,7 +699,7 @@ app.post('/api/pf/budgets', authMiddleware, async (req: Request, res: Response) 
 });
 
 app.delete('/api/pf/budgets/:id', authMiddleware, async (req: Request, res: Response) => {
-  await (prisma as any).budget.delete({ where: { id: String(req.params.id) } });
+  await (prisma as any).budget.delete({ where: { id: String(String(req.params.id)) } });
   res.json({ message: 'Excluído.' });
 });
 
@@ -721,7 +721,7 @@ app.post('/api/pf/goals', authMiddleware, async (req: Request, res: Response) =>
 });
 
 app.patch('/api/pf/goals/:id/deposit', authMiddleware, async (req: Request, res: Response) => {
-  const id = String(req.params.id);
+  const id = String(String(req.params.id));
   const { amount } = req.body;
   try {
     const g = await (prisma as any).goal.findUnique({ where: { id } });
@@ -735,24 +735,16 @@ app.patch('/api/pf/goals/:id/deposit', authMiddleware, async (req: Request, res:
 });
 
 app.delete('/api/pf/goals/:id', authMiddleware, async (req: Request, res: Response) => {
-  await (prisma as any).goal.delete({ where: { id: String(req.params.id) } });
+  await (prisma as any).goal.delete({ where: { id: String(String(req.params.id)) } });
   res.json({ message: 'Excluído.' });
 });
 
 // ─── ALMOXARIFADO ─────────────────────────────────────────────────────────────
 
-// Helper para gerar UUID simples
-function genId() {
-  return require('crypto').randomUUID();
-}
-
 // ── CATEGORIAS DO ALMOXARIFADO ────────────────────────────────────────────────
 app.get('/api/warehouse/categories', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    const { rows } = await pool.query(`SELECT * FROM "WarehouseCategory" ORDER BY name ASC`);
-    await pool.end();
+    const rows = await prisma.warehouseCategory.findMany({ orderBy: { name: 'asc' } });
     res.json(rows);
   } catch (e) { res.status(500).json({ error: 'Erro ao buscar categorias.' }); }
 });
@@ -761,25 +753,16 @@ app.post('/api/warehouse/categories', authMiddleware, async (req: Request, res: 
   const { name, color } = req.body;
   if (!name) { res.status(400).json({ error: 'Nome da categoria é obrigatório.' }); return; }
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    const id = genId();
-    const { rows } = await pool.query(
-      `INSERT INTO "WarehouseCategory" (id, name, color) VALUES ($1,$2,$3) RETURNING *`,
-      [id, name, color || '#64748b']
-    );
-    await pool.end();
-    res.status(201).json(rows[0]);
+    const row = await prisma.warehouseCategory.create({
+      data: { name, color: color || '#64748b' }
+    });
+    res.status(201).json(row);
   } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao criar categoria.' }); }
 });
 
 app.delete('/api/warehouse/categories/:id', authMiddleware, async (req: Request, res: Response) => {
-  const id = String(req.params.id);
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    await pool.query(`DELETE FROM "WarehouseCategory" WHERE id=$1`, [id]);
-    await pool.end();
+    await prisma.warehouseCategory.delete({ where: { id: String(req.params.id) } });
     res.json({ message: 'Excluído.' });
   } catch (e) { res.status(500).json({ error: 'Erro ao excluir categoria.' }); }
 });
@@ -787,10 +770,7 @@ app.delete('/api/warehouse/categories/:id', authMiddleware, async (req: Request,
 // ── FORNECEDORES DE ESTOQUE ──────────────────────────────────────────────────
 app.get('/api/warehouse/suppliers', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    const { rows } = await pool.query(`SELECT * FROM "StockSupplier" ORDER BY name ASC`);
-    await pool.end();
+    const rows = await prisma.stockSupplier.findMany({ orderBy: { name: 'asc' } });
     res.json(rows);
   } catch (e) { res.status(500).json({ error: 'Erro ao buscar fornecedores.' }); }
 });
@@ -798,25 +778,16 @@ app.get('/api/warehouse/suppliers', authMiddleware, async (req: Request, res: Re
 app.post('/api/warehouse/suppliers', authMiddleware, async (req: Request, res: Response) => {
   const { name, document, contact, email, phone } = req.body;
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    const id = genId();
-    const { rows } = await pool.query(
-      `INSERT INTO "StockSupplier" (id, name, document, contact, email, phone) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [id, name, document || null, contact || null, email || null, phone || null]
-    );
-    await pool.end();
-    res.status(201).json(rows[0]);
+    const row = await prisma.stockSupplier.create({
+      data: { name, document: document || null, contact: contact || null, email: email || null, phone: phone || null }
+    });
+    res.status(201).json(row);
   } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao criar fornecedor.' }); }
 });
 
 app.delete('/api/warehouse/suppliers/:id', authMiddleware, async (req: Request, res: Response) => {
-  const id = String(req.params.id);
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    await pool.query(`DELETE FROM "StockSupplier" WHERE id=$1`, [id]);
-    await pool.end();
+    await prisma.stockSupplier.delete({ where: { id: String(req.params.id) } });
     res.json({ message: 'Excluído.' });
   } catch (e) { res.status(500).json({ error: 'Erro ao excluir fornecedor.' }); }
 });
@@ -824,10 +795,7 @@ app.delete('/api/warehouse/suppliers/:id', authMiddleware, async (req: Request, 
 // ── LOCALIZAÇÕES ─────────────────────────────────────────────────────────────
 app.get('/api/warehouse/locations', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    const { rows } = await pool.query(`SELECT * FROM "StockLocation" ORDER BY label ASC`);
-    await pool.end();
+    const rows = await prisma.stockLocation.findMany({ orderBy: { label: 'asc' } });
     res.json(rows);
   } catch (e) { res.status(500).json({ error: 'Erro ao buscar localizações.' }); }
 });
@@ -835,26 +803,17 @@ app.get('/api/warehouse/locations', authMiddleware, async (req: Request, res: Re
 app.post('/api/warehouse/locations', authMiddleware, async (req: Request, res: Response) => {
   const { aisle, shelf, position } = req.body;
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    const id = genId();
     const label = `${String(aisle).toUpperCase()}-${String(shelf).padStart(2,'0')}-${String(position).padStart(2,'0')}`;
-    const { rows } = await pool.query(
-      `INSERT INTO "StockLocation" (id, aisle, shelf, position, label) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [id, aisle, shelf, position, label]
-    );
-    await pool.end();
-    res.status(201).json(rows[0]);
+    const row = await prisma.stockLocation.create({
+      data: { aisle, shelf, position, label }
+    });
+    res.status(201).json(row);
   } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao criar localização.' }); }
 });
 
 app.delete('/api/warehouse/locations/:id', authMiddleware, async (req: Request, res: Response) => {
-  const id = String(req.params.id);
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    await pool.query(`DELETE FROM "StockLocation" WHERE id=$1`, [id]);
-    await pool.end();
+    await prisma.stockLocation.delete({ where: { id: String(req.params.id) } });
     res.json({ message: 'Excluído.' });
   } catch (e) { res.status(500).json({ error: 'Erro ao excluir localização.' }); }
 });
@@ -862,72 +821,80 @@ app.delete('/api/warehouse/locations/:id', authMiddleware, async (req: Request, 
 // ── PRODUTOS ─────────────────────────────────────────────────────────────────
 app.get('/api/warehouse/products', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    const { rows } = await pool.query(`
-      SELECT p.*, 
-        sl.label as "locationLabel", sl.aisle, sl.shelf, sl.position,
-        ss.name as "supplierName", ss.document as "supplierDocument"
-      FROM "Product" p
-      LEFT JOIN "StockLocation" sl ON p."locationId" = sl.id
-      LEFT JOIN "StockSupplier" ss ON p."supplierId" = ss.id
-      ORDER BY p.name ASC
-    `);
-    // Remove imageUrl from listing for performance (fetch individually)
-    const result = rows.map((r: any) => { const { imageUrl, ...rest } = r; return { ...rest, hasImage: !!imageUrl }; });
-    await pool.end();
+    const products = await prisma.product.findMany({
+      include: { location: true, supplier: true },
+      orderBy: { name: 'asc' }
+    });
+    const result = products.map((p: any) => {
+      const { imageUrl, location, supplier, ...rest } = p;
+      return {
+        ...rest,
+        hasImage: !!imageUrl,
+        locationLabel: location?.label,
+        aisle: location?.aisle,
+        shelf: location?.shelf,
+        position: location?.position,
+        supplierName: supplier?.name,
+        supplierDocument: supplier?.document
+      };
+    });
     res.json(result);
   } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao buscar produtos.' }); }
 });
 
 app.get('/api/warehouse/products/:id', authMiddleware, async (req: Request, res: Response) => {
-  const id = String(req.params.id);
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    const { rows } = await pool.query(`
-      SELECT p.*,
-        sl.label as "locationLabel", sl.aisle, sl.shelf, sl.position,
-        ss.name as "supplierName", ss.document as "supplierDocument"
-      FROM "Product" p
-      LEFT JOIN "StockLocation" sl ON p."locationId" = sl.id
-      LEFT JOIN "StockSupplier" ss ON p."supplierId" = ss.id
-      WHERE p.id = $1
-    `, [id]);
-    await pool.end();
-    if (!rows[0]) return res.status(404).json({ error: 'Produto não encontrado.' });
-    res.json(rows[0]);
+    const p: any = await prisma.product.findUnique({
+      where: { id: String(req.params.id) },
+      include: { location: true, supplier: true }
+    });
+    if (!p) return res.status(404).json({ error: 'Produto não encontrado.' });
+    const { location, supplier, ...rest } = p;
+    res.json({
+      ...rest,
+      locationLabel: location?.label,
+      aisle: location?.aisle,
+      shelf: location?.shelf,
+      position: location?.position,
+      supplierName: supplier?.name,
+      supplierDocument: supplier?.document
+    });
   } catch (e) { res.status(500).json({ error: 'Erro ao buscar produto.' }); }
 });
 
 app.get('/api/warehouse/products/:id/image', authMiddleware, async (req: Request, res: Response) => {
-  const id = String(req.params.id);
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    const { rows } = await pool.query(`SELECT "imageUrl" FROM "Product" WHERE id=$1`, [id]);
-    await pool.end();
-    if (!rows[0] || !rows[0].imageUrl) return res.status(404).json({ error: 'Imagem não encontrada.' });
-    res.json({ imageUrl: rows[0].imageUrl });
+    const p = await prisma.product.findUnique({ where: { id: String(req.params.id) }, select: { imageUrl: true } });
+    if (!p || !p.imageUrl) return res.status(404).json({ error: 'Imagem não encontrada.' });
+    res.json({ imageUrl: p.imageUrl });
   } catch (e) { res.status(500).json({ error: 'Erro ao buscar imagem.' }); }
 });
 
 app.post('/api/warehouse/products', authMiddleware, async (req: Request, res: Response) => {
   const { name, description, code, manufacturerCode, imageUrl, unit, category, minStock, costPrice, salePrice, locationId, supplierId } = req.body;
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    const id = genId();
-    const { rows } = await pool.query(`
-      INSERT INTO "Product" (id, name, description, code, "manufacturerCode", "imageUrl", unit, category, "minStock", "costPrice", "salePrice", "locationId", "supplierId", "currentStock")
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,0)
-      RETURNING id, name, description, code, "manufacturerCode", unit, category, "minStock", "currentStock", "costPrice", "salePrice", "locationId", "supplierId", active, "createdAt", "updatedAt"
-    `, [id, name, description||null, code, manufacturerCode||null, imageUrl||null, unit||'UN', category||'Geral', Number(minStock)||0, Number(costPrice)||0, Number(salePrice)||0, locationId||null, supplierId||null]);
-    await pool.end();
-    res.status(201).json(rows[0]);
+    const product = await prisma.product.create({
+      data: {
+        name,
+        description: description || null,
+        code,
+        manufacturerCode: manufacturerCode || null,
+        imageUrl: imageUrl || null,
+        unit: unit || 'UN',
+        category: category || 'Geral',
+        minStock: Number(minStock) || 0,
+        costPrice: Number(costPrice) || 0,
+        salePrice: Number(salePrice) || 0,
+        locationId: locationId || null,
+        supplierId: supplierId || null,
+        currentStock: 0,
+        active: true,
+      }
+    });
+    res.status(201).json(product);
   } catch (e: any) {
     console.error(e);
-    if (e.code === '23505') return res.status(400).json({ error: 'Código já existe. Use um código único.' });
+    if (e.code === 'P2002') return res.status(400).json({ error: 'Código já existe. Use um código único.' });
     res.status(500).json({ error: 'Erro ao criar produto.' });
   }
 });
@@ -936,32 +903,31 @@ app.patch('/api/warehouse/products/:id', authMiddleware, async (req: Request, re
   const id = String(req.params.id);
   const { name, description, code, manufacturerCode, unit, category, minStock, costPrice, salePrice, locationId, supplierId, active } = req.body;
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    await pool.query(`
-      UPDATE "Product" SET
-        name=COALESCE($1,name), description=COALESCE($2,description), code=COALESCE($3,code),
-        "manufacturerCode"=COALESCE($4,"manufacturerCode"), unit=COALESCE($5,unit), category=COALESCE($6,category),
-        "minStock"=COALESCE($7,"minStock"), "costPrice"=COALESCE($8,"costPrice"), "salePrice"=COALESCE($9,"salePrice"),
-        "locationId"=$10, "supplierId"=$11, active=COALESCE($12,active), "updatedAt"=NOW()
-      WHERE id=$13
-    `, [name||null, description||null, code||null, manufacturerCode||null, unit||null, category||null,
-        minStock!=null?Number(minStock):null, costPrice!=null?Number(costPrice):null, salePrice!=null?Number(salePrice):null,
-        locationId||null, supplierId||null, active!=null?Boolean(active):null, id]);
-    const { rows } = await pool.query(`SELECT * FROM "Product" WHERE id=$1`, [id]);
-    await pool.end();
-    res.json(rows[0]);
+    const product = await prisma.product.update({
+      where: { id },
+      data: {
+        name: name || undefined,
+        description: description !== undefined ? description : undefined,
+        code: code || undefined,
+        manufacturerCode: manufacturerCode !== undefined ? manufacturerCode : undefined,
+        unit: unit || undefined,
+        category: category || undefined,
+        minStock: minStock != null ? Number(minStock) : undefined,
+        costPrice: costPrice != null ? Number(costPrice) : undefined,
+        salePrice: salePrice != null ? Number(salePrice) : undefined,
+        locationId: locationId !== undefined ? (locationId || null) : undefined,
+        supplierId: supplierId !== undefined ? (supplierId || null) : undefined,
+        active: active != null ? Boolean(active) : undefined,
+      }
+    });
+    res.json(product);
   } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao atualizar produto.' }); }
 });
 
 app.patch('/api/warehouse/products/:id/image', authMiddleware, async (req: Request, res: Response) => {
-  const id = String(req.params.id);
   const { imageUrl } = req.body;
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    await pool.query(`UPDATE "Product" SET "imageUrl"=$1, "updatedAt"=NOW() WHERE id=$2`, [imageUrl, id]);
-    await pool.end();
+    await prisma.product.update({ where: { id: String(req.params.id) }, data: { imageUrl } });
     res.json({ message: 'Imagem atualizada.' });
   } catch (e) { res.status(500).json({ error: 'Erro ao atualizar imagem.' }); }
 });
@@ -969,11 +935,8 @@ app.patch('/api/warehouse/products/:id/image', authMiddleware, async (req: Reque
 app.delete('/api/warehouse/products/:id', authMiddleware, async (req: Request, res: Response) => {
   const id = String(req.params.id);
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    await pool.query(`DELETE FROM "StockMovement" WHERE "productId"=$1`, [id]);
-    await pool.query(`DELETE FROM "Product" WHERE id=$1`, [id]);
-    await pool.end();
+    await prisma.stockMovement.deleteMany({ where: { productId: id } });
+    await prisma.product.delete({ where: { id } });
     res.json({ message: 'Produto e histórico excluídos.' });
   } catch (e) { res.status(500).json({ error: 'Erro ao excluir produto.' }); }
 });
@@ -981,23 +944,38 @@ app.delete('/api/warehouse/products/:id', authMiddleware, async (req: Request, r
 // ── MOVIMENTAÇÕES ────────────────────────────────────────────────────────────
 app.get('/api/warehouse/movements', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
     const { productId, type, from, to, limit } = req.query;
-    let query = `SELECT m.*, p.name as "productName", p.code as "productCode", p.unit as "productUnit"
-      FROM "StockMovement" m
-      JOIN "Product" p ON m."productId" = p.id
-      WHERE 1=1`;
-    const params: any[] = [];
-    if (productId) { params.push(productId); query += ` AND m."productId"=$${params.length}`; }
-    if (type) { params.push(type); query += ` AND m.type=$${params.length}`; }
-    if (from) { params.push(from); query += ` AND m.date >= $${params.length}`; }
-    if (to) { params.push(to); query += ` AND m.date <= $${params.length}`; }
-    query += ` ORDER BY m.date DESC`;
-    if (limit) { params.push(Number(limit)); query += ` LIMIT $${params.length}`; }
-    const { rows } = await pool.query(query, params);
-    await pool.end();
-    res.json(rows);
+    
+    let where: any = {};
+    if (productId) where.productId = String(productId);
+    if (type) where.type = String(type);
+    if (from || to) {
+      where.date = {};
+      if (from) where.date.gte = new Date(String(from));
+      if (to) {
+         const toDate = new Date(String(to));
+         toDate.setUTCHours(23, 59, 59, 999);
+         where.date.lte = toDate;
+      }
+    }
+    
+    const movs = await prisma.stockMovement.findMany({
+      where,
+      orderBy: { date: 'desc' },
+      take: limit ? Number(limit) : undefined,
+      include: { product: true }
+    });
+    
+    const result = movs.map((m: any) => {
+      const { product, ...rest } = m;
+      return {
+        ...rest,
+        productName: product?.name,
+        productCode: product?.code,
+        productUnit: product?.unit
+      };
+    });
+    res.json(result);
   } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao buscar movimentações.' }); }
 });
 
@@ -1005,99 +983,124 @@ app.post('/api/warehouse/movements', authMiddleware, async (req: Request, res: R
   const { productId, type, quantity, unitPrice, reason, document, date } = req.body;
   const user = (req as any).user;
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    
-    // Busca produto atual
-    const { rows: prodRows } = await pool.query(`SELECT * FROM "Product" WHERE id=$1`, [productId]);
-    if (!prodRows[0]) { await pool.end(); return res.status(404).json({ error: 'Produto não encontrado.' }); }
-    const prod = prodRows[0];
+    const prod = await prisma.product.findUnique({ where: { id: productId } });
+    if (!prod) return res.status(404).json({ error: 'Produto não encontrado.' });
     
     const qty = Number(quantity);
     const price = Number(unitPrice) || prod.costPrice;
     const total = qty * price;
-    const id = genId();
     const movDate = date ? new Date(date) : new Date();
     
-    // Calcula novo estoque
     let newStock = prod.currentStock;
     if (type === 'ENTRY' || type === 'RETURN') newStock += qty;
     else if (type === 'EXIT' || type === 'SALE' || type === 'ADJUSTMENT') newStock = Math.max(0, newStock - qty);
     
-    // Insere movimentação
-    const { rows } = await pool.query(`
-      INSERT INTO "StockMovement" (id, "productId", type, quantity, "unitPrice", "totalPrice", reason, document, date, "createdBy")
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *
-    `, [id, productId, type, qty, price, total, reason||null, document||null, movDate, user?.name||null]);
+    const [movement] = await prisma.$transaction([
+      prisma.stockMovement.create({
+        data: {
+          productId,
+          type,
+          quantity: qty,
+          unitPrice: price,
+          totalPrice: total,
+          reason: reason || null,
+          document: document || null,
+          date: movDate,
+          createdBy: user?.name || null
+        }
+      }),
+      prisma.product.update({
+        where: { id: productId },
+        data: { currentStock: newStock }
+      })
+    ]);
     
-    // Atualiza estoque do produto
-    await pool.query(`UPDATE "Product" SET "currentStock"=$1, "updatedAt"=NOW() WHERE id=$2`, [newStock, productId]);
-    
-    await pool.end();
-    res.status(201).json({ ...rows[0], newStock });
+    res.json({ ...movement, newStock });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao registrar movimentação.' }); }
 });
 
 // ── DASHBOARD / RESUMO DO ESTOQUE ────────────────────────────────────────────
 app.get('/api/warehouse/summary', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     
-    const [totals, lowStock, movements] = await Promise.all([
-      pool.query(`
-        SELECT
-          COUNT(*) FILTER (WHERE active=true) as "totalProducts",
-          SUM("currentStock" * "costPrice") FILTER (WHERE active=true) as "totalValue",
-          SUM("currentStock") FILTER (WHERE active=true) as "totalItems",
-          COUNT(*) FILTER (WHERE active=true AND "currentStock" <= "minStock" AND "minStock" > 0) as "lowStockCount"
-        FROM "Product"
-      `),
-      pool.query(`
-        SELECT p.id, p.name, p.code, p."currentStock", p."minStock", p.unit, sl.label as "locationLabel"
-        FROM "Product" p
-        LEFT JOIN "StockLocation" sl ON p."locationId" = sl.id
-        WHERE p.active=true AND p."currentStock" <= p."minStock" AND p."minStock" > 0
-        ORDER BY (p."currentStock" / NULLIF(p."minStock",0)) ASC
-        LIMIT 10
-      `),
-      pool.query(`
-        SELECT type, COUNT(*) as count, SUM("totalPrice") as total
-        FROM "StockMovement"
-        WHERE date >= $1
-        GROUP BY type
-      `, [startOfMonth]),
-    ]);
+    const activeProducts = await prisma.product.findMany({ where: { active: true } });
+    const totalProducts = activeProducts.length;
+    let totalValue = 0;
+    let totalItems = 0;
+    let lowStockCount = 0;
     
-    await pool.end();
+    activeProducts.forEach(p => {
+      totalValue += p.currentStock * p.costPrice;
+      totalItems += p.currentStock;
+      if (p.minStock > 0 && p.currentStock <= p.minStock) lowStockCount++;
+    });
+    
+    const lowStockItems = await prisma.product.findMany({
+      where: {
+        active: true,
+        minStock: { gt: 0 }
+      },
+      include: { location: true }
+    });
+    
+    const filteredLowStock = lowStockItems
+      .filter((p: any) => p.currentStock <= p.minStock)
+      .sort((a: any, b: any) => (a.currentStock / a.minStock) - (b.currentStock / b.minStock))
+      .slice(0, 10)
+      .map((p: any) => {
+        const { location, ...rest } = p;
+        return { ...rest, locationLabel: location?.label };
+      });
+
+    const movements = await prisma.stockMovement.groupBy({
+      by: ['type'],
+      where: { date: { gte: startOfMonth } },
+      _count: { _all: true },
+      _sum: { totalPrice: true }
+    });
+    
+    const movementsByType = movements.map(m => ({
+      type: m.type,
+      count: m._count._all,
+      total: m._sum.totalPrice || 0
+    }));
+    
     res.json({
-      totalProducts: parseInt(totals.rows[0].totalProducts) || 0,
-      totalValue: parseFloat(totals.rows[0].totalValue) || 0,
-      totalItems: parseFloat(totals.rows[0].totalItems) || 0,
-      lowStockCount: parseInt(totals.rows[0].lowStockCount) || 0,
-      lowStockItems: lowStock.rows,
-      movementsByType: movements.rows,
+      totalProducts,
+      totalValue,
+      totalItems,
+      lowStockCount,
+      lowStockItems: filteredLowStock,
+      movementsByType,
     });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao buscar resumo do estoque.' }); }
 });
 
 app.get('/api/warehouse/low-stock', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const pg = require('pg');
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    const { rows } = await pool.query(`
-      SELECT p.*, sl.label as "locationLabel", ss.name as "supplierName"
-      FROM "Product" p
-      LEFT JOIN "StockLocation" sl ON p."locationId" = sl.id
-      LEFT JOIN "StockSupplier" ss ON p."supplierId" = ss.id
-      WHERE p.active=true AND p."currentStock" <= p."minStock" AND p."minStock" > 0
-      ORDER BY (p."currentStock" / NULLIF(p."minStock",0)) ASC
-    `);
-    await pool.end();
-    res.json(rows);
+    const items = await prisma.product.findMany({
+      where: {
+        active: true,
+        minStock: { gt: 0 }
+      },
+      include: { location: true, supplier: true }
+    });
+    
+    const result = items
+      .filter((p: any) => p.currentStock <= p.minStock)
+      .sort((a: any, b: any) => (a.currentStock / a.minStock) - (b.currentStock / b.minStock))
+      .map((p: any) => {
+        const { location, supplier, ...rest } = p;
+        return {
+          ...rest,
+          locationLabel: location?.label,
+          supplierName: supplier?.name
+        };
+      });
+      
+    res.json(result);
   } catch (e) { res.status(500).json({ error: 'Erro ao buscar produtos com estoque baixo.' }); }
 });
 
