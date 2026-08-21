@@ -81,7 +81,7 @@ const warehouseAuthMiddleware = (req: Request, res: Response, next: NextFunction
 
 // ─── HEALTH CHECK ──────────────────────────────────────────────────────────────
 app.get('/api/health', (_, res) => {
-  res.json({ status: '✅ Backend Magalhaes operacional', database: 'PostgreSQL via Neon' });
+  res.json({ status: '✅ Backend Magalhaes operacional', database: 'PostgreSQL via Neon', version: '2026-08-20-v3', warehouse: true });
 });
 
 // ─── AUTO-MIGRAÇÃO: garante que colunas e tabelas novas existem ───────────────
