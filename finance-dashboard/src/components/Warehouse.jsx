@@ -4,7 +4,7 @@ import {
   Plus, Search, Edit2, Trash2, X, Check, Upload, MapPin,
   Truck, BarChart2, ArrowUpCircle, ArrowDownCircle, ShoppingCart,
   RotateCcw, Settings, Eye, FileText,
-  DollarSign, Hash, Tag, Box, Layers
+  DollarSign, Hash, Tag, Box, Layers, TrendingDown
 } from 'lucide-react';
 import API_URL from '../config.js';
 const API = API_URL;
