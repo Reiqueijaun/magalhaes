@@ -821,10 +821,30 @@ app.delete('/api/warehouse/locations/:id', authMiddleware, async (req: Request, 
 // ── PRODUTOS ─────────────────────────────────────────────────────────────────
 app.get('/api/warehouse/products', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const products = await prisma.product.findMany({
-      include: { location: true, supplier: true },
-      orderBy: { name: 'asc' }
-    });
+    const { page = '1', limit = '50', search, category } = req.query;
+    let where: any = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: String(search), mode: 'insensitive' } },
+        { code: { contains: String(search), mode: 'insensitive' } },
+        { manufacturerCode: { contains: String(search), mode: 'insensitive' } }
+      ];
+    }
+    if (category) where.category = String(category);
+
+    const skip = (Number(page) - 1) * Number(limit);
+    
+    const [products, total] = await prisma.$transaction([
+      prisma.product.findMany({
+        where,
+        include: { location: true, supplier: true },
+        orderBy: { name: 'asc' },
+        skip,
+        take: Number(limit)
+      }),
+      prisma.product.count({ where })
+    ]);
+
     const result = products.map((p: any) => {
       const { imageUrl, location, supplier, ...rest } = p;
       return {
@@ -838,8 +858,34 @@ app.get('/api/warehouse/products', authMiddleware, async (req: Request, res: Res
         supplierDocument: supplier?.document
       };
     });
-    res.json(result);
+    
+    res.json({
+      data: result,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / Number(limit))
+    });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao buscar produtos.' }); }
+});
+
+app.get('/api/warehouse/products-search', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { q } = req.query;
+    let where: any = { active: true };
+    if (q) {
+      where.OR = [
+        { name: { contains: String(q), mode: 'insensitive' } },
+        { code: { contains: String(q), mode: 'insensitive' } }
+      ];
+    }
+    const products = await prisma.product.findMany({
+      where,
+      select: { id: true, name: true, code: true, currentStock: true, unit: true, costPrice: true, location: { select: { label: true } } },
+      take: 50,
+      orderBy: { name: 'asc' }
+    });
+    res.json(products.map((p: any) => ({ ...p, locationLabel: p.location?.label })));
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao buscar.' }); }
 });
 
 app.get('/api/warehouse/products/:id', authMiddleware, async (req: Request, res: Response) => {
@@ -944,11 +990,14 @@ app.delete('/api/warehouse/products/:id', authMiddleware, async (req: Request, r
 // ── MOVIMENTAÇÕES ────────────────────────────────────────────────────────────
 app.get('/api/warehouse/movements', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const { productId, type, from, to, limit } = req.query;
+    const { productId, type, from, to, page = '1', limit = '50', fetchTypes } = req.query;
     
     let where: any = {};
     if (productId) where.productId = String(productId);
     if (type) where.type = String(type);
+    if (fetchTypes) {
+      where.type = { in: String(fetchTypes).split(',') };
+    }
     if (from || to) {
       where.date = {};
       if (from) where.date.gte = new Date(String(from));
@@ -959,12 +1008,18 @@ app.get('/api/warehouse/movements', authMiddleware, async (req: Request, res: Re
       }
     }
     
-    const movs = await prisma.stockMovement.findMany({
-      where,
-      orderBy: { date: 'desc' },
-      take: limit ? Number(limit) : undefined,
-      include: { product: true }
-    });
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const [movs, total] = await prisma.$transaction([
+      prisma.stockMovement.findMany({
+        where,
+        orderBy: { date: 'desc' },
+        skip,
+        take: Number(limit),
+        include: { product: true }
+      }),
+      prisma.stockMovement.count({ where })
+    ]);
     
     const result = movs.map((m: any) => {
       const { product, ...rest } = m;
@@ -975,7 +1030,12 @@ app.get('/api/warehouse/movements', authMiddleware, async (req: Request, res: Re
         productUnit: product?.unit
       };
     });
-    res.json(result);
+    res.json({
+      data: result,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / Number(limit))
+    });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Erro ao buscar movimentações.' }); }
 });
 

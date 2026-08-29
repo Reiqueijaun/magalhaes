@@ -482,8 +482,13 @@ const TABS = [
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function WarehouseModule() {
   const [tab, setTab] = useState('dashboard');
-  const [products, setProducts] = useState([]);
-  const [movements, setMovements] = useState([]);
+  const [productsData, setProductsData] = useState({ data: [], total: 0, page: 1, totalPages: 1 });
+  const [productPage, setProductPage] = useState(1);
+  const [movData, setMovData] = useState({ data: [], total: 0, page: 1, totalPages: 1 });
+  const [movPage, setMovPage] = useState(1);
+  const [salesData, setSalesData] = useState({ data: [], total: 0, page: 1, totalPages: 1 });
+  const [salesPage, setSalesPage] = useState(1);
+  const [simpleProducts, setSimpleProducts] = useState([]);
   const [locations, setLocations] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -513,57 +518,96 @@ export default function WarehouseModule() {
 
   const askConfirm = (title, message, onConfirm) => setConfirmModal({ title, message, onConfirm });
 
-  const loadAll = async (showLoading = true) => {
+  const loadBaseData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
       const results = await Promise.allSettled([
-        api.get('/api/warehouse/products'),
-        api.get('/api/warehouse/movements?limit=200'),
         api.get('/api/warehouse/locations'),
         api.get('/api/warehouse/suppliers'),
         api.get('/api/warehouse/summary'),
+        api.get('/api/warehouse/products-search')
       ]);
       const val = (r) => (r.status === 'fulfilled' ? r.value : null);
-      const [prods, movs, locs, sups, sum] = results.map(val);
-      setProducts(Array.isArray(prods) ? prods : []);
-      setMovements(Array.isArray(movs) ? movs : []);
+      const [locs, sups, sum, simProds] = results.map(val);
       setLocations(Array.isArray(locs) ? locs : []);
       setSuppliers(Array.isArray(sups) ? sups : []);
       setSummary(sum && !sum.error ? sum : null);
+      setSimpleProducts(Array.isArray(simProds) ? simProds : []);
     } catch (e) {
-      console.error('Erro ao carregar almoxarifado:', e);
+      console.error('Erro ao carregar dados base:', e);
     } finally {
       if (showLoading) setLoading(false);
     }
   };
 
-  useEffect(() => { loadAll(true); }, []);
+  useEffect(() => { loadBaseData(true); }, []);
 
-  // Filtered products
-  const uniqueCategories = [...new Set(products.filter(Boolean).map(p => p.category))].filter(Boolean).sort();
-  const filteredProducts = products.filter(p => {
-    const s = search.toLowerCase();
-    const matchSearch = !s || p.name.toLowerCase().includes(s) || p.code.toLowerCase().includes(s) || (p.manufacturerCode || '').toLowerCase().includes(s);
-    const matchCat = !filterCat || p.category === filterCat;
-    return matchSearch && matchCat;
-  });
+  useEffect(() => {
+    if (tab === 'products') {
+      const q = new URLSearchParams({ page: productPage, limit: 50 });
+      if (search) q.append('search', search);
+      if (filterCat) q.append('category', filterCat);
+      api.get(`/api/warehouse/products?${q.toString()}`).then(res => {
+        if (!res.error) setProductsData(res);
+      });
+    }
+  }, [tab, productPage, search, filterCat]);
 
-  // Filtered movements
-  const filteredMovements = movements.filter(m => {
-    if (!m) return false;
-    if (movFilter.type && m.type !== movFilter.type) return false;
-    if (movFilter.productId && m.productId !== movFilter.productId) return false;
-    if (movFilter.from && new Date(m.date) < new Date(movFilter.from)) return false;
-    if (movFilter.to && new Date(m.date) > new Date(movFilter.to + 'T23:59:59')) return false;
-    return true;
-  });
+  useEffect(() => {
+    if (tab === 'movements') {
+      const q = new URLSearchParams({ page: movPage, limit: 50 });
+      if (movFilter.type) q.append('type', movFilter.type);
+      if (movFilter.productId) q.append('productId', movFilter.productId);
+      if (movFilter.from) q.append('from', movFilter.from);
+      if (movFilter.to) q.append('to', movFilter.to);
+      api.get(`/api/warehouse/movements?${q.toString()}`).then(res => {
+        if (!res.error) setMovData(res);
+      });
+    }
+  }, [tab, movPage, movFilter]);
 
-  const sales = movements.filter(m => m && (m.type === 'SALE' || m.type === 'EXIT')).filter(m => {
-    if (movFilter.productId && m.productId !== movFilter.productId) return false;
-    if (movFilter.from && new Date(m.date) < new Date(movFilter.from)) return false;
-    if (movFilter.to && new Date(m.date) > new Date(movFilter.to + 'T23:59:59')) return false;
-    return true;
-  });
+  useEffect(() => {
+    if (tab === 'sales') {
+      const q = new URLSearchParams({ page: salesPage, limit: 50, fetchTypes: 'SALE,EXIT' });
+      if (movFilter.productId) q.append('productId', movFilter.productId);
+      if (movFilter.from) q.append('from', movFilter.from);
+      if (movFilter.to) q.append('to', movFilter.to);
+      api.get(`/api/warehouse/movements?${q.toString()}`).then(res => {
+        if (!res.error) setSalesData(res);
+      });
+    }
+  }, [tab, salesPage, movFilter]);
+
+  const onSaveProduct = () => {
+    setShowProductModal(false);
+    setProductPage(1); 
+    loadBaseData(false);
+    const q = new URLSearchParams({ page: 1, limit: 50 });
+    if (search) q.append('search', search);
+    if (filterCat) q.append('category', filterCat);
+    api.get(`/api/warehouse/products?${q.toString()}`).then(res => {
+      if (!res.error) setProductsData(res);
+    });
+  };
+
+  const onSaveMovement = () => {
+    setShowMovModal(false);
+    setMovPage(1);
+    setSalesPage(1);
+    loadBaseData(false);
+    
+    const q1 = new URLSearchParams({ page: 1, limit: 50 });
+    api.get(`/api/warehouse/movements?${q1.toString()}`).then(res => !res.error && setMovData(res));
+    
+    const q2 = new URLSearchParams({ page: 1, limit: 50, fetchTypes: 'SALE,EXIT' });
+    api.get(`/api/warehouse/movements?${q2.toString()}`).then(res => !res.error && setSalesData(res));
+  };
+
+
+  const uniqueCategories = [...new Set(simpleProducts.map(p => p.category))].filter(Boolean).sort();
+  const filteredProducts = productsData.data || [];
+  const filteredMovements = movData.data || [];
+  const sales = salesData.data || [];
 
   const handleDeleteProduct = async (id) => {
     askConfirm(
@@ -571,8 +615,8 @@ export default function WarehouseModule() {
       'Tem certeza? O produto e todo o histórico de movimentações serão excluídos permanentemente.',
       async () => {
         await api.del(`/api/warehouse/products/${id}`);
-        setProducts(p => p.filter(x => x.id !== id));
-        setMovements(m => m.filter(x => x.productId !== id));
+        setProductsData(p => ({ ...p, data: p.data.filter(x => x.id !== id) }));
+        loadBaseData(false);
       }
     );
   };
@@ -774,9 +818,9 @@ export default function WarehouseModule() {
           <div style={{ display: 'flex', gap: 10, marginBottom: '1rem', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
               <Search size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome, código..." style={{ width: '100%', padding: '0.55rem 0.75rem 0.55rem 2rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white' }} />
+              <input value={search} onChange={e => { setSearch(e.target.value); setProductPage(1); }} placeholder="Buscar por nome, código..." style={{ width: '100%', padding: '0.55rem 0.75rem 0.55rem 2rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white' }} />
             </div>
-            <select value={filterCat} onChange={e => setFilterCat(e.target.value)} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white', minWidth: 160 }}>
+            <select value={filterCat} onChange={e => { setFilterCat(e.target.value); setProductPage(1); }} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white', minWidth: 160 }}>
               <option value="">Todas as categorias</option>
               {uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
@@ -864,7 +908,16 @@ export default function WarehouseModule() {
               </div>
             )}
           </div>
-          <div style={{ marginTop: 8, fontSize: '0.75rem', color: '#94a3b8', textAlign: 'right' }}>{filteredProducts.length} produto(s)</div>
+          <div style={{ marginTop: 8, fontSize: '0.75rem', color: '#94a3b8', textAlign: 'right', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>{filteredProducts.length} produto(s) na página</span>
+            {productsData.totalPages > 1 && (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button disabled={productPage === 1} onClick={() => setProductPage(p => p - 1)} style={{ padding: '0.3rem 0.6rem', border: '1px solid #e2e8f0', borderRadius: 6, background: productPage === 1 ? '#f8fafc' : 'white', cursor: productPage === 1 ? 'not-allowed' : 'pointer', fontWeight: 600 }}>Anterior</button>
+                <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600, padding: '0.3rem' }}>Página {productsData.page} de {productsData.totalPages}</span>
+                <button disabled={productPage === productsData.totalPages} onClick={() => setProductPage(p => p + 1)} style={{ padding: '0.3rem 0.6rem', border: '1px solid #e2e8f0', borderRadius: 6, background: productPage === productsData.totalPages ? '#f8fafc' : 'white', cursor: productPage === productsData.totalPages ? 'not-allowed' : 'pointer', fontWeight: 600 }}>Próxima</button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -878,7 +931,7 @@ export default function WarehouseModule() {
             </select>
             <select value={movFilter.productId} onChange={e => setMovFilter(p => ({ ...p, productId: e.target.value }))} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white', minWidth: 200 }}>
               <option value="">Todos os produtos</option>
-              {products.filter(Boolean).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {simpleProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
             <input type="date" value={movFilter.from} onChange={e => setMovFilter(p => ({ ...p, from: e.target.value }))} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white' }} />
             <input type="date" value={movFilter.to} onChange={e => setMovFilter(p => ({ ...p, to: e.target.value }))} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white' }} />
@@ -931,6 +984,16 @@ export default function WarehouseModule() {
               </>
             )}
           </div>
+          <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{filteredMovements.length} lançamento(s) na página</span>
+            {movData.totalPages > 1 && (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button disabled={movPage === 1} onClick={() => setMovPage(p => p - 1)} style={{ padding: '0.3rem 0.6rem', border: '1px solid #e2e8f0', borderRadius: 6, background: movPage === 1 ? '#f8fafc' : 'white', cursor: movPage === 1 ? 'not-allowed' : 'pointer', fontWeight: 600 }}>Anterior</button>
+                <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600, padding: '0.3rem' }}>Página {movData.page} de {movData.totalPages}</span>
+                <button disabled={movPage === movData.totalPages} onClick={() => setMovPage(p => p + 1)} style={{ padding: '0.3rem 0.6rem', border: '1px solid #e2e8f0', borderRadius: 6, background: movPage === movData.totalPages ? '#f8fafc' : 'white', cursor: movPage === movData.totalPages ? 'not-allowed' : 'pointer', fontWeight: 600 }}>Próxima</button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -940,7 +1003,7 @@ export default function WarehouseModule() {
           <div style={{ display: 'flex', gap: 10, marginBottom: '1rem', flexWrap: 'wrap' }}>
             <select value={movFilter.productId} onChange={e => setMovFilter(p => ({ ...p, productId: e.target.value }))} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white', minWidth: 200 }}>
               <option value="">Todos os produtos</option>
-              {products.filter(Boolean).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {simpleProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
             <input type="date" value={movFilter.from} onChange={e => setMovFilter(p => ({ ...p, from: e.target.value }))} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white' }} />
             <input type="date" value={movFilter.to} onChange={e => setMovFilter(p => ({ ...p, to: e.target.value }))} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white' }} />
@@ -951,9 +1014,9 @@ export default function WarehouseModule() {
 
           {/* Resumo de vendas */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-            <StatCard icon={ShoppingCart} label="Total de Baixas" value={sales.length} sub="saídas e vendas filtradas" color="#3b82f6" bg="#dbeafe" />
-            <StatCard icon={TrendingDown} label="Qtd. Total Saída" value={fmtNum(sales.reduce((s, m) => s + m.quantity, 0), 0)} sub="unidades baixadas" color="#ef4444" bg="#fee2e2" />
-            <StatCard icon={DollarSign} label="Valor Total" value={fmt(sales.reduce((s, m) => s + (m.totalPrice || 0), 0))} sub="valor das baixas/vendas" color="#10b981" bg="#d1fae5" />
+            <StatCard icon={ShoppingCart} label="Total de Baixas (Filtro)" value={salesData.total} sub="saídas e vendas filtradas" color="#3b82f6" bg="#dbeafe" />
+            <StatCard icon={TrendingDown} label="Qtd. Total Saída" value={fmtNum(sales.reduce((s, m) => s + m.quantity, 0), 0) + ' (Pág)'} sub="unidades baixadas" color="#ef4444" bg="#fee2e2" />
+            <StatCard icon={DollarSign} label="Valor Total" value={fmt(sales.reduce((s, m) => s + (m.totalPrice || 0), 0)) + ' (Pág)'} sub="valor das baixas/vendas" color="#10b981" bg="#d1fae5" />
           </div>
 
           <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
@@ -1001,6 +1064,13 @@ export default function WarehouseModule() {
               </div>
             )}
           </div>
+          {salesData.totalPages > 1 && (
+            <div style={{ marginTop: 15, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10 }}>
+              <button disabled={salesPage === 1} onClick={() => setSalesPage(p => p - 1)} style={{ padding: '0.3rem 0.6rem', border: '1px solid #e2e8f0', borderRadius: 6, background: salesPage === 1 ? '#f8fafc' : 'white', cursor: salesPage === 1 ? 'not-allowed' : 'pointer', fontWeight: 600 }}>Anterior</button>
+              <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600, padding: '0.3rem' }}>Página {salesData.page} de {salesData.totalPages}</span>
+              <button disabled={salesPage === salesData.totalPages} onClick={() => setSalesPage(p => p + 1)} style={{ padding: '0.3rem 0.6rem', border: '1px solid #e2e8f0', borderRadius: 6, background: salesPage === salesData.totalPages ? '#f8fafc' : 'white', cursor: salesPage === salesData.totalPages ? 'not-allowed' : 'pointer', fontWeight: 600 }}>Próxima</button>
+            </div>
+          )}
         </div>
       )}
 
