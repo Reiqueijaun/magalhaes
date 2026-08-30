@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Tag, Users, Archive, Trash2, X, BookOpen, GraduationCap } from 'lucide-react';
+import { Plus, Tag, Users, Archive, Trash2, X, BookOpen, GraduationCap, ShieldCheck, KeyRound, UserPlus, Eye, EyeOff } from 'lucide-react';
 import { authFetch } from '../config';
 import { formatDoc } from '../utils';
 
@@ -13,6 +13,12 @@ export default function Settings() {
   const [tutorialEnabled, setTutorialEnabled] = useState(
     localStorage.getItem('showTutorial') !== 'false'
   );
+
+  // Dados do usuário logado (para verificar se é ADMIN)
+  const currentUser = (() => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
+  })();
+  const isAdmin = currentUser.module === 'ADMIN' || currentUser.role === 'ADMIN';
 
   // Formulários
   const [catModal, setCatModal] = useState(false);
@@ -34,6 +40,98 @@ export default function Settings() {
   const [bankAgency, setBankAgency] = useState('');
   const [bankAcc, setBankAcc] = useState('');
 
+  // ─── Gerenciamento de Usuários ─────────────────────────────────────
+  const [userList, setUserList] = useState([]);
+  const [userLoading, setUserLoading] = useState(false);
+  const [userMsg, setUserMsg] = useState(null); // { type: 'success'|'error', text }
+
+  // Modal: Novo Usuário
+  const [newUserModal, setNewUserModal] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserModule, setNewUserModule] = useState('FINANCE');
+  const [showNewPwd, setShowNewPwd] = useState(false);
+
+  // Modal: Alterar Módulo
+  const [moduleModal, setModuleModal] = useState(null); // user objeto
+  const [moduleSelected, setModuleSelected] = useState('FINANCE');
+
+  // Modal: Trocar Senha
+  const [pwdModal, setPwdModal] = useState(null); // user objeto
+  const [pwdValue, setPwdValue] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
+
+  const showUserMsg = (type, text) => {
+    setUserMsg({ type, text });
+    setTimeout(() => setUserMsg(null), 4000);
+  };
+
+  const fetchUsers = async () => {
+    setUserLoading(true);
+    try {
+      const res = await authFetch('/api/auth/users');
+      if (res.ok) setUserList(await res.json());
+    } catch (e) { console.error(e); }
+    finally { setUserLoading(false); }
+  };
+
+  const createUser = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await authFetch('/api/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ name: newUserName, email: newUserEmail, password: newUserPassword, module: newUserModule }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showUserMsg('error', data.error || 'Erro ao criar usuário.'); return; }
+      showUserMsg('success', 'Usuário criado com sucesso!');
+      setNewUserModal(false);
+      setNewUserName(''); setNewUserEmail(''); setNewUserPassword(''); setNewUserModule('FINANCE');
+      fetchUsers();
+    } catch { showUserMsg('error', 'Erro de conexão.'); }
+  };
+
+  const updateModule = async () => {
+    if (!moduleModal) return;
+    try {
+      const res = await authFetch(`/api/auth/users/${moduleModal.id}/module`, {
+        method: 'PATCH',
+        body: JSON.stringify({ module: moduleSelected }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showUserMsg('error', data.error || 'Erro ao alterar módulo.'); return; }
+      showUserMsg('success', 'Módulo atualizado com sucesso!');
+      setModuleModal(null);
+      fetchUsers();
+    } catch { showUserMsg('error', 'Erro de conexão.'); }
+  };
+
+  const updatePassword = async () => {
+    if (!pwdModal) return;
+    try {
+      const res = await authFetch(`/api/auth/users/${pwdModal.id}/password`, {
+        method: 'PATCH',
+        body: JSON.stringify({ newPassword: pwdValue }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showUserMsg('error', data.error || 'Erro ao alterar senha.'); return; }
+      showUserMsg('success', 'Senha alterada com sucesso!');
+      setPwdModal(null); setPwdValue('');
+    } catch { showUserMsg('error', 'Erro de conexão.'); }
+  };
+
+  const deleteUser = async (usr) => {
+    if (!confirm(`Excluir o usuário "${usr.name}"? Esta ação não pode ser desfeita.`)) return;
+    try {
+      const res = await authFetch(`/api/auth/users/${usr.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) { showUserMsg('error', data.error || 'Erro ao excluir.'); return; }
+      showUserMsg('success', 'Usuário excluído.');
+      fetchUsers();
+    } catch { showUserMsg('error', 'Erro de conexão.'); }
+  };
+
   const fetchAll = async () => {
     setLoading(true);
     try {
@@ -51,7 +149,10 @@ export default function Settings() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    fetchAll();
+    if (isAdmin) fetchUsers();
+  }, []);
 
   const createCategory = async (e) => {
     e.preventDefault();
@@ -120,7 +221,7 @@ export default function Settings() {
     <div className="card" style={{ minHeight: '600px', display: 'flex', padding: 0, overflow: 'hidden' }}>
       {/* Menu lateral de Configurações */}
       <div style={{ width: '250px', borderRight: '1px solid var(--border-color)', backgroundColor: 'var(--bg-body)', padding: '1.5rem', flexShrink: 0 }}>
-        <h3 style={{ fontSize: '1rem', marginBottom: '1.5rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em', fontWeight: 700 }}>Cadastros Base</h3>
+        <h3 style={{ fontSize: '0.75rem', marginBottom: '1rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Cadastros Base</h3>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           {[
             { key: 'categorias', icon: <Tag size={18} />, label: 'Categorias' },
@@ -139,11 +240,261 @@ export default function Settings() {
               {icon} {label}
             </button>
           ))}
+
+          {/* Aba Usuários — só para ADMIN */}
+          {isAdmin && (
+            <>
+              <div style={{ margin: '0.75rem 0 0.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem', fontSize: '0.7rem', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <ShieldCheck size={13} /> Administração
+              </div>
+              <button
+                className={`nav-item ${activeTab === 'usuarios' ? 'active' : ''}`}
+                onClick={() => setActiveTab('usuarios')}
+                style={{ width: '100%', justifyContent: 'flex-start', color: activeTab === 'usuarios' ? 'white' : '#7c3aed', background: activeTab === 'usuarios' ? 'linear-gradient(135deg, #7c3aed, #4f46e5)' : 'rgba(124,58,237,0.08)', fontWeight: 600 }}
+              >
+                <Users size={18} /> Usuários
+              </button>
+            </>
+          )}
         </nav>
       </div>
 
       {/* Conteúdo */}
       <div style={{ flex: 1, padding: '2rem', overflow: 'auto' }}>
+
+        {/* ─── ABA USUÁRIOS (apenas ADMIN) ─────────────────────────────────── */}
+        {activeTab === 'usuarios' && isAdmin && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Gerenciamento de Usuários</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '4px 0 0' }}>
+                  Controle quem tem acesso ao sistema e qual módulo cada usuário pode usar
+                </p>
+              </div>
+              <button className="btn btn-primary" onClick={() => setNewUserModal(true)}>
+                <UserPlus size={18} /> Novo Usuário
+              </button>
+            </div>
+
+            {/* Mensagem de feedback */}
+            {userMsg && (
+              <div style={{
+                padding: '0.75rem 1rem', borderRadius: 10, marginBottom: '1rem',
+                background: userMsg.type === 'success' ? '#d1fae5' : '#fee2e2',
+                color: userMsg.type === 'success' ? '#065f46' : '#991b1b',
+                border: `1px solid ${userMsg.type === 'success' ? '#6ee7b7' : '#fca5a5'}`,
+                fontWeight: 500, fontSize: '0.875rem',
+              }}>
+                {userMsg.type === 'success' ? '✅' : '❌'} {userMsg.text}
+              </div>
+            )}
+
+            {/* Tabela de usuários */}
+            {userLoading ? (
+              <p style={{ color: 'var(--text-muted)' }}>Carregando usuários...</p>
+            ) : userList.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)' }}>Nenhum usuário cadastrado.</p>
+            ) : (
+              <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-body)', borderBottom: '1px solid var(--border-color)' }}>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Usuário</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>E-mail</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Módulo</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Criado em</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {userList.map((u, i) => {
+                      const moduleBadge = {
+                        FINANCE:   { label: '💰 Financeiro',   bg: '#dbeafe', color: '#1d4ed8', border: '#93c5fd' },
+                        WAREHOUSE: { label: '📦 Almoxarifado', bg: '#fef3c7', color: '#b45309', border: '#fcd34d' },
+                        ADMIN:     { label: '🛡️ Administrador', bg: '#f3e8ff', color: '#7c3aed', border: '#c4b5fd' },
+                      }[u.module] || { label: u.module, bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' };
+                      const isCurrentUser = u.id === currentUser.id;
+                      return (
+                        <tr key={u.id} style={{ borderBottom: i < userList.length - 1 ? '1px solid var(--border-color)' : 'none', background: isCurrentUser ? 'rgba(124,58,237,0.03)' : 'transparent' }}>
+                          <td style={{ padding: '0.875rem 1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <div style={{ width: 34, height: 34, borderRadius: '50%', background: isCurrentUser ? 'linear-gradient(135deg, #7c3aed, #4f46e5)' : 'linear-gradient(135deg, #243b9d, #1a2a6c)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem', flexShrink: 0 }}>
+                                {u.name?.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <p style={{ margin: 0, fontWeight: 600 }}>{u.name}</p>
+                                {isCurrentUser && <p style={{ margin: 0, fontSize: '0.7rem', color: '#7c3aed' }}>← você</p>}
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '0.875rem 1rem', color: 'var(--text-muted)' }}>{u.email}</td>
+                          <td style={{ padding: '0.875rem 1rem', textAlign: 'center' }}>
+                            <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 20, background: moduleBadge.bg, color: moduleBadge.color, border: `1px solid ${moduleBadge.border}`, fontSize: '0.78rem', fontWeight: 600 }}>
+                              {moduleBadge.label}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.875rem 1rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                            {new Date(u.createdAt).toLocaleDateString('pt-BR')}
+                          </td>
+                          <td style={{ padding: '0.875rem 1rem', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                              <button
+                                title="Alterar módulo"
+                                onClick={() => { setModuleModal(u); setModuleSelected(u.module || 'FINANCE'); }}
+                                style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #c4b5fd', background: '#f3e8ff', color: '#7c3aed', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.78rem', fontWeight: 600 }}
+                              >
+                                <ShieldCheck size={14} /> Módulo
+                              </button>
+                              <button
+                                title="Trocar senha"
+                                onClick={() => { setPwdModal(u); setPwdValue(''); setShowPwd(false); }}
+                                style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #93c5fd', background: '#dbeafe', color: '#1d4ed8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.78rem', fontWeight: 600 }}
+                              >
+                                <KeyRound size={14} /> Senha
+                              </button>
+                              {!isCurrentUser && (
+                                <button
+                                  title="Excluir usuário"
+                                  onClick={() => deleteUser(u)}
+                                  style={{ padding: '5px 8px', borderRadius: 8, border: '1px solid #fca5a5', background: '#fee2e2', color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* ── Modal: Novo Usuário ── */}
+            {newUserModal && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                <div style={{ background: 'var(--bg-card)', borderRadius: 16, padding: '2rem', width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Novo Usuário</h3>
+                      <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Crie um acesso para alguém no sistema</p>
+                    </div>
+                    <button onClick={() => setNewUserModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
+                  </div>
+                  <form onSubmit={createUser} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Nome completo</label>
+                      <input className="input" placeholder="Ex: João Silva" value={newUserName} onChange={e => setNewUserName(e.target.value)} required />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>E-mail</label>
+                      <input className="input" type="email" placeholder="Ex: joao@empresa.com" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} required />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>Senha inicial</label>
+                      <div style={{ position: 'relative' }}>
+                        <input className="input" type={showNewPwd ? 'text' : 'password'} placeholder="Mín. 6 caracteres" value={newUserPassword} onChange={e => setNewUserPassword(e.target.value)} required minLength={6} style={{ paddingRight: 40 }} />
+                        <button type="button" onClick={() => setShowNewPwd(p => !p)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                          {showNewPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 8, display: 'block' }}>Módulo de acesso</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+                        {[
+                          { val: 'FINANCE',   icon: '💰', label: 'Financeiro',   desc: 'Acesso ao módulo financeiro', color: '#1d4ed8', bg: '#dbeafe', border: '#93c5fd' },
+                          { val: 'WAREHOUSE', icon: '📦', label: 'Almoxarifado', desc: 'Acesso ao estoque',           color: '#b45309', bg: '#fef3c7', border: '#fcd34d' },
+                          { val: 'ADMIN',     icon: '🛡️', label: 'Admin',        desc: 'Acesso total ao sistema',    color: '#7c3aed', bg: '#f3e8ff', border: '#c4b5fd' },
+                        ].map(m => (
+                          <div
+                            key={m.val}
+                            onClick={() => setNewUserModule(m.val)}
+                            style={{ padding: '0.75rem', borderRadius: 10, border: `2px solid ${newUserModule === m.val ? m.border : 'var(--border-color)'}`, background: newUserModule === m.val ? m.bg : 'transparent', cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s' }}
+                          >
+                            <div style={{ fontSize: '1.4rem', marginBottom: 4 }}>{m.icon}</div>
+                            <div style={{ fontWeight: 700, fontSize: '0.8rem', color: newUserModule === m.val ? m.color : 'var(--text-main)' }}>{m.label}</div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 2 }}>{m.desc}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                      <button type="button" onClick={() => setNewUserModal(false)} className="btn" style={{ flex: 1, background: 'var(--bg-body)', color: 'var(--text-muted)', border: '1px solid var(--border-color)' }}>Cancelar</button>
+                      <button type="submit" className="btn btn-primary" style={{ flex: 2 }}><UserPlus size={16} /> Criar Usuário</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* ── Modal: Alterar Módulo ── */}
+            {moduleModal && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                <div style={{ background: 'var(--bg-card)', borderRadius: 16, padding: '2rem', width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Alterar Módulo</h3>
+                      <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{moduleModal.name}</p>
+                    </div>
+                    <button onClick={() => setModuleModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: '1.5rem' }}>
+                    {[
+                      { val: 'FINANCE',   icon: '💰', label: 'Financeiro',   desc: 'Módulo financeiro', color: '#1d4ed8', bg: '#dbeafe', border: '#93c5fd' },
+                      { val: 'WAREHOUSE', icon: '📦', label: 'Almoxarifado', desc: 'Módulo estoque',    color: '#b45309', bg: '#fef3c7', border: '#fcd34d' },
+                      { val: 'ADMIN',     icon: '🛡️', label: 'Admin',        desc: 'Acesso total',      color: '#7c3aed', bg: '#f3e8ff', border: '#c4b5fd' },
+                    ].map(m => (
+                      <div
+                        key={m.val}
+                        onClick={() => setModuleSelected(m.val)}
+                        style={{ padding: '0.875rem 0.5rem', borderRadius: 10, border: `2px solid ${moduleSelected === m.val ? m.border : 'var(--border-color)'}`, background: moduleSelected === m.val ? m.bg : 'transparent', cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s' }}
+                      >
+                        <div style={{ fontSize: '1.5rem', marginBottom: 4 }}>{m.icon}</div>
+                        <div style={{ fontWeight: 700, fontSize: '0.8rem', color: moduleSelected === m.val ? m.color : 'var(--text-main)' }}>{m.label}</div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 2 }}>{m.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setModuleModal(null)} className="btn" style={{ flex: 1, background: 'var(--bg-body)', color: 'var(--text-muted)', border: '1px solid var(--border-color)' }}>Cancelar</button>
+                    <button onClick={updateModule} className="btn btn-primary" style={{ flex: 2 }}><ShieldCheck size={16} /> Salvar Módulo</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Modal: Trocar Senha ── */}
+            {pwdModal && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                <div style={{ background: 'var(--bg-card)', borderRadius: 16, padding: '2rem', width: '100%', maxWidth: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Trocar Senha</h3>
+                      <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{pwdModal.name}</p>
+                    </div>
+                    <button onClick={() => { setPwdModal(null); setPwdValue(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
+                  </div>
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>Nova senha</label>
+                    <div style={{ position: 'relative' }}>
+                      <input className="input" type={showPwd ? 'text' : 'password'} placeholder="Mín. 6 caracteres" value={pwdValue} onChange={e => setPwdValue(e.target.value)} style={{ paddingRight: 40 }} />
+                      <button type="button" onClick={() => setShowPwd(p => !p)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                        {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => { setPwdModal(null); setPwdValue(''); }} className="btn" style={{ flex: 1, background: 'var(--bg-body)', color: 'var(--text-muted)', border: '1px solid var(--border-color)' }}>Cancelar</button>
+                    <button onClick={updatePassword} disabled={pwdValue.length < 6} className="btn btn-primary" style={{ flex: 2 }}><KeyRound size={16} /> Salvar Senha</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* TUTORIAL & AJUDA */}
         {activeTab === 'tutorial' && (

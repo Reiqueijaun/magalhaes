@@ -239,9 +239,39 @@ async function runMigrations() {
 
 // ─── AUTH ──────────────────────────────────────────────────────────────────────
 
-// Cadastro (Desativado: Sistema exclusivo para 1 usuário)
-app.post('/api/auth/register', authLimiter, async (req: Request, res: Response) => {
-  res.status(403).json({ error: 'O cadastro de novos usuários está desativado por questões de segurança.' });
+// Middleware de verificação de ADMIN
+const adminMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  const user = (req as any).user;
+  if (!user || (user.module !== 'ADMIN' && user.role !== 'ADMIN')) {
+    res.status(403).json({ error: 'Acesso negado. Apenas administradores podem realizar esta ação.' });
+    return;
+  }
+  next();
+};
+
+// Criar novo usuário (apenas ADMIN autenticado)
+app.post('/api/auth/register', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const { name, email, password, module: userModule } = req.body;
+  if (!name || !email || !password) {
+    res.status(400).json({ error: 'Nome, e-mail e senha são obrigatórios.' }); return;
+  }
+  const mod = ['FINANCE', 'WAREHOUSE', 'ADMIN'].includes(userModule) ? userModule : 'FINANCE';
+  try {
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) { res.status(409).json({ error: 'E-mail já cadastrado.' }); return; }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const id = require('crypto').randomUUID();
+    await pool.query(
+      `INSERT INTO "User" (id, name, email, password, role, module, "createdAt", "updatedAt") VALUES ($1,$2,$3,$4,'USER',$5,NOW(),NOW())`,
+      [id, name, email, hashedPassword, mod]
+    );
+    await pool.end();
+    res.status(201).json({ message: 'Usuário criado com sucesso.', id });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao criar usuário.' });
+  }
 });
 
 // Login
@@ -294,17 +324,22 @@ app.post('/api/auth/reset', authLimiter, async (req: Request, res: Response) => 
   }
 });
 
-// Listar usuários (apenas ADMIN)
-app.get('/api/auth/users', authMiddleware, async (req: Request, res: Response) => {
+// Listar usuários — inclui campo module (apenas ADMIN)
+app.get('/api/auth/users', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
   try {
-    const users = await prisma.user.findMany({ select: { id: true, name: true, email: true, role: true, createdAt: true } });
-    res.json(users);
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const result = await pool.query(
+      `SELECT id, name, email, role, module, "createdAt" FROM "User" ORDER BY "createdAt" ASC`
+    );
+    await pool.end();
+    res.json(result.rows);
   } catch { res.status(500).json({ error: 'Erro ao listar usuários.' }); }
 });
 
-// Atualizar módulo do usuário
-app.patch('/api/auth/users/:id/module', authMiddleware, async (req: Request, res: Response) => {
-  const id = String(String(req.params.id));
+// Atualizar módulo do usuário (apenas ADMIN)
+app.patch('/api/auth/users/:id/module', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const id = String(req.params.id);
   const { module } = req.body;
   if (!['FINANCE', 'WAREHOUSE', 'ADMIN'].includes(module)) {
     res.status(400).json({ error: 'Módulo inválido. Use FINANCE, WAREHOUSE ou ADMIN.' }); return;
@@ -312,10 +347,45 @@ app.patch('/api/auth/users/:id/module', authMiddleware, async (req: Request, res
   try {
     const pg = require('pg');
     const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    await pool.query(`UPDATE "User" SET module=$1 WHERE id=$2`, [module, id]);
+    await pool.query(`UPDATE "User" SET module=$1, "updatedAt"=NOW() WHERE id=$2`, [module, id]);
     await pool.end();
     res.json({ message: 'Módulo atualizado.' });
   } catch { res.status(500).json({ error: 'Erro ao atualizar módulo.' }); }
+});
+
+// Trocar senha de usuário (apenas ADMIN)
+app.patch('/api/auth/users/:id/password', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 6) {
+    res.status(400).json({ error: 'A nova senha deve ter pelo menos 6 caracteres.' }); return;
+  }
+  try {
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    await pool.query(`UPDATE "User" SET password=$1, "updatedAt"=NOW() WHERE id=$2`, [hashedPassword, id]);
+    await pool.end();
+    res.json({ message: 'Senha atualizada com sucesso.' });
+  } catch { res.status(500).json({ error: 'Erro ao atualizar senha.' }); }
+});
+
+// Deletar usuário (apenas ADMIN — não pode deletar a si mesmo)
+app.delete('/api/auth/users/:id', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  const requesterId = (req as any).user?.id;
+  if (id === requesterId) {
+    res.status(400).json({ error: 'Você não pode excluir sua própria conta.' }); return;
+  }
+  try {
+    const pg = require('pg');
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const check = await pool.query(`SELECT id FROM "User" WHERE id=$1`, [id]);
+    if (check.rows.length === 0) { await pool.end(); res.status(404).json({ error: 'Usuário não encontrado.' }); return; }
+    await pool.query(`DELETE FROM "User" WHERE id=$1`, [id]);
+    await pool.end();
+    res.json({ message: 'Usuário excluído com sucesso.' });
+  } catch { res.status(500).json({ error: 'Erro ao excluir usuário.' }); }
 });
 
 // ─── TRANSAÇÕES (protegidas) ───────────────────────────────────────────────────
