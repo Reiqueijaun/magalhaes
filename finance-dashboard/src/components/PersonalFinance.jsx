@@ -1,15 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   User, Plus, TrendingUp, TrendingDown, Wallet, Target, PiggyBank,
-  Trash2, CheckCircle2, ChevronDown, AlertTriangle, BarChart3, X, Repeat
+  Trash2, CheckCircle2, ChevronDown, AlertTriangle, BarChart3, X, Repeat,
+  Sparkles, DollarSign, Calendar
 } from 'lucide-react';
 import { authFetch } from '../config';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const fmt = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 const fmtDate = (d) => new Date(d).toLocaleDateString('pt-BR');
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const EMOJIS = ['🎯','🏠','✈️','🚗','📚','💊','🏋️','💍','🎓','🌴','📱','💻','🎸','🐶','👶'];
+
 const formatCurrency = (v) => {
   const digits = v.replace(/\D/g, '');
   if (!digits) return '';
@@ -17,7 +19,8 @@ const formatCurrency = (v) => {
   return num.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 };
 
-export default function PersonalFinance() {
+export default function PersonalFinance({ theme = 'light' }) {
+  const isDark = theme === 'dark';
   const [activeTab, setActiveTab] = useState('dashboard');
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -96,7 +99,7 @@ export default function PersonalFinance() {
     const map = {};
     thisMonth.filter(t => t.type === 'OUT').forEach(t => {
       const key = t.category?.name || 'Outros';
-      const color = t.category?.color || '#94a3b8';
+      const color = t.category?.color || '#3b82f6';
       if (!map[key]) map[key] = { name: key, value: 0, color };
       map[key].value += t.amount;
     });
@@ -186,22 +189,22 @@ export default function PersonalFinance() {
     load();
   };
 
-  // ── Estilos ──
   const tab = (key, label, icon) => (
     <button
       onClick={() => setActiveTab(key)}
+      className={`filter-pill ${activeTab === key ? 'active' : ''}`}
       style={{
-        padding: '0.6rem 1.2rem', borderRadius: 8, border: 'none', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.875rem', fontWeight: 600,
-        background: activeTab === key ? 'var(--brand-blue)' : 'transparent',
-        color: activeTab === key ? 'white' : 'var(--text-muted)',
-        transition: 'all 0.2s',
+        padding: '0.6rem 1.25rem',
+        borderRadius: 10,
+        fontWeight: 800,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6
       }}
-    >{icon} {label}</button>
+    >
+      {icon} {label}
+    </button>
   );
-
-  const inputStyle = { width: '100%', padding: '0.6rem 0.75rem', borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-main)', fontSize: '0.875rem' };
-  const labelStyle = { fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem', display: 'block' };
 
   const pendentes = transactions.filter(t => t.status === 'PENDING');
 
@@ -211,54 +214,67 @@ export default function PersonalFinance() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--brand-purple)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <User size={22} color="white" />
           </div>
           <div>
-            <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Finanças Pessoais</h2>
-            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.8rem' }}>Controle dos seus gastos como Pessoa Física</p>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>Finanças Pessoais (PF)</h2>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Controle patrimonial independente e metas de vida</p>
           </div>
         </div>
-        <button className="btn btn-primary" onClick={() => setTxModal(true)} style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button 
+          className="btn btn-primary" 
+          onClick={() => setTxModal(true)} 
+          style={{ background: 'var(--brand-purple)', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}
+        >
           <Plus size={18} /> Novo Lançamento
         </button>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--bg-body)', padding: '0.4rem', borderRadius: 10, width: 'fit-content' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--bg-card)', padding: '0.4rem', borderRadius: 12, border: '1px solid var(--border-color)', width: 'fit-content' }}>
         {tab('dashboard', 'Dashboard', <BarChart3 size={16} />)}
         {tab('lancamentos', 'Lançamentos', <Wallet size={16} />)}
         {tab('orcamentos', 'Orçamentos', <PiggyBank size={16} />)}
-        {tab('metas', 'Metas', <Target size={16} />)}
+        {tab('metas', 'Metas (Cofrinho)', <Target size={16} />)}
       </div>
 
-      {loading ? <p style={{ color: 'var(--text-muted)' }}>Carregando...</p> : (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '3rem' }}>
+          <p style={{ color: 'var(--text-muted)' }}>Carregando dados pessoais...</p>
+        </div>
+      ) : (
         <>
           {/* ── DASHBOARD ── */}
           {activeTab === 'dashboard' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
               {/* Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
                 {[
-                  { label: 'Receitas do Mês', value: fmt(totalIn), icon: <TrendingUp size={20} />, color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
-                  { label: 'Despesas do Mês', value: fmt(totalOut), icon: <TrendingDown size={20} />, color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
-                  { label: 'Saldo Atual', value: fmt(saldo), icon: <Wallet size={20} />, color: saldo >= 0 ? '#7c3aed' : '#ef4444', bg: saldo >= 0 ? 'rgba(124,58,237,0.12)' : 'rgba(239,68,68,0.12)' },
-                ].map(c => (
-                  <div key={c.label} className="card" style={{ padding: '1.5rem', borderLeft: `4px solid ${c.color}` }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>{c.label}</span>
-                      <div style={{ width: 36, height: 36, borderRadius: 8, background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.color }}>{c.icon}</div>
+                  { label: 'Receitas do Mês', value: fmt(totalIn), icon: TrendingUp, color: 'var(--success)', bg: 'var(--success-bg)' },
+                  { label: 'Despesas do Mês', value: fmt(totalOut), icon: TrendingDown, color: 'var(--danger)', bg: 'var(--danger-bg)' },
+                  { label: 'Saldo Atual', value: fmt(saldo), icon: Wallet, color: saldo >= 0 ? 'var(--brand-purple)' : 'var(--danger)', bg: saldo >= 0 ? 'rgba(124,58,237,0.12)' : 'var(--danger-bg)' },
+                ].map(c => {
+                  const Icon = c.icon;
+                  return (
+                    <div key={c.label} className="fin-card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{c.label}</span>
+                        <div style={{ width: 36, height: 36, borderRadius: 8, background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.color }}>
+                          <Icon size={18} />
+                        </div>
+                      </div>
+                      <div className="tabular-nums" style={{ fontSize: '1.65rem', fontWeight: 900, color: c.color }}>{c.value}</div>
                     </div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: c.color }}>{c.value}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
                 {/* Gráfico Onde vai meu dinheiro */}
-                <div className="card" style={{ padding: '1.5rem' }}>
-                  <h3 style={{ fontSize: '1rem', marginBottom: '1.25rem' }}>Onde vai meu dinheiro?</h3>
+                <div className="fin-card">
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 1.25rem', color: 'var(--text-main)' }}>Onde vai meu dinheiro?</h3>
                   {spendByCategory.length === 0 ? (
                     <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem 0' }}>Nenhuma despesa este mês.</p>
                   ) : (
@@ -267,18 +283,18 @@ export default function PersonalFinance() {
                         <Pie data={spendByCategory} cx="50%" cy="50%" outerRadius={80} dataKey="value" nameKey="name" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} fontSize={11}>
                           {(spendByCategory).map((entry, i) => <Cell key={i} fill={entry.color} />)}
                         </Pie>
-                        <Tooltip formatter={(v) => fmt(v)} />
+                        <Tooltip contentStyle={{ background: isDark ? '#1e293b' : '#ffffff', border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, borderRadius: 8, color: isDark ? '#ffffff' : '#000000' }} formatter={(v) => fmt(v)} />
                       </PieChart>
                     </ResponsiveContainer>
                   )}
                 </div>
 
                 {/* Alertas de Orçamento */}
-                <div className="card" style={{ padding: '1.5rem' }}>
-                  <h3 style={{ fontSize: '1rem', marginBottom: '1.25rem' }}>Status dos Orçamentos</h3>
+                <div className="fin-card">
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 1.25rem', color: 'var(--text-main)' }}>Status dos Orçamentos</h3>
                   {budgetsWithProgress.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-                      <PiggyBank size={36} style={{ opacity: 0.3, marginBottom: 8 }} />
+                      <PiggyBank size={36} style={{ opacity: 0.3, margin: '0 auto 8px', display: 'block', color: 'var(--brand-purple)' }} />
                       <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Nenhum orçamento definido.</p>
                       <button className="btn btn-secondary" style={{ marginTop: 8 }} onClick={() => setActiveTab('orcamentos')}>Criar Orçamento</button>
                     </div>
@@ -287,14 +303,14 @@ export default function PersonalFinance() {
                       {(budgetsWithProgress).map((b) => (
                         <div key={b.id}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                            <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{b.category?.name || b.name}</span>
-                            <span style={{ fontSize: '0.8rem', color: b.pct >= 90 ? '#ef4444' : b.pct >= 70 ? '#f59e0b' : 'var(--text-muted)' }}>
-                              {b.pct >= 90 && <AlertTriangle size={12} style={{ marginRight: 3 }} />}
+                            <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-main)' }}>{b.category?.name || b.name}</span>
+                            <span className="tabular-nums" style={{ fontSize: '0.8rem', fontWeight: 700, color: b.pct >= 90 ? 'var(--danger)' : b.pct >= 70 ? 'var(--warning-text)' : 'var(--text-muted)' }}>
+                              {b.pct >= 90 && <AlertTriangle size={12} style={{ display: 'inline', marginRight: 3 }} />}
                               {fmt(b.spent)} / {fmt(b.limitAmount)}
                             </span>
                           </div>
                           <div style={{ height: 8, background: 'var(--bg-body)', borderRadius: 4, overflow: 'hidden' }}>
-                            <div style={{ width: `${b.pct}%`, height: '100%', borderRadius: 4, background: b.pct >= 90 ? '#ef4444' : b.pct >= 70 ? '#f59e0b' : '#7c3aed', transition: 'width 0.5s' }} />
+                            <div style={{ width: `${b.pct}%`, height: '100%', borderRadius: 4, background: b.pct >= 90 ? 'var(--danger)' : b.pct >= 70 ? 'var(--warning)' : 'var(--brand-purple)', transition: 'width 0.5s' }} />
                           </div>
                         </div>
                       ))}
@@ -305,19 +321,21 @@ export default function PersonalFinance() {
 
               {/* Pendentes */}
               {pendentes.length > 0 && (
-                <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid #f59e0b' }}>
-                  <h3 style={{ fontSize: '1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={18} color="#f59e0b" /> {pendentes.length} lançamento(s) pendente(s)</h3>
+                <div className="fin-card" style={{ borderLeft: '4px solid var(--warning)' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-main)' }}>
+                    <AlertTriangle size={18} color="var(--warning)" /> {pendentes.length} lançamento(s) pendente(s)
+                  </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {pendentes.map(t => (
-                      <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid var(--border-color)' }}>
+                      <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.65rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
                         <div>
-                          <span style={{ fontWeight: 500 }}>{t.description}</span>
+                          <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{t.description}</span>
                           <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: '0.8rem' }}>• vence {fmtDate(t.dueDate)}</span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <span style={{ fontWeight: 700, color: t.type === 'IN' ? '#22c55e' : '#ef4444' }}>{fmt(t.amount)}</span>
-                          <button className="btn btn-secondary" style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', color: '#22c55e', borderColor: '#22c55e' }} onClick={() => payTx(t.id)}>
-                            <CheckCircle2 size={13} style={{ marginRight: 3 }} /> Pago
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                          <span className="tabular-nums" style={{ fontWeight: 900, color: t.type === 'IN' ? 'var(--success)' : 'var(--danger)' }}>{fmt(t.amount)}</span>
+                          <button className="btn btn-success" style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }} onClick={() => payTx(t.id)}>
+                            <CheckCircle2 size={13} /> Pago
                           </button>
                         </div>
                       </div>
@@ -330,64 +348,62 @@ export default function PersonalFinance() {
 
           {/* ── LANÇAMENTOS ── */}
           {activeTab === 'lancamentos' && (
-            <div>
-              <div className="card table-container" style={{ padding: 0 }}>
-                {transactions.length === 0 ? (
-                  <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    <Wallet size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
-                    <p>Nenhum lançamento pessoal ainda. Clique em "Novo Lançamento" para começar!</p>
-                  </div>
-                ) : (
-                  <table>
-                    <thead style={{ background: 'var(--bg-body)' }}>
-                      <tr>
-                        <th>Data</th><th>Descrição</th><th>Categoria</th><th>Tipo</th><th>Status</th><th style={{ textAlign: 'right' }}>Valor</th><th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {transactions.map(t => (
-                        <tr key={t.id}>
-                          <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{fmtDate(t.paymentDate || t.dueDate)}</td>
-                          <td style={{ fontWeight: 500 }}>
-                            {t.description}
-                            {t.isRecurring && <Repeat size={12} style={{ marginLeft: 6, color: '#7c3aed', verticalAlign: 'middle' }} title="Recorrente" />}
-                          </td>
-                          <td>
-                            {t.category ? (
-                              <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700, background: `${t.category.color}22`, color: t.category.color }}>
-                                {t.category.name}
-                              </span>
-                            ) : '—'}
-                          </td>
-                          <td>
-                            <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700, background: t.type === 'IN' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)', color: t.type === 'IN' ? '#22c55e' : '#ef4444' }}>
-                              {t.type === 'IN' ? '▲ Receita' : '▼ Despesa'}
+            <div className="fin-table-container">
+              {transactions.length === 0 ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <Wallet size={40} style={{ opacity: 0.3, margin: '0 auto 12px', display: 'block' }} />
+                  <p style={{ fontWeight: 700, color: 'var(--text-main)' }}>Nenhum lançamento pessoal ainda. Clique em "Novo Lançamento" para começar!</p>
+                </div>
+              ) : (
+                <table className="fin-table">
+                  <thead>
+                    <tr>
+                      <th>Data</th><th>Descrição</th><th>Categoria</th><th>Tipo</th><th>Status</th><th style={{ textAlign: 'right' }}>Valor</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactions.map(t => (
+                      <tr key={t.id}>
+                        <td className="tabular-nums" style={{ color: 'var(--text-muted)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{fmtDate(t.paymentDate || t.dueDate)}</td>
+                        <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>
+                          {t.description}
+                          {t.isRecurring && <Repeat size={12} style={{ marginLeft: 6, color: 'var(--brand-purple)', verticalAlign: 'middle' }} title="Recorrente" />}
+                        </td>
+                        <td>
+                          {t.category ? (
+                            <span className="badge-pill badge-info">
+                              {t.category.name}
                             </span>
-                          </td>
-                          <td>
-                            <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700, background: t.status === 'PAID' ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)', color: t.status === 'PAID' ? '#22c55e' : '#ca8a04' }}>
-                              {t.status === 'PAID' ? 'Pago' : 'Pendente'}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: 700, color: t.type === 'IN' ? '#22c55e' : '#ef4444' }}>
-                            {t.type === 'IN' ? '+' : '-'} {fmt(t.amount)}
-                          </td>
-                          <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                            {t.status === 'PENDING' && (
-                              <button onClick={() => payTx(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#22c55e', marginRight: 8 }} title="Marcar como Pago">
-                                <CheckCircle2 size={16} />
-                              </button>
-                            )}
-                            <button onClick={() => deleteTx(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }} title="Excluir">
-                              <Trash2 size={16} />
+                          ) : '—'}
+                        </td>
+                        <td>
+                          <span className={`badge-pill ${t.type === 'IN' ? 'badge-pill-success' : 'badge-pill-danger'}`}>
+                            {t.type === 'IN' ? '▲ Receita' : '▼ Despesa'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`badge-pill ${t.status === 'PAID' ? 'badge-pill-success' : 'badge-pill-warning'}`}>
+                            {t.status === 'PAID' ? 'Pago' : 'Pendente'}
+                          </span>
+                        </td>
+                        <td className="tabular-nums" style={{ textAlign: 'right', fontWeight: 900, color: t.type === 'IN' ? 'var(--success)' : 'var(--danger)' }}>
+                          {t.type === 'IN' ? '+' : '-'} {fmt(t.amount)}
+                        </td>
+                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          {t.status === 'PENDING' && (
+                            <button onClick={() => payTx(t.id)} className="btn btn-secondary" style={{ padding: '0.35rem 0.5rem', color: 'var(--success)', marginRight: 6 }} title="Marcar como Pago">
+                              <CheckCircle2 size={15} />
                             </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+                          )}
+                          <button onClick={() => deleteTx(t.id)} className="btn btn-secondary" style={{ padding: '0.35rem 0.5rem', color: 'var(--danger)' }} title="Excluir">
+                            <Trash2 size={15} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
 
@@ -395,40 +411,40 @@ export default function PersonalFinance() {
           {activeTab === 'orcamentos' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button className="btn btn-primary" onClick={() => setBudgetModal(true)} style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button className="btn btn-primary" onClick={() => setBudgetModal(true)} style={{ background: 'var(--brand-purple)', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
                   <Plus size={18} /> Novo Orçamento
                 </button>
               </div>
               {budgetsWithProgress.length === 0 ? (
-                <div className="card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  <PiggyBank size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
-                  <p>Defina quanto quer gastar por categoria no mês.</p>
-                  <p style={{ fontSize: '0.8rem' }}>Ex: Lazer: R$ 500,00 | Alimentação: R$ 1.200,00</p>
+                <div className="fin-card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <PiggyBank size={48} style={{ opacity: 0.3, margin: '0 auto 12px', display: 'block', color: 'var(--brand-purple)' }} />
+                  <p style={{ fontWeight: 800, color: 'var(--text-main)' }}>Defina quanto quer gastar por categoria no mês.</p>
+                  <p style={{ fontSize: '0.85rem' }}>Ex: Lazer: R$ 500,00 | Alimentação: R$ 1.200,00</p>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.25rem' }}>
                   {(budgetsWithProgress).map((b) => (
-                    <div key={b.id} className="card" style={{ padding: '1.5rem', position: 'relative' }}>
-                      <button onClick={() => deleteBudget(b.id)} style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                        <Trash2 size={14} />
+                    <div key={b.id} className="fin-card" style={{ padding: '1.5rem', position: 'relative' }}>
+                      <button onClick={() => deleteBudget(b.id)} style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                        <Trash2 size={15} />
                       </button>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '1rem' }}>
-                        <div style={{ width: 36, height: 36, borderRadius: 8, background: `${b.category?.color || '#7c3aed'}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <PiggyBank size={18} color={b.category?.color || '#7c3aed'} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1rem' }}>
+                        <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(124,58,237,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <PiggyBank size={20} color="var(--brand-purple)" />
                         </div>
                         <div>
-                          <p style={{ margin: 0, fontWeight: 700 }}>{b.category?.name || b.name}</p>
+                          <p style={{ margin: 0, fontWeight: 800, color: 'var(--text-main)' }}>{b.category?.name || b.name}</p>
                           <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>{MONTHS[b.month - 1]} / {b.year}</p>
                         </div>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Gasto: <strong style={{ color: b.pct >= 90 ? '#ef4444' : '#7c3aed' }}>{fmt(b.spent)}</strong></span>
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Limite: <strong>{fmt(b.limitAmount)}</strong></span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Gasto: <strong className="tabular-nums" style={{ color: b.pct >= 90 ? 'var(--danger)' : 'var(--brand-purple)' }}>{fmt(b.spent)}</strong></span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Limite: <strong className="tabular-nums">{fmt(b.limitAmount)}</strong></span>
                       </div>
                       <div style={{ height: 10, background: 'var(--bg-body)', borderRadius: 5, overflow: 'hidden' }}>
-                        <div style={{ width: `${b.pct}%`, height: '100%', borderRadius: 5, background: b.pct >= 90 ? 'linear-gradient(90deg, #ef4444, #dc2626)' : b.pct >= 70 ? 'linear-gradient(90deg, #f59e0b, #d97706)' : 'linear-gradient(90deg, #7c3aed, #4f46e5)', transition: 'width 0.5s' }} />
+                        <div style={{ width: `${b.pct}%`, height: '100%', borderRadius: 5, background: b.pct >= 90 ? 'var(--danger)' : b.pct >= 70 ? 'var(--warning)' : 'var(--brand-purple)', transition: 'width 0.5s' }} />
                       </div>
-                      <p style={{ margin: '6px 0 0', fontSize: '0.8rem', textAlign: 'right', color: b.pct >= 90 ? '#ef4444' : 'var(--text-muted)', fontWeight: b.pct >= 90 ? 700 : 400 }}>
+                      <p className="tabular-nums" style={{ margin: '8px 0 0', fontSize: '0.8rem', textAlign: 'right', color: b.pct >= 90 ? 'var(--danger)' : 'var(--text-muted)', fontWeight: b.pct >= 90 ? 800 : 600 }}>
                         {b.pct >= 90 && '⚠️ '}
                         {b.pct.toFixed(0)}% utilizado • Restam {fmt(Math.max(b.limitAmount - b.spent, 0))}
                       </p>
@@ -443,15 +459,15 @@ export default function PersonalFinance() {
           {activeTab === 'metas' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button className="btn btn-primary" onClick={() => setGoalModal(true)} style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button className="btn btn-primary" onClick={() => setGoalModal(true)} style={{ background: 'var(--brand-purple)', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
                   <Plus size={18} /> Nova Meta
                 </button>
               </div>
               {goals.length === 0 ? (
-                <div className="card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  <Target size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
-                  <p>Defina seus objetivos financeiros e acompanhe o progresso!</p>
-                  <p style={{ fontSize: '0.8rem' }}>Ex: Viagem, Reserva de Emergência, Novo Carro...</p>
+                <div className="fin-card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <Target size={48} style={{ opacity: 0.3, margin: '0 auto 12px', display: 'block', color: 'var(--brand-purple)' }} />
+                  <p style={{ fontWeight: 800, color: 'var(--text-main)' }}>Defina seus objetivos financeiros e acompanhe o progresso!</p>
+                  <p style={{ fontSize: '0.85rem' }}>Ex: Viagem, Reserva de Emergência, Novo Carro...</p>
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.25rem' }}>
@@ -459,24 +475,24 @@ export default function PersonalFinance() {
                     const pct = Math.min((g.currentAmount / g.targetAmount) * 100, 100);
                     const done = pct >= 100;
                     return (
-                      <div key={g.id} className="card" style={{ padding: '1.5rem', position: 'relative', borderTop: done ? '4px solid #22c55e' : '4px solid #7c3aed' }}>
-                        <button onClick={() => deleteGoal(g.id)} style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                          <Trash2 size={14} />
+                      <div key={g.id} className="fin-card" style={{ padding: '1.5rem', position: 'relative', borderTop: done ? '4px solid var(--success)' : '4px solid var(--brand-purple)' }}>
+                        <button onClick={() => deleteGoal(g.id)} style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                          <Trash2 size={15} />
                         </button>
-                        <div style={{ fontSize: '2rem', marginBottom: 8 }}>{g.emoji}</div>
-                        <h3 style={{ fontSize: '1rem', margin: '0 0 4px' }}>{g.name}</h3>
+                        <div style={{ fontSize: '2.2rem', marginBottom: 8 }}>{g.emoji}</div>
+                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 4px', color: 'var(--text-main)' }}>{g.name}</h3>
                         {g.deadline && <p style={{ margin: '0 0 12px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>⏰ até {fmtDate(g.deadline)}</p>}
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                          <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Guardado</span>
-                          <span style={{ fontSize: '0.875rem', fontWeight: 700 }}>{fmt(g.currentAmount)} / {fmt(g.targetAmount)}</span>
+                          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Guardado</span>
+                          <span className="tabular-nums" style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-main)' }}>{fmt(g.currentAmount)} / {fmt(g.targetAmount)}</span>
                         </div>
-                        <div style={{ height: 10, background: 'var(--bg-body)', borderRadius: 5, overflow: 'hidden', marginBottom: 8 }}>
-                          <div style={{ width: `${pct}%`, height: '100%', borderRadius: 5, background: done ? 'linear-gradient(90deg, #22c55e, #16a34a)' : 'linear-gradient(90deg, #7c3aed, #4f46e5)', transition: 'width 0.5s' }} />
+                        <div style={{ height: 10, background: 'var(--bg-body)', borderRadius: 5, overflow: 'hidden', marginBottom: 10 }}>
+                          <div style={{ width: `${pct}%`, height: '100%', borderRadius: 5, background: done ? 'var(--success)' : 'var(--brand-purple)', transition: 'width 0.5s' }} />
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: done ? '#22c55e' : '#7c3aed' }}>{done ? '🎉 Concluída!' : `${pct.toFixed(1)}%`}</span>
+                          <span className="tabular-nums" style={{ fontSize: '0.85rem', fontWeight: 800, color: done ? 'var(--success)' : 'var(--brand-purple)' }}>{done ? '🎉 Concluída!' : `${pct.toFixed(1)}%`}</span>
                           {!done && (
-                            <button className="btn btn-secondary" style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem', color: '#7c3aed', borderColor: '#7c3aed' }} onClick={() => setDepositModal(g.id)}>
+                            <button className="btn btn-secondary" style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem', color: 'var(--brand-purple)', borderColor: 'var(--brand-purple)' }} onClick={() => setDepositModal(g.id)}>
                               + Depositar
                             </button>
                           )}
@@ -493,28 +509,28 @@ export default function PersonalFinance() {
 
       {/* ── MODAL: NOVO LANÇAMENTO ── */}
       {txModal && (
-        <div className="modal-overlay" onClick={() => setTxModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
-            <div className="modal-header">
-              <h3>Novo Lançamento Pessoal</h3>
-              <button onClick={() => setTxModal(false)} style={{ background: 'none', fontSize: '1.5rem' }}>&times;</button>
+        <div className="modal-backdrop" onClick={() => setTxModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
+            <div style={{ background: 'var(--brand-purple)', padding: '1.25rem 1.5rem', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontWeight: 800, fontSize: '1.1rem' }}>Novo Lançamento Pessoal</h3>
+              <button onClick={() => setTxModal(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>&times;</button>
             </div>
-            <form onSubmit={saveTx}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                <button type="button" onClick={() => setTxType('OUT')} style={{ padding: '0.75rem', borderRadius: 8, border: `2px solid ${txType === 'OUT' ? '#ef4444' : 'var(--border-color)'}`, background: txType === 'OUT' ? 'rgba(239,68,68,0.08)' : 'transparent', color: txType === 'OUT' ? '#ef4444' : 'var(--text-muted)', fontWeight: 700, cursor: 'pointer' }}>
+            <form onSubmit={saveTx} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <button type="button" onClick={() => setTxType('OUT')} style={{ padding: '0.75rem', borderRadius: 8, border: `2px solid ${txType === 'OUT' ? 'var(--danger)' : 'var(--border-color)'}`, background: txType === 'OUT' ? 'var(--danger-bg)' : 'transparent', color: txType === 'OUT' ? 'var(--danger)' : 'var(--text-muted)', fontWeight: 800, cursor: 'pointer' }}>
                   ▼ Despesa
                 </button>
-                <button type="button" onClick={() => setTxType('IN')} style={{ padding: '0.75rem', borderRadius: 8, border: `2px solid ${txType === 'IN' ? '#22c55e' : 'var(--border-color)'}`, background: txType === 'IN' ? 'rgba(34,197,94,0.08)' : 'transparent', color: txType === 'IN' ? '#22c55e' : 'var(--text-muted)', fontWeight: 700, cursor: 'pointer' }}>
+                <button type="button" onClick={() => setTxType('IN')} style={{ padding: '0.75rem', borderRadius: 8, border: `2px solid ${txType === 'IN' ? 'var(--success)' : 'var(--border-color)'}`, background: txType === 'IN' ? 'var(--success-bg)' : 'transparent', color: txType === 'IN' ? 'var(--success)' : 'var(--text-muted)', fontWeight: 800, cursor: 'pointer' }}>
                   ▲ Receita
                 </button>
               </div>
-              <div className="form-group"><label>Descrição</label><input style={inputStyle} value={txDesc} onChange={e => setTxDesc(e.target.value)} required /></div>
-              <div className="form-group"><label>Valor (R$)</label><input style={inputStyle} placeholder="0,00" value={txAmount} onChange={e => setTxAmount(formatCurrency(e.target.value))} required /></div>
+              <div className="form-group"><label>Descrição</label><input value={txDesc} onChange={e => setTxDesc(e.target.value)} required /></div>
+              <div className="form-group"><label>Valor (R$)</label><input placeholder="0,00" value={txAmount} onChange={e => setTxAmount(formatCurrency(e.target.value))} required style={{ fontWeight: 700 }} /></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                <div className="form-group"><label>Data</label><input type="date" style={inputStyle} value={txDate} onChange={e => setTxDate(e.target.value)} required /></div>
+                <div className="form-group"><label>Data</label><input type="date" value={txDate} onChange={e => setTxDate(e.target.value)} required /></div>
                 <div className="form-group">
                   <label>Status</label>
-                  <select style={inputStyle} value={txStatus} onChange={e => setTxStatus(e.target.value)}>
+                  <select value={txStatus} onChange={e => setTxStatus(e.target.value)}>
                     <option value="PAID">✅ Pago</option>
                     <option value="PENDING">🕐 Pendente</option>
                   </select>
@@ -522,16 +538,16 @@ export default function PersonalFinance() {
               </div>
               <div className="form-group">
                 <label>Categoria</label>
-                <select style={inputStyle} value={txCategory} onChange={e => setTxCategory(e.target.value)}>
+                <select value={txCategory} onChange={e => setTxCategory(e.target.value)}>
                   <option value="">Sem categoria</option>
                   {categories.filter(c => c.type === txType).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <input type="checkbox" id="pf_recorrente" checked={txRecurring} onChange={e => setTxRecurring(e.target.checked)} style={{ width: 'auto' }} />
-                <label htmlFor="pf_recorrente" style={{ margin: 0 }}>Repetir todo mês <Repeat size={13} style={{ verticalAlign: 'middle' }} /></label>
+                <label htmlFor="pf_recorrente" style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Repetir todo mês <Repeat size={13} style={{ verticalAlign: 'middle' }} /></label>
               </div>
-              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>Salvar Lançamento</button>
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: 'var(--brand-purple)', padding: '0.85rem', fontWeight: 800 }}>Salvar Lançamento</button>
             </form>
           </div>
         </div>
@@ -539,34 +555,34 @@ export default function PersonalFinance() {
 
       {/* ── MODAL: ORÇAMENTO ── */}
       {budgetModal && (
-        <div className="modal-overlay" onClick={() => setBudgetModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
-            <div className="modal-header">
-              <h3>Novo Orçamento</h3>
-              <button onClick={() => setBudgetModal(false)} style={{ background: 'none', fontSize: '1.5rem' }}>&times;</button>
+        <div className="modal-backdrop" onClick={() => setBudgetModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div style={{ background: 'var(--brand-purple)', padding: '1.25rem 1.5rem', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontWeight: 800, fontSize: '1.1rem' }}>Novo Orçamento</h3>
+              <button onClick={() => setBudgetModal(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>&times;</button>
             </div>
-            <form onSubmit={saveBudget}>
+            <form onSubmit={saveBudget} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="form-group">
-                <label>Categoria (ou nome livre)</label>
-                <select style={inputStyle} value={bdCategory} onChange={e => setBdCategory(e.target.value)}>
+                <label>Categoria</label>
+                <select value={bdCategory} onChange={e => setBdCategory(e.target.value)}>
                   <option value="">Escrever nome manualmente...</option>
                   {categories.filter(c => c.type === 'OUT').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               {!bdCategory && (
-                <div className="form-group"><label>Nome do Orçamento</label><input style={inputStyle} placeholder="Ex: Gastos com pets" value={bdName} onChange={e => setBdName(e.target.value)} required={!bdCategory} /></div>
+                <div className="form-group"><label>Nome do Orçamento</label><input placeholder="Ex: Gastos com pets" value={bdName} onChange={e => setBdName(e.target.value)} required={!bdCategory} /></div>
               )}
-              <div className="form-group"><label>Limite (R$)</label><input style={inputStyle} placeholder="0,00" value={bdLimit} onChange={e => setBdLimit(formatCurrency(e.target.value))} required /></div>
+              <div className="form-group"><label>Limite (R$)</label><input placeholder="0,00" value={bdLimit} onChange={e => setBdLimit(formatCurrency(e.target.value))} required style={{ fontWeight: 700 }} /></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div className="form-group">
                   <label>Mês</label>
-                  <select style={inputStyle} value={bdMonth} onChange={e => setBdMonth(Number(e.target.value))}>
+                  <select value={bdMonth} onChange={e => setBdMonth(Number(e.target.value))}>
                     {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
                   </select>
                 </div>
-                <div className="form-group"><label>Ano</label><input type="number" style={inputStyle} value={bdYear} onChange={e => setBdYear(Number(e.target.value))} /></div>
+                <div className="form-group"><label>Ano</label><input type="number" value={bdYear} onChange={e => setBdYear(Number(e.target.value))} /></div>
               </div>
-              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>Salvar Orçamento</button>
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: 'var(--brand-purple)', padding: '0.85rem', fontWeight: 800 }}>Salvar Orçamento</button>
             </form>
           </div>
         </div>
@@ -574,25 +590,25 @@ export default function PersonalFinance() {
 
       {/* ── MODAL: META ── */}
       {goalModal && (
-        <div className="modal-overlay" onClick={() => setGoalModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
-            <div className="modal-header">
-              <h3>Nova Meta de Economia</h3>
-              <button onClick={() => setGoalModal(false)} style={{ background: 'none', fontSize: '1.5rem' }}>&times;</button>
+        <div className="modal-backdrop" onClick={() => setGoalModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div style={{ background: 'var(--brand-purple)', padding: '1.25rem 1.5rem', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontWeight: 800, fontSize: '1.1rem' }}>Nova Meta de Economia</h3>
+              <button onClick={() => setGoalModal(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>&times;</button>
             </div>
-            <form onSubmit={saveGoal}>
+            <form onSubmit={saveGoal} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="form-group">
                 <label>Emoji</label>
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                   {EMOJIS.map(em => (
-                    <button key={em} type="button" onClick={() => setGlEmoji(em)} style={{ fontSize: '1.25rem', background: glEmoji === em ? '#7c3aed22' : 'transparent', border: `2px solid ${glEmoji === em ? '#7c3aed' : 'transparent'}`, borderRadius: 8, padding: '0.25rem 0.4rem', cursor: 'pointer' }}>{em}</button>
+                    <button key={em} type="button" onClick={() => setGlEmoji(em)} style={{ fontSize: '1.25rem', background: glEmoji === em ? 'rgba(124,58,237,0.15)' : 'var(--bg-body)', border: `2px solid ${glEmoji === em ? 'var(--brand-purple)' : 'transparent'}`, borderRadius: 8, padding: '0.25rem 0.4rem', cursor: 'pointer' }}>{em}</button>
                   ))}
                 </div>
               </div>
-              <div className="form-group"><label>Nome da Meta</label><input style={inputStyle} placeholder="Ex: Viagem para Europa" value={glName} onChange={e => setGlName(e.target.value)} required /></div>
-              <div className="form-group"><label>Valor Alvo (R$)</label><input style={inputStyle} placeholder="0,00" value={glTarget} onChange={e => setGlTarget(formatCurrency(e.target.value))} required /></div>
-              <div className="form-group"><label>Prazo (opcional)</label><input type="date" style={inputStyle} value={glDeadline} onChange={e => setGlDeadline(e.target.value)} /></div>
-              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>Criar Meta</button>
+              <div className="form-group"><label>Nome da Meta</label><input placeholder="Ex: Viagem para Europa" value={glName} onChange={e => setGlName(e.target.value)} required /></div>
+              <div className="form-group"><label>Valor Alvo (R$)</label><input placeholder="0,00" value={glTarget} onChange={e => setGlTarget(formatCurrency(e.target.value))} required style={{ fontWeight: 700 }} /></div>
+              <div className="form-group"><label>Prazo (opcional)</label><input type="date" value={glDeadline} onChange={e => setGlDeadline(e.target.value)} /></div>
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: 'var(--brand-purple)', padding: '0.85rem', fontWeight: 800 }}>Criar Meta</button>
             </form>
           </div>
         </div>
@@ -600,22 +616,25 @@ export default function PersonalFinance() {
 
       {/* ── MODAL: DEPOSITAR ── */}
       {depositModal && (
-        <div className="modal-overlay" onClick={() => setDepositModal(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 360 }}>
-            <div className="modal-header">
-              <h3>Depositar na Meta</h3>
-              <button onClick={() => setDepositModal(null)} style={{ background: 'none', fontSize: '1.5rem' }}>&times;</button>
+        <div className="modal-backdrop" onClick={() => setDepositModal(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 360 }}>
+            <div style={{ background: 'var(--brand-purple)', padding: '1.25rem 1.5rem', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontWeight: 800, fontSize: '1.1rem' }}>Depositar na Meta</h3>
+              <button onClick={() => setDepositModal(null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>&times;</button>
             </div>
-            <div className="form-group">
-              <label>Valor a depositar (R$)</label>
-              <input style={inputStyle} placeholder="0,00" value={depositAmt} onChange={e => setDepositAmt(formatCurrency(e.target.value))} autoFocus />
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="form-group">
+                <label>Valor a depositar (R$)</label>
+                <input placeholder="0,00" value={depositAmt} onChange={e => setDepositAmt(formatCurrency(e.target.value))} autoFocus style={{ fontWeight: 700 }} />
+              </div>
+              <button className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: 'var(--brand-purple)', padding: '0.85rem', fontWeight: 800 }} onClick={doDeposit}>
+                Confirmar Depósito
+              </button>
             </div>
-            <button className="btn btn-primary" style={{ width: '100%', marginTop: '1rem', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }} onClick={doDeposit}>
-              Depositar
-            </button>
           </div>
         </div>
       )}
     </div>
   );
 }
+

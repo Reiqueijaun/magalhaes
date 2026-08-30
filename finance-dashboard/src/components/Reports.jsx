@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react';
-import { FileBarChart2, Download, SlidersHorizontal, Calendar, Search, TrendingDown, TrendingUp, Wallet, X } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import {
+  FileBarChart2, Download, SlidersHorizontal, Calendar, Search,
+  TrendingDown, TrendingUp, Wallet, X, Building2, Tag, Filter, CheckCircle2
+} from 'lucide-react';
 import { authFetch } from '../config';
-import { useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -41,7 +43,7 @@ function getPeriodDates(period) {
   }
 }
 
-export default function Reports({ selectedCompanyId = 'all', companies = [] }) {
+export default function Reports({ selectedCompanyId = 'all', companies = [], theme = 'light' }) {
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
   const [entities, setEntities] = useState([]);
@@ -119,7 +121,7 @@ export default function Reports({ selectedCompanyId = 'all', companies = [] }) {
     return { totalOut, totalIn, saldo: totalIn - totalOut, paid, count: filteredData.length };
   }, [filteredData]);
 
-  const fmt = (v) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  const fmt = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
   const fmtDate = (d) => new Date(d).toLocaleDateString('pt-BR');
 
   const statusLabel = (s) => ({ PAID: 'Pago', PENDING: 'Pendente', OVERDUE: 'Vencido' }[s] || s);
@@ -127,14 +129,12 @@ export default function Reports({ selectedCompanyId = 'all', companies = [] }) {
 
   // Lógica de Contas Futuras
   const provisaoData = useMemo(() => {
-    // Filtra transações pendentes (PJ ou sem context definido, pois é a rota /api/transactions)
     const now = new Date();
     now.setHours(0, 0, 0, 0);
 
-    // Calcular data limite conforme filtro de prazo
     let dateLimitMax = null;
     if (provisaoFilter === 'month') {
-      dateLimitMax = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59); // fim do mês corrente
+      dateLimitMax = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
     } else if (provisaoFilter !== 'all') {
       const days = parseInt(provisaoFilter);
       dateLimitMax = new Date(now);
@@ -144,14 +144,12 @@ export default function Reports({ selectedCompanyId = 'all', companies = [] }) {
 
     const futurePending = transactions.filter(t => {
       if (t.status !== 'PENDING') return false;
-      // Aceita context PJ ou ausente (pré-migração)
       if (t.context && t.context !== 'PJ') return false;
       const due = new Date(t.dueDate);
       if (dateLimitMax && due > dateLimitMax) return false;
       return true;
     });
 
-    // Agrupar por Mês-Ano e depois por Empresa
     const groups = {};
     futurePending.forEach(t => {
       const d = new Date(t.dueDate);
@@ -286,85 +284,84 @@ export default function Reports({ selectedCompanyId = 'all', companies = [] }) {
     doc.save(`provisoes-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
-  const selectStyle = {
-    width: '100%', padding: '0.6rem 0.75rem', borderRadius: 8,
-    border: '1px solid var(--border-color)', background: 'var(--bg-card)',
-    color: 'var(--text-main)', fontSize: '0.875rem',
-  };
-
-  const inputStyle = {
-    width: '100%', padding: '0.6rem 0.75rem', borderRadius: 8,
-    border: '1px solid var(--border-color)', background: 'var(--bg-card)',
-    color: 'var(--text-main)', fontSize: '0.875rem',
-  };
-
-  const labelStyle = { fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem', display: 'block' };
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
       {/* Cabeçalho */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Relatórios Financeiros</h2>
-          <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Acompanhamento e previsão de caixa</p>
+          <h2 style={{ fontSize: '1.4rem', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>Relatórios & DRE Gerencial</h2>
+          <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Acompanhamento analítico e projeção futura de caixa</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button className={`btn ${activeTab === 'geral' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('geral')}>Relatório Geral</button>
-          <button className={`btn ${activeTab === 'futuras' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('futuras')}>Provisões / Futuro</button>
+          <button 
+            className={`btn ${activeTab === 'geral' ? 'btn-primary' : 'btn-secondary'}`} 
+            onClick={() => setActiveTab('geral')}
+            style={{ fontWeight: 800 }}
+          >
+            Relatório Geral
+          </button>
+          <button 
+            className={`btn ${activeTab === 'futuras' ? 'btn-primary' : 'btn-secondary'}`} 
+            onClick={() => setActiveTab('futuras')}
+            style={{ fontWeight: 800 }}
+          >
+            Provisões / Contas Futuras
+          </button>
         </div>
       </div>
 
       {activeTab === 'geral' && (
       <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '1.5rem', alignItems: 'start' }}>
+        
         {/* ── Painel de Filtros ── */}
-        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'sticky', top: '1rem' }}>
+        <div className="fin-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'sticky', top: '1rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.25rem' }}>
-              <SlidersHorizontal size={18} style={{ color: 'var(--brand-blue)' }} />
-              <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Filtros</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <SlidersHorizontal size={18} color="var(--brand-blue)" />
+              <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-main)' }}>Parâmetros</span>
             </div>
             {generated && filteredData.length > 0 && (
-              <button className="btn btn-primary" onClick={handleGeneratePDF} style={{ padding: '4px 8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button className="btn btn-secondary" onClick={handleGeneratePDF} style={{ padding: '4px 10px', fontSize: '0.8rem', gap: 4 }}>
                 <Download size={14} /> PDF
               </button>
             )}
           </div>
 
           {/* Unidade / Empresa */}
-          <div>
-            <label style={labelStyle}>Unidade / Empresa</label>
-            <select style={selectStyle} value={filterCompany} onChange={e => { setFilterCompany(e.target.value); setGenerated(false); }}>
+          <div className="form-group">
+            <label>Unidade / Empresa</label>
+            <select value={filterCompany} onChange={e => { setFilterCompany(e.target.value); setGenerated(false); }}>
               <option value="all">🏢 Todas as Unidades</option>
               {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
 
           {/* Período */}
-          <div>
-            <label style={labelStyle}>Período</label>
-            <select style={selectStyle} value={period} onChange={e => { setPeriod(e.target.value); setGenerated(false); }}>
+          <div className="form-group">
+            <label>Período</label>
+            <select value={period} onChange={e => { setPeriod(e.target.value); setGenerated(false); }}>
               {PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
 
           {period === 'custom' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-              <div>
-                <label style={labelStyle}>De</label>
-                <input type="date" style={inputStyle} value={customFrom} onChange={e => { setCustomFrom(e.target.value); setGenerated(false); }} />
+              <div className="form-group">
+                <label>De</label>
+                <input type="date" value={customFrom} onChange={e => { setCustomFrom(e.target.value); setGenerated(false); }} />
               </div>
-              <div>
-                <label style={labelStyle}>Até</label>
-                <input type="date" style={inputStyle} value={customTo} onChange={e => { setCustomTo(e.target.value); setGenerated(false); }} />
+              <div className="form-group">
+                <label>Até</label>
+                <input type="date" value={customTo} onChange={e => { setCustomTo(e.target.value); setGenerated(false); }} />
               </div>
             </div>
           )}
 
           {/* Tipo */}
-          <div>
-            <label style={labelStyle}>Tipo</label>
-            <select style={selectStyle} value={filterType} onChange={e => { setFilterType(e.target.value); setGenerated(false); }}>
+          <div className="form-group">
+            <label>Tipo</label>
+            <select value={filterType} onChange={e => { setFilterType(e.target.value); setGenerated(false); }}>
               <option value="all">Todos (Receitas e Despesas)</option>
               <option value="OUT">Só Despesas (Saídas)</option>
               <option value="IN">Só Receitas (Entradas)</option>
@@ -372,29 +369,28 @@ export default function Reports({ selectedCompanyId = 'all', companies = [] }) {
           </div>
 
           {/* Status */}
-          <div>
-            <label style={labelStyle}>Status</label>
-            <select style={selectStyle} value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setGenerated(false); }}>
+          <div className="form-group">
+            <label>Status</label>
+            <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setGenerated(false); }}>
               <option value="all">Todos os Status</option>
               <option value="PAID">✅ Pagos / Recebidos</option>
               <option value="PENDING">🕐 Pendentes</option>
-              <option value="OVERDUE">🔴 Vencidos</option>
             </select>
           </div>
 
           {/* Categoria */}
-          <div>
-            <label style={labelStyle}>Categoria</label>
-            <select style={selectStyle} value={filterCategory} onChange={e => { setFilterCategory(e.target.value); setGenerated(false); }}>
+          <div className="form-group">
+            <label>Categoria</label>
+            <select value={filterCategory} onChange={e => { setFilterCategory(e.target.value); setGenerated(false); }}>
               <option value="all">Todas as Categorias</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
 
           {/* Fornecedor/Cliente */}
-          <div>
-            <label style={labelStyle}>Fornecedor / Cliente</label>
-            <select style={selectStyle} value={filterEntity} onChange={e => { setFilterEntity(e.target.value); setGenerated(false); }}>
+          <div className="form-group">
+            <label>Fornecedor / Cliente</label>
+            <select value={filterEntity} onChange={e => { setFilterEntity(e.target.value); setGenerated(false); }}>
               <option value="all">Todos</option>
               {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
@@ -402,20 +398,20 @@ export default function Reports({ selectedCompanyId = 'all', companies = [] }) {
 
           {/* Range de Valor */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-            <div>
-              <label style={labelStyle}>Valor Mín.</label>
-              <input type="number" placeholder="0,00" style={inputStyle} value={filterMinValue} onChange={e => { setFilterMinValue(e.target.value); setGenerated(false); }} />
+            <div className="form-group">
+              <label>Valor Mín.</label>
+              <input type="number" placeholder="0,00" value={filterMinValue} onChange={e => { setFilterMinValue(e.target.value); setGenerated(false); }} />
             </div>
-            <div>
-              <label style={labelStyle}>Valor Máx.</label>
-              <input type="number" placeholder="∞" style={inputStyle} value={filterMaxValue} onChange={e => { setFilterMaxValue(e.target.value); setGenerated(false); }} />
+            <div className="form-group">
+              <label>Valor Máx.</label>
+              <input type="number" placeholder="∞" value={filterMaxValue} onChange={e => { setFilterMaxValue(e.target.value); setGenerated(false); }} />
             </div>
           </div>
 
           {/* Botão Gerar */}
           <button
             className="btn btn-primary"
-            style={{ width: '100%', padding: '0.75rem', fontSize: '0.95rem', marginTop: '0.25rem' }}
+            style={{ width: '100%', padding: '0.85rem', fontSize: '0.95rem', marginTop: '0.25rem', gap: 8 }}
             onClick={() => setGenerated(true)}
             disabled={loading}
           >
@@ -432,49 +428,56 @@ export default function Reports({ selectedCompanyId = 'all', companies = [] }) {
         {/* ── Resultado ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {!generated ? (
-            <div className="card" style={{ padding: '4rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-              <div style={{ width: 64, height: 64, borderRadius: 16, background: 'linear-gradient(135deg, #243b9d22, #243b9d44)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <FileBarChart2 size={32} style={{ color: 'var(--brand-blue)' }} />
+            <div className="fin-card" style={{ padding: '4rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+              <div style={{ width: 64, height: 64, borderRadius: 16, background: 'var(--brand-blue-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <FileBarChart2 size={32} color="var(--brand-blue)" />
               </div>
               <div>
-                <p style={{ fontWeight: 700, fontSize: '1rem', margin: 0 }}>Monte seu relatório</p>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '4px 0 0' }}>Escolha os filtros ao lado e clique em "Gerar Relatório"</p>
+                <p style={{ fontWeight: 800, fontSize: '1.1rem', margin: 0, color: 'var(--text-main)' }}>Monte seu relatório executivo</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '6px 0 0' }}>Escolha os filtros ao lado e clique em "Gerar Relatório"</p>
               </div>
             </div>
           ) : loading ? (
-            <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
+            <div className="fin-card" style={{ padding: '3rem', textAlign: 'center' }}>
               <p style={{ color: 'var(--text-muted)' }}>Carregando dados...</p>
             </div>
           ) : (
             <>
               {/* Cards de Resumo */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
                 {[
-                  { label: 'Registros', value: summary.count, icon: <Search size={18} />, color: 'blue', raw: null },
-                  { label: 'Total Receitas', value: fmt(summary.totalIn), icon: <TrendingUp size={18} />, color: 'green', raw: summary.totalIn },
-                  { label: 'Total Despesas', value: fmt(summary.totalOut), icon: <TrendingDown size={18} />, color: 'red', raw: summary.totalOut },
-                  { label: 'Saldo', value: fmt(summary.saldo), icon: <Wallet size={18} />, color: summary.saldo >= 0 ? 'green' : 'red', raw: summary.saldo },
-                ].map(card => (
-                  <div key={card.label} className="card stat-card" style={{ borderLeft: `4px solid ${card.color === 'green' ? 'var(--success)' : card.color === 'red' ? 'var(--danger)' : 'var(--brand-blue)'}` }}>
-                    <div className="stat-header">
-                      <span style={{ fontSize: '0.8rem' }}>{card.label}</span>
-                      <div className={`icon-bg ${card.color === 'green' ? 'green' : card.color === 'red' ? 'red' : 'blue'}`}>{card.icon}</div>
+                  { label: 'Registros', value: summary.count, icon: Search, color: 'var(--brand-blue)', bg: 'var(--brand-blue-light)' },
+                  { label: 'Total Receitas', value: fmt(summary.totalIn), icon: TrendingUp, color: 'var(--success)', bg: 'var(--success-bg)' },
+                  { label: 'Total Despesas', value: fmt(summary.totalOut), icon: TrendingDown, color: 'var(--danger)', bg: 'var(--danger-bg)' },
+                  { label: 'Saldo do Período', value: fmt(summary.saldo), icon: Wallet, color: summary.saldo >= 0 ? 'var(--success)' : 'var(--danger)', bg: summary.saldo >= 0 ? 'var(--success-bg)' : 'var(--danger-bg)' },
+                ].map(card => {
+                  const Icon = card.icon;
+                  return (
+                    <div key={card.label} className="fin-card" style={{ padding: '1rem 1.25rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{card.label}</span>
+                        <div style={{ width: 30, height: 30, borderRadius: '50%', background: card.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Icon size={15} color={card.color} />
+                        </div>
+                      </div>
+                      <div className="tabular-nums" style={{ fontSize: '1.25rem', fontWeight: 900, color: card.color }}>
+                        {card.value}
+                      </div>
                     </div>
-                    <div className="stat-value" style={{ fontSize: '1.15rem', color: card.raw < 0 ? 'var(--danger)' : 'inherit' }}>{card.value}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Tabela */}
-              <div className="card table-container" style={{ padding: 0 }}>
+              <div className="fin-table-container">
                 {filteredData.length === 0 ? (
                   <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    <Calendar size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
-                    <p>Nenhum registro encontrado para os filtros selecionados.</p>
+                    <Calendar size={40} style={{ opacity: 0.3, margin: '0 auto 12px', display: 'block' }} />
+                    <p style={{ fontWeight: 800, color: 'var(--text-main)' }}>Nenhum registro encontrado para os filtros selecionados.</p>
                   </div>
                 ) : (
-                  <table>
-                    <thead style={{ backgroundColor: 'var(--bg-body)' }}>
+                  <table className="fin-table">
+                    <thead>
                       <tr>
                         <th>Data</th>
                         <th>Descrição</th>
@@ -492,29 +495,21 @@ export default function Reports({ selectedCompanyId = 'all', companies = [] }) {
                         const refDate = t.status === 'PAID' && t.paymentDate ? t.paymentDate : t.dueDate;
                         return (
                           <tr key={t.id}>
-                            <td style={{ whiteSpace: 'nowrap', color: 'var(--text-muted)', fontSize: '0.85rem' }}>{fmtDate(refDate)}</td>
-                            <td style={{ fontWeight: 500 }}>{t.description}</td>
+                            <td className="tabular-nums" style={{ whiteSpace: 'nowrap', color: 'var(--text-muted)', fontSize: '0.85rem' }}>{fmtDate(refDate)}</td>
+                            <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{t.description}</td>
                             <td>
-                              <span style={{
-                                padding: '2px 8px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700,
-                                backgroundColor: isIn ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
-                                color: isIn ? 'var(--success)' : 'var(--danger)',
-                              }}>
+                              <span className={`badge-pill ${isIn ? 'badge-pill-success' : 'badge-pill-danger'}`}>
                                 {isIn ? '▲ Receita' : '▼ Despesa'}
                               </span>
                             </td>
-                            <td style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{t.category?.name || '—'}</td>
-                            <td style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{t.entity?.name || '—'}</td>
+                            <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{t.category?.name || '—'}</td>
+                            <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{t.entity?.name || '—'}</td>
                             <td>
-                              <span style={{
-                                padding: '2px 8px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700,
-                                backgroundColor: isPaid ? 'rgba(34,197,94,0.12)' : 'rgba(234,179,8,0.12)',
-                                color: isPaid ? 'var(--success)' : '#ca8a04',
-                              }}>
+                              <span className={`badge-pill ${isPaid ? 'badge-pill-success' : 'badge-pill-warning'}`}>
                                 {statusLabel(t.status)}
                               </span>
                             </td>
-                            <td style={{ textAlign: 'right', fontWeight: 700, color: isIn ? 'var(--success)' : 'var(--danger)' }}>
+                            <td className="tabular-nums" style={{ textAlign: 'right', fontWeight: 900, color: isIn ? 'var(--success)' : 'var(--danger)' }}>
                               {isIn ? '+' : '-'} {fmt(t.amount)}
                             </td>
                           </tr>
@@ -523,10 +518,10 @@ export default function Reports({ selectedCompanyId = 'all', companies = [] }) {
                     </tbody>
                     <tfoot style={{ borderTop: '2px solid var(--border-color)', backgroundColor: 'var(--bg-body)' }}>
                       <tr>
-                        <td colSpan={6} style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.9rem' }}>
-                          Total ({summary.count} registros)
+                        <td colSpan={6} style={{ padding: '0.85rem 1.25rem', fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                          Total Líquido ({summary.count} registros)
                         </td>
-                        <td style={{ textAlign: 'right', fontWeight: 800, padding: '0.75rem 1rem', color: summary.saldo >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                        <td className="tabular-nums" style={{ textAlign: 'right', fontWeight: 900, padding: '0.85rem 1.25rem', color: summary.saldo >= 0 ? 'var(--success)' : 'var(--danger)', fontSize: '1.1rem' }}>
                           {fmt(summary.saldo)}
                         </td>
                       </tr>
@@ -541,20 +536,20 @@ export default function Reports({ selectedCompanyId = 'all', companies = [] }) {
       )}
 
       {activeTab === 'futuras' && (
-        <div className="card">
+        <div className="fin-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
-              <h3 style={{ fontSize: '1.2rem', margin: 0 }}>Provisões e Contas Futuras</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '4px 0 0' }}>Previsão de caixa agrupada por mês e por empresa (apenas contas pendentes)</p>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>Provisões e Contas Futuras</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '4px 0 0' }}>Previsão de fluxo agrupada por mês e unidade</p>
             </div>
             <button className="btn btn-primary" onClick={handleGenerateProvisaoPDF} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Download size={18} /> Exportar PDF Detalhado
+              <Download size={16} /> Exportar PDF Detalhado
             </button>
           </div>
 
           {/* Filtros de prazo */}
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '1.5rem', padding: '0.75rem 1rem', background: 'var(--bg-body)', borderRadius: '10px', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', marginRight: 4 }}>Filtrar por prazo:</span>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '1.5rem', padding: '0.75rem 1rem', background: 'var(--bg-body)', borderRadius: 'var(--radius-md)', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', marginRight: 4, textTransform: 'uppercase' }}>Filtrar prazo:</span>
             {[
               { value: 'all', label: 'Todos' },
               { value: '7', label: 'Próx. 7 dias' },
@@ -566,13 +561,7 @@ export default function Reports({ selectedCompanyId = 'all', companies = [] }) {
               <button
                 key={opt.value}
                 onClick={() => setProvisaoFilter(opt.value)}
-                style={{
-                  padding: '4px 12px', borderRadius: 20, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
-                  border: provisaoFilter === opt.value ? '2px solid var(--brand-blue)' : '1px solid var(--border-color)',
-                  background: provisaoFilter === opt.value ? 'var(--brand-blue)' : 'var(--bg-card)',
-                  color: provisaoFilter === opt.value ? 'white' : 'var(--text-main)',
-                  transition: 'all 0.15s',
-                }}
+                className={`filter-pill ${provisaoFilter === opt.value ? 'active' : ''}`}
               >
                 {opt.label}
               </button>
@@ -580,36 +569,36 @@ export default function Reports({ selectedCompanyId = 'all', companies = [] }) {
           </div>
 
           {loading ? (
-            <p>Carregando dados...</p>
+            <p style={{ color: 'var(--text-muted)' }}>Carregando dados...</p>
           ) : provisaoData.length === 0 ? (
             <p style={{ color: 'var(--text-muted)' }}>Nenhuma conta pendente ou futura encontrada para o período selecionado.</p>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
               {provisaoData.map(mes => (
-                <div key={mes.key} style={{ border: '1px solid var(--border-color)', borderRadius: '12px', overflow: 'hidden' }}>
-                  <div style={{ background: 'var(--bg-body)', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)' }}>
-                    <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>Mês: {mes.label}</h4>
-                    <div style={{ display: 'flex', gap: '1rem', fontSize: '0.9rem', fontWeight: 600 }}>
-                      <span style={{ color: 'var(--success)' }}>+ {fmt(mes.totalIn)}</span>
-                      <span style={{ color: 'var(--danger)' }}>- {fmt(mes.totalOut)}</span>
-                      <span style={{ color: mes.saldo >= 0 ? 'var(--success)' : 'var(--danger)' }}>Previsto: {fmt(mes.saldo)}</span>
+                <div key={mes.key} style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                  <div style={{ background: 'var(--bg-body)', padding: '1rem 1.35rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)' }}>
+                    <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)' }}>Mês: {mes.label}</h4>
+                    <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.88rem', fontWeight: 800 }}>
+                      <span className="tabular-nums" style={{ color: 'var(--success)' }}>+ {fmt(mes.totalIn)}</span>
+                      <span className="tabular-nums" style={{ color: 'var(--danger)' }}>- {fmt(mes.totalOut)}</span>
+                      <span className="tabular-nums" style={{ color: mes.saldo >= 0 ? 'var(--success)' : 'var(--danger)' }}>Previsto: {fmt(mes.saldo)}</span>
                     </div>
                   </div>
-                  <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  <div style={{ padding: '1.35rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', background: 'var(--bg-card)' }}>
                     {mes.companies.map(comp => (
                       <div key={comp.name}>
-                        <h5 style={{ margin: '0 0 0.75rem', color: 'var(--brand-blue)', fontSize: '0.95rem', display: 'flex', justifyContent: 'space-between' }}>
+                        <div style={{ margin: '0 0 0.5rem', color: 'var(--brand-blue)', fontSize: '0.9rem', fontWeight: 800, display: 'flex', justifyContent: 'space-between' }}>
                           <span>🏢 {comp.name}</span>
-                          <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Despesas: {fmt(comp.totalOut)}</span>
-                        </h5>
+                          <span className="tabular-nums" style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Despesas: {fmt(comp.totalOut)}</span>
+                        </div>
                         <table style={{ width: '100%', fontSize: '0.85rem' }}>
                           <tbody>
                             {comp.items.map(t => (
-                              <tr key={t.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                                <td style={{ padding: '0.5rem 0', color: 'var(--text-muted)', width: '80px' }}>{fmtDate(t.dueDate)}</td>
-                                <td style={{ padding: '0.5rem 0', fontWeight: 500 }}>{t.description}</td>
-                                <td style={{ padding: '0.5rem 0', color: 'var(--text-muted)' }}>{t.category?.name || '—'}</td>
-                                <td style={{ padding: '0.5rem 0', textAlign: 'right', fontWeight: 600, color: t.type === 'IN' ? 'var(--success)' : 'var(--danger)' }}>
+                              <tr key={t.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                <td className="tabular-nums" style={{ padding: '0.45rem 0', color: 'var(--text-muted)', width: '90px' }}>{fmtDate(t.dueDate)}</td>
+                                <td style={{ padding: '0.45rem 0', fontWeight: 700, color: 'var(--text-main)' }}>{t.description}</td>
+                                <td style={{ padding: '0.45rem 0', color: 'var(--text-muted)' }}>{t.category?.name || '—'}</td>
+                                <td className="tabular-nums" style={{ padding: '0.45rem 0', textAlign: 'right', fontWeight: 800, color: t.type === 'IN' ? 'var(--success)' : 'var(--danger)' }}>
                                   {t.type === 'IN' ? '+' : '-'} {fmt(t.amount)}
                                 </td>
                               </tr>
@@ -628,3 +617,4 @@ export default function Reports({ selectedCompanyId = 'all', companies = [] }) {
     </div>
   );
 }
+

@@ -1,12 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Paperclip, Trash2, Calendar, TrendingDown, DollarSign, Building2, Tag, UserCheck, CreditCard, Filter } from 'lucide-react';
+import {
+  Plus, Search, Paperclip, Trash2, Calendar, TrendingDown, DollarSign,
+  Building2, Tag, UserCheck, CreditCard, Filter, Loader, Eye, ArrowDownRight
+} from 'lucide-react';
 import { authFetch } from '../config';
 import { formatCurrency, parseCurrency } from '../utils';
 import ConfirmModal from './ConfirmModal';
 
 const fmt = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
-export default function Expenses({ selectedCompanyId = 'all', companies = [] }) {
+export default function Expenses({ selectedCompanyId = 'all', companies = [], theme = 'light' }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -217,55 +220,55 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [] }) 
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
       {/* Header com Totais do Período */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
         
-        <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        <div className="fin-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Total Pago no Período
             </span>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <TrendingDown size={18} color="#dc2626" />
+            <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--danger-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <TrendingDown size={18} color="var(--danger)" />
             </div>
           </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#dc2626' }}>
+          <div className="tabular-nums" style={{ fontSize: '1.65rem', fontWeight: 900, color: 'var(--danger)' }}>
             {fmt(totalPagoPeriodo)}
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 2 }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
             {filteredExpenses.length} despesa(s) quitada(s)
           </div>
         </div>
 
-        <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        <div className="fin-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Maior Despesa Paga
             </span>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <DollarSign size={18} color="#d97706" />
+            <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--warning-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <DollarSign size={18} color="var(--warning-text)" />
             </div>
           </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#1e293b' }}>
+          <div className="tabular-nums" style={{ fontSize: '1.65rem', fontWeight: 900, color: 'var(--text-main)' }}>
             {fmt(maiorDespesa)}
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 2 }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
             No período selecionado
           </div>
         </div>
 
-        <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        <div className="fin-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Média por Pagamento
             </span>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Calendar size={18} color="#0284c7" />
+            <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--info-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Calendar size={18} color="var(--info)" />
             </div>
           </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0284c7' }}>
+          <div className="tabular-nums" style={{ fontSize: '1.65rem', fontWeight: 900, color: 'var(--info)' }}>
             {fmt(mediaPagamento)}
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 2 }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
             Média de custos por boleto/despesa
           </div>
         </div>
@@ -273,18 +276,18 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [] }) 
       </div>
 
       {/* ─── BARRA DE FILTROS MULTIDIMENSIONAIS ──────────────────────────── */}
-      <div style={{ background: 'white', padding: '1rem 1.25rem', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <div className="fin-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', padding: '1.15rem 1.35rem' }}>
         
         {/* Linha 1: Dropdowns de Unidade, Categoria, Fornecedor e Busca */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', alignItems: 'center' }}>
           
           {/* Dropdown Unidade */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
-            <Building2 size={15} color="#243b9d" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-body)', padding: '5px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+            <Building2 size={15} color="var(--brand-blue)" />
             <select 
               value={filterCompany} 
               onChange={e => setFilterCompany(e.target.value)}
-              style={{ border: 'none', background: 'transparent', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', width: '100%', outline: 'none' }}
+              style={{ border: 'none', background: 'transparent', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', width: '100%', outline: 'none', padding: 0 }}
             >
               <option value="all">🏢 Todas as Unidades</option>
               {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -292,12 +295,12 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [] }) 
           </div>
 
           {/* Dropdown Categoria */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
-            <Tag size={15} color="#243b9d" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-body)', padding: '5px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+            <Tag size={15} color="var(--brand-blue)" />
             <select 
               value={filterCategory} 
               onChange={e => setFilterCategory(e.target.value)}
-              style={{ border: 'none', background: 'transparent', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', width: '100%', outline: 'none' }}
+              style={{ border: 'none', background: 'transparent', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', width: '100%', outline: 'none', padding: 0 }}
             >
               <option value="all">🏷️ Todas as Categorias</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -305,12 +308,12 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [] }) 
           </div>
 
           {/* Dropdown Fornecedor */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1' }}>
-            <UserCheck size={15} color="#243b9d" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-body)', padding: '5px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+            <UserCheck size={15} color="var(--brand-blue)" />
             <select 
               value={filterSupplier} 
               onChange={e => setFilterSupplier(e.target.value)}
-              style={{ border: 'none', background: 'transparent', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', width: '100%', outline: 'none' }}
+              style={{ border: 'none', background: 'transparent', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', width: '100%', outline: 'none', padding: 0 }}
             >
               <option value="all">🚚 Todos os Fornecedores</option>
               {entities.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -318,37 +321,27 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [] }) 
           </div>
 
           {/* Input Busca */}
-          <div style={{ position: 'relative' }}>
-            <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+          <div className="search-input-wrapper">
+            <Search size={15} className="search-icon" />
             <input
               type="text"
-              placeholder="Buscar histórico..."
+              placeholder="Buscar no histórico..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              style={{ width: '100%', padding: '0.45rem 0.6rem 0.45rem 2rem', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: '0.82rem' }}
+              style={{ fontSize: '0.82rem' }}
             />
           </div>
 
         </div>
 
-        {/* Linha 2: Chips de Período e Botão de Novo */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem' }}>
-          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', marginRight: 4 }}>Período:</span>
+        {/* Linha 2: Pílulas de Período e Botão de Novo */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', marginRight: 4, textTransform: 'uppercase' }}>Período:</span>
           {PERIOD_OPTIONS.map(opt => (
             <button
               key={opt.id}
               onClick={() => setPeriodFilter(opt.id)}
-              style={{
-                padding: '4px 12px',
-                borderRadius: 20,
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                border: periodFilter === opt.id ? '2px solid #243b9d' : '1px solid #e2e8f0',
-                background: periodFilter === opt.id ? '#eef1f8' : 'white',
-                color: periodFilter === opt.id ? '#243b9d' : '#64748b',
-                transition: 'all 0.15s ease'
-              }}
+              className={`filter-pill ${periodFilter === opt.id ? 'active' : ''}`}
             >
               {opt.label}
             </button>
@@ -356,21 +349,14 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [] }) 
 
           <button
             onClick={() => setIsModalOpen(true)}
+            className="btn btn-primary"
             style={{
               marginLeft: 'auto',
               padding: '0.45rem 1rem',
-              background: 'linear-gradient(135deg, #243b9d, #1d3080)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 8,
-              fontWeight: 700,
               fontSize: '0.82rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
+              borderRadius: 8,
               gap: 6,
               whiteSpace: 'nowrap',
-              boxShadow: '0 2px 6px rgba(36,59,157,0.2)'
             }}
           >
             <Plus size={15} /> + Lançar Despesa Paga
@@ -380,60 +366,76 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [] }) 
       </div>
 
       {/* Tabela de Extrato de Despesas Pagas */}
-      <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+      <div className="fin-table-container">
         {loading ? (
-          <p style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>Carregando histórico de pagamentos...</p>
+          <div style={{ textAlign: 'center', padding: '3rem' }}>
+            <Loader size={36} color="var(--brand-blue)" style={{ animation: 'spin 1s linear infinite' }} />
+            <p style={{ color: 'var(--text-muted)', marginTop: 8, fontWeight: 600 }}>Carregando histórico de pagamentos...</p>
+          </div>
         ) : filteredExpenses.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3.5rem', color: '#94a3b8' }}>
+          <div style={{ textAlign: 'center', padding: '3.5rem', color: 'var(--text-muted)' }}>
             <Calendar size={40} style={{ margin: '0 auto 12px', opacity: 0.3, display: 'block' }} />
-            <p style={{ fontWeight: 700, fontSize: '1.05rem', color: '#1e293b' }}>Nenhum pagamento encontrado com os filtros atuais</p>
+            <p style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-main)' }}>Nenhum pagamento encontrado com os filtros atuais</p>
             <p style={{ fontSize: '0.85rem' }}>Alterne os filtros de unidade, categoria ou período selecionado.</p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+            <table className="fin-table">
               <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                  <th style={{ padding: '0.85rem 1.25rem', color: '#64748b', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' }}>Data Pgto</th>
-                  <th style={{ padding: '0.85rem 1.25rem', color: '#64748b', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' }}>Descrição / Compra</th>
-                  <th style={{ padding: '0.85rem 1.25rem', color: '#64748b', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' }}>Fornecedor</th>
-                  <th style={{ padding: '0.85rem 1.25rem', color: '#64748b', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' }}>Categoria</th>
-                  <th style={{ padding: '0.85rem 1.25rem', color: '#64748b', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', textAlign: 'right' }}>Valor Pago</th>
-                  <th style={{ padding: '0.85rem 1.25rem', color: '#64748b', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', textAlign: 'center' }}>Ações</th>
+                <tr>
+                  <th>Data Pgto</th>
+                  <th>Descrição / Compra</th>
+                  <th>Fornecedor</th>
+                  <th>Categoria</th>
+                  <th style={{ textAlign: 'right' }}>Valor Pago</th>
+                  <th style={{ textAlign: 'center' }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredExpenses.map(expense => (
-                  <tr key={expense.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '0.85rem 1.25rem', fontWeight: 600, color: '#334155', whiteSpace: 'nowrap' }}>
+                  <tr key={expense.id}>
+                    <td className="tabular-nums" style={{ fontWeight: 700, color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
                       {new Date(expense.paymentDate || expense.dueDate).toLocaleDateString('pt-BR')}
                     </td>
-                    <td style={{ padding: '0.85rem 1.25rem', fontWeight: 600, color: '#1e293b' }}>
-                      {expense.description}
-                      {expense.company && <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 400 }}>🏢 {expense.company.name}</div>}
+                    <td>
+                      <div style={{ fontWeight: 800, color: 'var(--text-main)' }}>{expense.description}</div>
+                      {expense.company && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>🏢 {expense.company.name}</div>}
                     </td>
-                    <td style={{ padding: '0.85rem 1.25rem', color: '#64748b', fontSize: '0.85rem' }}>
-                      {expense.entity?.name ? `🚚 ${expense.entity.name}` : '—'}
+                    <td style={{ fontSize: '0.85rem', color: 'var(--text-main)' }}>
+                      {expense.entity?.name ? (
+                        <span className="badge-pill badge-neutral">
+                          🚚 {expense.entity.name}
+                        </span>
+                      ) : '—'}
                     </td>
-                    <td style={{ padding: '0.85rem 1.25rem' }}>
+                    <td>
                       {expense.category ? (
-                        <span style={{ background: '#eef1f8', color: '#243b9d', padding: '3px 8px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700 }}>
+                        <span className="badge-pill badge-info">
                           {expense.category.name}
                         </span>
                       ) : '—'}
                     </td>
-                    <td style={{ padding: '0.85rem 1.25rem', textAlign: 'right', fontWeight: 800, color: '#dc2626', fontSize: '1rem', whiteSpace: 'nowrap' }}>
+                    <td className="tabular-nums" style={{ textAlign: 'right', fontWeight: 900, color: 'var(--danger)', fontSize: '1.05rem', whiteSpace: 'nowrap' }}>
                       - {fmt(expense.amount)}
                     </td>
-                    <td style={{ padding: '0.85rem 1.25rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                      <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                         {expense.hasAttachment ? (
-                          <button onClick={() => viewAttachment(expense.id)} title="Ver Comprovante Anexo" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '5px 8px', color: '#2563eb', cursor: 'pointer' }}>
-                            <Paperclip size={15} />
+                          <button 
+                            onClick={() => viewAttachment(expense.id)} 
+                            title="Ver Comprovante Anexo" 
+                            className="btn btn-secondary"
+                            style={{ padding: '0.4rem 0.6rem', color: 'var(--brand-blue)' }}
+                          >
+                            <Eye size={14} />
                           </button>
                         ) : (
-                          <label style={{ cursor: 'pointer', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 8px', color: '#94a3b8', display: 'flex', alignItems: 'center' }} title="Anexar Comprovante">
-                            <Paperclip size={15} />
+                          <label 
+                            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} 
+                            title="Anexar Comprovante"
+                            className="btn btn-secondary"
+                          >
+                            <Paperclip size={14} />
                             <input type="file" style={{ display: 'none' }} accept="image/*,.pdf" onChange={(e) => handleFileUpload(expense.id, e)} />
                           </label>
                         )}
@@ -441,9 +443,10 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [] }) 
                         <button 
                           onClick={() => setDeleteItem(expense)} 
                           title="Excluir despesa com segurança"
-                          style={{ background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: 6, padding: '5px 8px', color: '#ef4444', cursor: 'pointer' }}
+                          className="btn btn-secondary"
+                          style={{ padding: '0.4rem 0.6rem', color: 'var(--danger)' }}
                         >
-                          <Trash2 size={15} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </td>
@@ -457,75 +460,52 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [] }) 
 
       {/* Modal de Lançamento Direto de Despesa Paga */}
       {isModalOpen && (
-        <div 
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 999,
-            padding: '1rem',
-          }}
-          onClick={() => setIsModalOpen(false)}
-        >
-          <div 
-            style={{
-              background: 'white',
-              borderRadius: 16,
-              maxWidth: '540px',
-              width: '100%',
-              overflow: 'hidden',
-              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div style={{ background: 'linear-gradient(135deg, #243b9d, #1d3080)', padding: '1.25rem 1.5rem', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="modal-backdrop" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" style={{ maxWidth: '540px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ background: 'var(--brand-gradient)', padding: '1.25rem 1.5rem', color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8, color: '#ffffff' }}>
                 <Plus size={18} /> Registrar Despesa Paga no Dia
               </h3>
-              <button onClick={() => setIsModalOpen(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>&times;</button>
+              <button onClick={() => setIsModalOpen(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#ffffff', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontWeight: 800 }}>&times;</button>
             </div>
 
-            <form onSubmit={handleSave} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <form onSubmit={handleSave} style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>Data do Pagamento *</label>
-                  <input type="date" value={dataVenc} onChange={e => setDataVenc(e.target.value)} required style={{ padding: '0.65rem', border: '1px solid #cbd5e1', borderRadius: 8 }} />
+                <div className="form-group">
+                  <label>Data do Pagamento *</label>
+                  <input type="date" value={dataVenc} onChange={e => setDataVenc(e.target.value)} required />
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>Valor Pago (R$) *</label>
-                  <input type="text" placeholder="0,00" value={valor} onChange={e => setValor(formatCurrency(e.target.value))} required style={{ padding: '0.65rem', border: '1px solid #cbd5e1', borderRadius: 8, fontWeight: 700 }} />
+                <div className="form-group">
+                  <label>Valor Pago (R$) *</label>
+                  <input type="text" placeholder="0,00" value={valor} onChange={e => setValor(formatCurrency(e.target.value))} required style={{ fontWeight: 700 }} />
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>Descrição da Compra / Despesa *</label>
-                <input type="text" placeholder="Ex: Compra de Óleo Lubrificante e Filtros, Peças de Injeção..." value={desc} onChange={e => setDesc(e.target.value)} required style={{ padding: '0.65rem', border: '1px solid #cbd5e1', borderRadius: 8 }} />
+              <div className="form-group">
+                <label>Descrição da Compra / Despesa *</label>
+                <input type="text" placeholder="Ex: Compra de Óleo Lubrificante e Filtros, Peças de Injeção..." value={desc} onChange={e => setDesc(e.target.value)} required />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>Categoria</label>
-                  <select value={categoryId} onChange={e => setCategoryId(e.target.value)} style={{ padding: '0.65rem', border: '1px solid #cbd5e1', borderRadius: 8 }}>
+                <div className="form-group">
+                  <label>Categoria</label>
+                  <select value={categoryId} onChange={e => setCategoryId(e.target.value)}>
                     <option value="">Selecione...</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>Fornecedor</label>
-                  <select value={entityId} onChange={e => setEntityId(e.target.value)} style={{ padding: '0.65rem', border: '1px solid #cbd5e1', borderRadius: 8 }}>
+                <div className="form-group">
+                  <label>Fornecedor</label>
+                  <select value={entityId} onChange={e => setEntityId(e.target.value)}>
                     <option value="">Selecione...</option>
                     {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                   </select>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>Conta / Caixa Utilizado</label>
-                <select value={bankAccountId} onChange={e => setBankAccountId(e.target.value)} style={{ padding: '0.65rem', border: '1px solid #cbd5e1', borderRadius: 8 }}>
+              <div className="form-group">
+                <label>Conta / Caixa Utilizado</label>
+                <select value={bankAccountId} onChange={e => setBankAccountId(e.target.value)}>
                   <option value="">Selecione...</option>
                   {bankAccounts.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
@@ -534,17 +514,12 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [] }) 
               <button 
                 type="submit" 
                 disabled={saving}
+                className="btn btn-primary"
                 style={{
                   padding: '0.85rem',
-                  background: 'linear-gradient(135deg, #243b9d, #1d3080)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 10,
-                  fontWeight: 700,
+                  fontWeight: 800,
                   fontSize: '0.95rem',
-                  cursor: saving ? 'wait' : 'pointer',
                   marginTop: '0.5rem',
-                  boxShadow: '0 4px 12px rgba(36,59,157,0.2)'
                 }}
               >
                 {saving ? 'Salvando...' : 'Salvar no Histórico Pago'}
@@ -569,3 +544,4 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [] }) 
     </div>
   );
 }
+
