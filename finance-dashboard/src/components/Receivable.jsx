@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   Plus, CheckCircle2, Calendar, TrendingUp, Clock, Trash2,
   Building2, Tag, UserCheck, CreditCard, Search, Filter,
-  ArrowUpRight, Sparkles, User
+  ArrowUpRight, Sparkles, User, Loader
 } from 'lucide-react';
 import { authFetch } from '../config';
 import { formatCurrency, parseCurrency } from '../utils';

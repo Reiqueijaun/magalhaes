@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   Plus, CheckCircle2, FileText, Loader, Calendar, AlertCircle, Clock,
   TrendingDown, Trash2, Building2, Tag, UserCheck, CreditCard, Search,
-  Filter, ArrowDownRight, AlertTriangle, Sparkles
+  Filter, ArrowDownRight, AlertTriangle, Sparkles, Truck
 } from 'lucide-react';
 import { authFetch } from '../config';
 import { formatCurrency, parseCurrency } from '../utils';
