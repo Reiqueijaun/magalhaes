@@ -1239,6 +1239,16 @@ app.get('/api/warehouse/low-stock', authMiddleware, async (req: Request, res: Re
   } catch (e) { res.status(500).json({ error: 'Erro ao buscar produtos com estoque baixo.' }); }
 });
 
+// Middleware de tratamento global de erros (retorna sempre resposta JSON estruturada)
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error('⚠️ Erro capturado:', err);
+  if (err instanceof SyntaxError && 'body' in err) {
+    res.status(400).json({ error: 'Payload JSON inválido.' });
+    return;
+  }
+  res.status(err.status || 500).json({ error: err.message || 'Erro interno no servidor.' });
+});
+
 app.listen(port, () => {
   console.log(`🚀 Servidor Magalhaes na porta ${port}`);
   runMigrations();
