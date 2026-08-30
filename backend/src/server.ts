@@ -15,6 +15,7 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
 const app = express();
+app.set('trust proxy', 1); // Confia no proxy reverso Nginx para identificar IPs reais
 const port = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'magalhaes-secret-key-change-in-production';
 
@@ -28,24 +29,28 @@ app.use(cors({
 }));
 
 // Proteções Globais
-app.use(helmet()); // Blindagem básica de cabeçalhos de segurança (XSS, Sniffing, Clickjacking)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginEmbedderPolicy: false,
+})); // Blindagem de cabeçalhos sem bloquear recursos legítimos
 app.use(hpp());    // Impede ataque de poluição de parâmetros HTTP
 app.use(compression()); // ← gzip: reduz payload JSON em ~70%
 app.use(express.json({ limit: '10mb' })); // Limita o body para evitar DoS por carga excessiva
 
-// Limite Global da API (Evita DoS generalizado - 200 reqs / min / IP)
+// Limite Global da API (1000 reqs / min / IP)
 const globalLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, 
-  max: 200, 
+  max: 1000, 
   message: { error: 'Muitas requisições deste IP, tente novamente em um minuto.' }
 });
 app.use('/api', globalLimiter);
 
-// Limite Rigoroso para Login e Recuperação de Senha (Evita Força Bruta)
+// Limite para Login e Recuperação de Senha (Proteção contra Força Bruta real)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 5, // Apenas 5 tentativas por IP
-  message: { error: 'Muitas tentativas de login ou recuperação. Seu IP foi bloqueado temporariamente por questões de segurança. Tente novamente em 15 minutos.' }
+  max: 50, // Permite múltiplos logins normais
+  skipSuccessfulRequests: true, // Login com sucesso NÃO consome o limite!
+  message: { error: 'Muitas tentativas inválidas de login ou recuperação. Tente novamente em 15 minutos.' }
 });
 
 // ─── MIDDLEWARE DE AUTENTICAÇÃO ────────────────────────────────────────────────

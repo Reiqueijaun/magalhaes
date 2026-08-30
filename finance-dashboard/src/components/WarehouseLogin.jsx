@@ -19,8 +19,22 @@ export default function WarehouseLogin({ onLogin }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || 'Credenciais inválidas.'); setLoading(false); return; }
+      if (res.status === 429) {
+        setError('Muitas tentativas de acesso. Aguarde alguns instantes e tente novamente.');
+        setLoading(false);
+        return;
+      }
+
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        setError(`Erro no servidor (status ${res.status}).`);
+        setLoading(false);
+        return;
+      }
+
+      if (!res.ok) { setError(data?.error || 'Credenciais inválidas.'); setLoading(false); return; }
 
       const mod = data.user?.module || 'FINANCE';
       if (mod !== 'WAREHOUSE' && mod !== 'ADMIN') {
@@ -32,7 +46,8 @@ export default function WarehouseLogin({ onLogin }) {
       localStorage.setItem('warehouse_token', data.token);
       localStorage.setItem('warehouse_user', JSON.stringify(data.user));
       onLogin(data.user);
-    } catch {
+    } catch (err) {
+      console.error('Erro no login almoxarifado:', err);
       setError('Erro de conexão com o servidor.');
     }
     setLoading(false);

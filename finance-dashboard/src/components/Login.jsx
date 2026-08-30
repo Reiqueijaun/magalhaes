@@ -57,17 +57,29 @@ export default function Login({ onLogin }) {
       });
       
       if (res.status === 429) {
-        setError('🚨 Múltiplas tentativas de acesso inválidas. Como medida de proteção contra invasões, o acesso foi bloqueado. Tente novamente em 15 minutos.');
+        setError('🚨 Muitas tentativas de acesso incorretas. Aguarde alguns instantes e tente novamente.');
         return;
       }
 
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || 'Erro desconhecido'); return; }
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        setError(`Erro no servidor (status ${res.status}). Tente novamente em instantes.`);
+        return;
+      }
+
+      if (!res.ok) {
+        setError(data?.error || 'E-mail ou senha incorretos.');
+        return;
+      }
+
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       onLogin(data.user);
-    } catch {
-      setError('Não foi possível conectar ao servidor.');
+    } catch (err) {
+      console.error('Erro no login:', err);
+      setError('Não foi possível conectar ao servidor. Verifique sua conexão com a internet.');
     } finally {
       setLoading(false);
     }
