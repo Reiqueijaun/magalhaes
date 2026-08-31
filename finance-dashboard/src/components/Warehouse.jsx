@@ -148,16 +148,16 @@ function ProductModal({ product, locations, suppliers, categories, onSave, onClo
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: 6, color: 'white', cursor: 'pointer' }}><X size={18} /></button>
         </div>
 
-        <div style={{ overflow: 'auto', padding: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div style={{ overflow: 'auto', padding: '1.25rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '0.85rem' }}>
           {/* Imagem */}
-          <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div onClick={() => fileRef.current?.click()} style={{ width: 90, height: 90, borderRadius: 12, border: '2px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', background: '#f8fafc', flexShrink: 0 }}>
+          <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <div onClick={() => fileRef.current?.click()} style={{ width: 80, height: 80, borderRadius: 12, border: '2px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', background: '#f8fafc', flexShrink: 0 }}>
               {imagePreview ? <img src={imagePreview} alt="produto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Upload size={24} color="#94a3b8" />}
             </div>
             <div>
-              <p style={{ fontWeight: 600, fontSize: '0.875rem', color: '#334155' }}>Foto do Produto</p>
-              <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 2 }}>PNG, JPG — máx 2MB</p>
-              <button onClick={() => fileRef.current?.click()} style={{ marginTop: 8, padding: '4px 12px', background: '#eef1f8', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, color: '#243b9d', cursor: 'pointer' }}>
+              <p style={{ fontWeight: 600, fontSize: '0.875rem', color: '#334155', margin: 0 }}>Foto do Produto</p>
+              <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '2px 0 6px' }}>PNG, JPG — máx 2MB</p>
+              <button onClick={() => fileRef.current?.click()} style={{ padding: '6px 12px', background: '#eef1f8', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, color: '#243b9d', cursor: 'pointer', minHeight: 34 }}>
                 {imagePreview ? 'Trocar Imagem' : 'Carregar Imagem'}
               </button>
             </div>
@@ -230,9 +230,9 @@ function ProductModal({ product, locations, suppliers, categories, onSave, onClo
           {err && <div style={{ gridColumn: '1/-1', background: '#fee2e2', color: '#ef4444', borderRadius: 8, padding: '0.5rem 0.75rem', fontSize: '0.8rem' }}>{err}</div>}
         </div>
 
-        <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <button onClick={onClose} style={{ padding: '0.6rem 1.2rem', background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, fontWeight: 500, cursor: 'pointer' }}>Cancelar</button>
-          <button onClick={handleSave} disabled={saving} style={{ padding: '0.6rem 1.4rem', background: 'linear-gradient(135deg, #243b9d, #1d3080)', color: 'white', borderRadius: 8, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button onClick={onClose} style={{ padding: '0.6rem 1.2rem', background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, fontWeight: 500, cursor: 'pointer', minHeight: 38 }}>Cancelar</button>
+          <button onClick={handleSave} disabled={saving} style={{ padding: '0.6rem 1.4rem', background: 'linear-gradient(135deg, #243b9d, #1d3080)', color: 'white', borderRadius: 8, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, minHeight: 38 }}>
             {saving ? '...' : <><Check size={16} /> Salvar</>}
           </button>
         </div>
@@ -274,7 +274,7 @@ function MovementModal({ products, onSave, onClose, defaultType }) {
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: 6, color: 'white', cursor: 'pointer' }}><X size={18} /></button>
         </div>
 
-        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
           {/* Tipo */}
           <div>
             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>Tipo de Lançamento</label>
@@ -282,7 +282,7 @@ function MovementModal({ products, onSave, onClose, defaultType }) {
               {Object.entries(MOVEMENT_TYPES).map(([k, t]) => {
                 const Icon = t.icon;
                 return (
-                  <button key={k} onClick={() => f('type', k)} style={{ padding: '5px 12px', borderRadius: 8, border: `2px solid ${form.type === k ? t.color : '#e2e8f0'}`, background: form.type === k ? t.bg : 'white', color: form.type === k ? t.color : '#64748b', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s' }}>
+                  <button key={k} onClick={() => f('type', k)} style={{ padding: '6px 12px', borderRadius: 8, border: `2px solid ${form.type === k ? t.color : '#e2e8f0'}`, background: form.type === k ? t.bg : 'white', color: form.type === k ? t.color : '#64748b', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s', minHeight: 36 }}>
                     <Icon size={13} /> {t.label}
                   </button>
                 );
@@ -307,7 +307,7 @@ function MovementModal({ products, onSave, onClose, defaultType }) {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: '0.75rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Quantidade *</label>
               <input type="number" value={form.quantity} onChange={e => f('quantity', e.target.value)} min="0.001" step="0.001" style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem' }} />
@@ -324,7 +324,7 @@ function MovementModal({ products, onSave, onClose, defaultType }) {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: '0.75rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Data</label>
               <input type="date" value={form.date} onChange={e => f('date', e.target.value)} style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem' }} />
@@ -343,9 +343,9 @@ function MovementModal({ products, onSave, onClose, defaultType }) {
           {err && <div style={{ background: '#fee2e2', color: '#ef4444', borderRadius: 8, padding: '0.5rem 0.75rem', fontSize: '0.8rem' }}>{err}</div>}
         </div>
 
-        <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <button onClick={onClose} style={{ padding: '0.6rem 1.2rem', background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, fontWeight: 500, cursor: 'pointer' }}>Cancelar</button>
-          <button onClick={handleSave} disabled={saving} style={{ padding: '0.6rem 1.4rem', background: 'linear-gradient(135deg, #1e293b, #334155)', color: 'white', borderRadius: 8, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button onClick={onClose} style={{ padding: '0.6rem 1.2rem', background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, fontWeight: 500, cursor: 'pointer', minHeight: 38 }}>Cancelar</button>
+          <button onClick={handleSave} disabled={saving} style={{ padding: '0.6rem 1.4rem', background: 'linear-gradient(135deg, #1e293b, #334155)', color: 'white', borderRadius: 8, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, minHeight: 38 }}>
             {saving ? '...' : <><Check size={16} /> Registrar</>}
           </button>
         </div>
@@ -376,16 +376,16 @@ function ProductDetailModal({ product, movements, onClose }) {
           </div>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, padding: 6, color: 'white', cursor: 'pointer' }}><X size={18} /></button>
         </div>
-        <div style={{ overflow: 'auto', padding: '1.5rem' }}>
+        <div style={{ overflow: 'auto', padding: '1.25rem' }}>
           {/* Ficha Principal */}
-          <div style={{ display: 'flex', gap: 20, marginBottom: 20 }}>
-            <div style={{ width: 120, height: 120, borderRadius: 12, overflow: 'hidden', border: '2px solid #e2e8f0', flexShrink: 0, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+            <div style={{ width: 100, height: 100, borderRadius: 12, overflow: 'hidden', border: '2px solid #e2e8f0', flexShrink: 0, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {imageUrl ? <img src={imageUrl} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Package size={40} color="#cbd5e1" />}
             </div>
-            <div style={{ flex: 1 }}>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1e293b', marginBottom: 4 }}>{product.name}</h3>
+            <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#1e293b', marginBottom: 4 }}>{product.name}</h3>
               {product.description && <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: 8 }}>{product.description}</p>}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {[
                   { icon: Hash, label: 'Cód. Interno', val: product.code },
                   { icon: FileText, label: 'Cód. Fabricante', val: product.manufacturerCode || '—' },
@@ -394,7 +394,7 @@ function ProductDetailModal({ product, movements, onClose }) {
                   { icon: MapPin, label: 'Localização', val: product.locationLabel || '—' },
                   { icon: Truck, label: 'Fornecedor', val: product.supplierName || '—' },
                 ].map(({ icon: Icon, label, val }) => (
-                  <div key={label} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div key={label} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 8px', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <Icon size={12} color="#64748b" />
                     <span style={{ color: '#64748b' }}>{label}:</span>
                     <strong style={{ color: '#334155' }}>{val}</strong>
@@ -405,16 +405,16 @@ function ProductDetailModal({ product, movements, onClose }) {
           </div>
 
           {/* Estoque e Preços */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 130px), 1fr))', gap: 8, marginBottom: 20 }}>
             {[
               { label: 'Estoque Atual', val: `${fmtNum(product.currentStock)} ${product.unit}`, color: product.currentStock <= product.minStock && product.minStock > 0 ? '#ef4444' : '#10b981' },
               { label: 'Estoque Mínimo', val: `${fmtNum(product.minStock)} ${product.unit}`, color: '#f59e0b' },
               { label: 'Preço de Custo', val: fmt(product.costPrice), color: '#64748b' },
               { label: 'Preço de Venda', val: fmt(product.salePrice), color: '#243b9d' },
             ].map(({ label, val, color }) => (
-              <div key={label} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '0.75rem 1rem' }}>
-                <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{label}</div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 800, color }}>{val}</div>
+              <div key={label} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '0.65rem 0.85rem' }}>
+                <div style={{ fontSize: '0.68rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color }}>{val}</div>
               </div>
             ))}
           </div>
@@ -711,35 +711,35 @@ export default function WarehouseModule() {
         </div>
       )}
       {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #243b9d 100%)', borderRadius: 16, padding: '1.5rem 2rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 8px 24px rgba(36,59,157,0.3)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Warehouse size={26} color="white" />
+      <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #243b9d 100%)', borderRadius: 16, padding: '1.25rem 1.5rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', boxShadow: '0 8px 24px rgba(36,59,157,0.3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Warehouse size={24} color="white" />
           </div>
           <div>
-            <h1 style={{ color: 'white', fontSize: '1.4rem', fontWeight: 800, margin: 0 }}>Almoxarifado</h1>
+            <h1 style={{ color: 'white', fontSize: '1.3rem', fontWeight: 800, margin: 0 }}>Almoxarifado</h1>
             <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem', margin: 0 }}>Controle de estoque e movimentações</p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={() => { setMovDefaultType('ENTRY'); setShowMovModal(true); }} style={{ padding: '0.6rem 1.1rem', background: '#10b981', border: 'none', borderRadius: 10, color: 'white', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={() => { setMovDefaultType('ENTRY'); setShowMovModal(true); }} style={{ padding: '0.55rem 1rem', background: '#10b981', border: 'none', borderRadius: 10, color: 'white', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', minHeight: 38 }}>
             <ArrowUpCircle size={16} /> Entrada
           </button>
-          <button onClick={() => { setMovDefaultType('EXIT'); setShowMovModal(true); }} style={{ padding: '0.6rem 1.1rem', background: '#ef4444', border: 'none', borderRadius: 10, color: 'white', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem' }}>
+          <button onClick={() => { setMovDefaultType('EXIT'); setShowMovModal(true); }} style={{ padding: '0.55rem 1rem', background: '#ef4444', border: 'none', borderRadius: 10, color: 'white', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', minHeight: 38 }}>
             <ArrowDownCircle size={16} /> Saída
           </button>
-          <button onClick={() => { setEditProduct(null); setShowProductModal(true); }} style={{ padding: '0.6rem 1.1rem', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 10, color: 'white', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem' }}>
+          <button onClick={() => { setEditProduct(null); setShowProductModal(true); }} style={{ padding: '0.55rem 1rem', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 10, color: 'white', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', minHeight: 38 }}>
             <Plus size={16} /> Produto
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: '1.5rem', background: 'white', padding: 6, borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: '1.25rem', background: 'white', padding: 6, borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', overflowX: 'auto', maxWidth: '100%' }}>
         {TABS.map(t => {
           const Icon = t.icon;
           return (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, padding: '0.6rem 0.5rem', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.2s', background: tab === t.id ? 'linear-gradient(135deg, #243b9d, #1d3080)' : 'transparent', color: tab === t.id ? 'white' : '#64748b', boxShadow: tab === t.id ? '0 2px 8px rgba(36,59,157,0.3)' : 'none' }}>
+            <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: '1 0 auto', padding: '0.55rem 0.85rem', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.2s', background: tab === t.id ? 'linear-gradient(135deg, #243b9d, #1d3080)' : 'transparent', color: tab === t.id ? 'white' : '#64748b', boxShadow: tab === t.id ? '0 2px 8px rgba(36,59,157,0.3)' : 'none', whiteSpace: 'nowrap', minHeight: 38 }}>
               <Icon size={15} /> {t.label}
             </button>
           );
@@ -749,7 +749,7 @@ export default function WarehouseModule() {
       {/* ─── TAB: DASHBOARD ──────────────────────────────────────────────── */}
       {tab === 'dashboard' && (
         <div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '0.85rem', marginBottom: '1.25rem' }}>
             <StatCard icon={Package} label="Produtos Cadastrados" value={summary?.totalProducts || 0} sub="itens ativos no sistema" color="#243b9d" />
             <StatCard icon={DollarSign} label="Valor em Estoque" value={fmt(summary?.totalValue)} sub="custo total dos itens" color="#10b981" bg="#d1fae5" />
             <StatCard icon={Box} label="Total de Itens" value={fmtNum(summary?.totalItems, 0)} sub="unidades em estoque" color="#3b82f6" bg="#dbeafe" />
@@ -1013,15 +1013,15 @@ export default function WarehouseModule() {
           </div>
 
           {/* Resumo de vendas */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-            <StatCard icon={ShoppingCart} label="Total de Baixas (Filtro)" value={salesData.total} sub="saídas e vendas filtradas" color="#3b82f6" bg="#dbeafe" />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '0.85rem', marginBottom: '1.25rem' }}>
+            <StatCard icon={ShoppingCart} label="Total Baixas (Filtro)" value={salesData.total} sub="saídas e vendas filtradas" color="#3b82f6" bg="#dbeafe" />
             <StatCard icon={TrendingDown} label="Qtd. Total Saída" value={fmtNum(sales.reduce((s, m) => s + m.quantity, 0), 0) + ' (Pág)'} sub="unidades baixadas" color="#ef4444" bg="#fee2e2" />
-            <StatCard icon={DollarSign} label="Valor Total" value={fmt(sales.reduce((s, m) => s + (m.totalPrice || 0), 0)) + ' (Pág)'} sub="valor das baixas/vendas" color="#10b981" bg="#d1fae5" />
+            <StatCard icon={DollarSign} label="Valor Total" value={fmt(sales.reduce((s, m) => s + (m.totalPrice || 0), 0)) + ' (Pág)'} sub="valor baixas/vendas" color="#10b981" bg="#d1fae5" />
           </div>
 
           <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
             {sales.length === 0 ? (
-              <div style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
+              <div style={{ padding: '3rem 1.5rem', textAlign: 'center', color: '#94a3b8' }}>
                 <ShoppingCart size={40} style={{ margin: '0 auto 12px', opacity: 0.3, display: 'block' }} />
                 <p style={{ fontWeight: 600 }}>Nenhuma baixa ou venda registrada</p>
               </div>
@@ -1076,9 +1076,9 @@ export default function WarehouseModule() {
 
       {/* ─── TAB: CONFIGURAÇÕES ──────────────────────────────────────────── */}
       {tab === 'settings' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '1.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1.25rem', alignItems: 'start' }}>
           {/* Sub-tabs */}
-          <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: 4, height: 'fit-content' }}>
+          <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', padding: '0.6rem', display: 'flex', flexDirection: 'column', gap: 4, height: 'fit-content' }}>
             {[
               { id: 'locations', icon: MapPin, label: 'Localizações' },
               { id: 'suppliers', icon: Truck, label: 'Fornecedores' },
@@ -1086,7 +1086,7 @@ export default function WarehouseModule() {
             ].map(t => {
               const Icon = t.icon;
               return (
-                <button key={t.id} onClick={() => setSettingsTab(t.id)} style={{ padding: '0.6rem 0.75rem', border: 'none', borderRadius: 8, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', background: settingsTab === t.id ? '#eef1f8' : 'transparent', color: settingsTab === t.id ? '#243b9d' : '#64748b' }}>
+                <button key={t.id} onClick={() => setSettingsTab(t.id)} style={{ padding: '0.6rem 0.75rem', border: 'none', borderRadius: 8, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', background: settingsTab === t.id ? '#eef1f8' : 'transparent', color: settingsTab === t.id ? '#243b9d' : '#64748b', minHeight: 38 }}>
                   <Icon size={15} /> {t.label}
                 </button>
               );

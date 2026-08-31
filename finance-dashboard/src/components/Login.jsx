@@ -97,7 +97,7 @@ export default function Login({ onLogin }) {
       <div style={{
         background: 'white',
         borderRadius: '20px',
-        padding: '3rem',
+        padding: 'clamp(1.5rem, 5vw, 3rem)',
         width: '100%',
         maxWidth: '420px',
         boxShadow: '0 25px 50px rgba(0,0,0,0.3)',

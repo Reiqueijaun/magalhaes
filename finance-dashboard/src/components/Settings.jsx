@@ -218,10 +218,10 @@ export default function Settings() {
   const clients   = entities.filter(e => e.type === 'CLIENT');
 
   return (
-    <div className="card" style={{ minHeight: '600px', display: 'flex', padding: 0, overflow: 'hidden' }}>
+    <div className="card settings-layout-container">
       {/* Menu lateral de Configurações */}
-      <div style={{ width: '250px', borderRight: '1px solid var(--border-color)', backgroundColor: 'var(--bg-body)', padding: '1.5rem', flexShrink: 0 }}>
-        <h3 style={{ fontSize: '0.75rem', marginBottom: '1rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Cadastros Base</h3>
+      <div className="settings-sidebar">
+        <h3 style={{ fontSize: '0.75rem', marginBottom: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Cadastros Base</h3>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           {[
             { key: 'categorias', icon: <Tag size={18} />, label: 'Categorias' },
@@ -260,7 +260,7 @@ export default function Settings() {
       </div>
 
       {/* Conteúdo */}
-      <div style={{ flex: 1, padding: '2rem', overflow: 'auto' }}>
+      <div className="settings-content">
 
         {/* ─── ABA USUÁRIOS (apenas ADMIN) ─────────────────────────────────── */}
         {activeTab === 'usuarios' && isAdmin && (
@@ -620,46 +620,50 @@ export default function Settings() {
             {loading ? <p style={{ color: 'var(--text-muted)' }}>Carregando...</p> : (
               <>
                 <h4 style={{ color: 'var(--brand-blue)', marginBottom: '0.75rem', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🏭 Fornecedores</h4>
-                <table style={{ width: '100%', marginBottom: '2rem' }}>
-                  <thead><tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Nome</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>CPF / CNPJ</th>
-                    <th style={{ padding: '0.75rem' }}></th>
-                  </tr></thead>
-                  <tbody>
-                    {suppliers.length === 0 && <tr><td colSpan={3} style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Nenhum fornecedor cadastrado.</td></tr>}
-                    {suppliers.map(e => (
-                      <tr key={e.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '0.75rem', fontWeight: 500 }}>{e.name}</td>
-                        <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{e.document || '—'}</td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right' }}>
-                          <button onClick={() => deleteEntity(e.id)} style={{ color: 'var(--danger)', background: 'none' }}><Trash2 size={16} /></button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div style={{ overflowX: 'auto', marginBottom: '2rem' }}>
+                  <table style={{ width: '100%', minWidth: '320px' }}>
+                    <thead><tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Nome</th>
+                      <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>CPF / CNPJ</th>
+                      <th style={{ padding: '0.75rem' }}></th>
+                    </tr></thead>
+                    <tbody>
+                      {suppliers.length === 0 && <tr><td colSpan={3} style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Nenhum fornecedor cadastrado.</td></tr>}
+                      {suppliers.map(e => (
+                        <tr key={e.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.75rem', fontWeight: 500 }}>{e.name}</td>
+                          <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{e.document || '—'}</td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                            <button onClick={() => deleteEntity(e.id)} style={{ color: 'var(--danger)', background: 'none', minHeight: 34, minWidth: 34, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={16} /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
                 <h4 style={{ color: 'var(--success)', marginBottom: '0.75rem', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>👤 Clientes</h4>
-                <table style={{ width: '100%' }}>
-                  <thead><tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Nome</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>CPF / CNPJ</th>
-                    <th style={{ padding: '0.75rem' }}></th>
-                  </tr></thead>
-                  <tbody>
-                    {clients.length === 0 && <tr><td colSpan={3} style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Nenhum cliente cadastrado.</td></tr>}
-                    {clients.map(e => (
-                      <tr key={e.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '0.75rem', fontWeight: 500 }}>{e.name}</td>
-                        <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{e.document || '—'}</td>
-                        <td style={{ padding: '0.75rem', textAlign: 'right' }}>
-                          <button onClick={() => deleteEntity(e.id)} style={{ color: 'var(--danger)', background: 'none' }}><Trash2 size={16} /></button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', minWidth: '320px' }}>
+                    <thead><tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Nome</th>
+                      <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>CPF / CNPJ</th>
+                      <th style={{ padding: '0.75rem' }}></th>
+                    </tr></thead>
+                    <tbody>
+                      {clients.length === 0 && <tr><td colSpan={3} style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Nenhum cliente cadastrado.</td></tr>}
+                      {clients.map(e => (
+                        <tr key={e.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.75rem', fontWeight: 500 }}>{e.name}</td>
+                          <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{e.document || '—'}</td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                            <button onClick={() => deleteEntity(e.id)} style={{ color: 'var(--danger)', background: 'none', minHeight: 34, minWidth: 34, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={16} /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </>
             )}
           </div>
@@ -675,25 +679,27 @@ export default function Settings() {
               <button className="btn btn-primary" onClick={() => setCompModal(true)}><Plus size={18}/> Nova Empresa</button>
             </div>
             {loading ? <p style={{ color: 'var(--text-muted)' }}>Carregando...</p> : (
-              <table style={{ width: '100%', marginBottom: '2rem' }}>
-                <thead><tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Empresa</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>CNPJ</th>
-                  <th style={{ padding: '0.75rem' }}></th>
-                </tr></thead>
-                <tbody>
-                  {companies.length === 0 && <tr><td colSpan={3} style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Nenhuma empresa cadastrada.</td></tr>}
-                  {companies.map(c => (
-                    <tr key={c.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <td style={{ padding: '0.75rem', fontWeight: 500 }}>{c.name}</td>
-                      <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{c.document || '—'}</td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right' }}>
-                        <button onClick={() => deleteCompany(c.id)} style={{ color: 'var(--danger)', background: 'none' }}><Trash2 size={16} /></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div style={{ overflowX: 'auto', marginBottom: '2rem' }}>
+                <table style={{ width: '100%', minWidth: '320px' }}>
+                  <thead><tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Empresa</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>CNPJ</th>
+                    <th style={{ padding: '0.75rem' }}></th>
+                  </tr></thead>
+                  <tbody>
+                    {companies.length === 0 && <tr><td colSpan={3} style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Nenhuma empresa cadastrada.</td></tr>}
+                    {companies.map(c => (
+                      <tr key={c.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.75rem', fontWeight: 500 }}>{c.name}</td>
+                        <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{c.document || '—'}</td>
+                        <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                          <button onClick={() => deleteCompany(c.id)} style={{ color: 'var(--danger)', background: 'none', minHeight: 34, minWidth: 34, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={16} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         )}
@@ -708,27 +714,29 @@ export default function Settings() {
               <button className="btn btn-primary" onClick={() => setBankModal(true)}><Plus size={18}/> Novo Banco</button>
             </div>
             {loading ? <p style={{ color: 'var(--text-muted)' }}>Carregando...</p> : (
-              <table style={{ width: '100%', marginBottom: '2rem' }}>
-                <thead><tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Nome (Banco/Caixa)</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Agência</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Conta</th>
-                  <th style={{ padding: '0.75rem' }}></th>
-                </tr></thead>
-                <tbody>
-                  {bankAccounts.length === 0 && <tr><td colSpan={4} style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Nenhum banco cadastrado.</td></tr>}
-                  {bankAccounts.map(b => (
-                    <tr key={b.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <td style={{ padding: '0.75rem', fontWeight: 500 }}>{b.name}</td>
-                      <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{b.agency || '—'}</td>
-                      <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{b.account || '—'}</td>
-                      <td style={{ padding: '0.75rem', textAlign: 'right' }}>
-                        <button onClick={() => deleteBank(b.id)} style={{ color: 'var(--danger)', background: 'none' }}><Trash2 size={16} /></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div style={{ overflowX: 'auto', marginBottom: '2rem' }}>
+                <table style={{ width: '100%', minWidth: '320px' }}>
+                  <thead><tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Nome (Banco/Caixa)</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Agência</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Conta</th>
+                    <th style={{ padding: '0.75rem' }}></th>
+                  </tr></thead>
+                  <tbody>
+                    {bankAccounts.length === 0 && <tr><td colSpan={4} style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Nenhum banco cadastrado.</td></tr>}
+                    {bankAccounts.map(b => (
+                      <tr key={b.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.75rem', fontWeight: 500 }}>{b.name}</td>
+                        <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{b.agency || '—'}</td>
+                        <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{b.account || '—'}</td>
+                        <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                          <button onClick={() => deleteBank(b.id)} style={{ color: 'var(--danger)', background: 'none', minHeight: 34, minWidth: 34, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={16} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         )}

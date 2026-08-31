@@ -312,17 +312,17 @@ export default function Reports({ selectedCompanyId = 'all', companies = [], the
       </div>
 
       {activeTab === 'geral' && (
-      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '1.5rem', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '1.25rem', alignItems: 'start' }}>
         
         {/* ── Painel de Filtros ── */}
-        <div className="fin-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'sticky', top: '1rem' }}>
+        <div className="fin-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <SlidersHorizontal size={18} color="var(--brand-blue)" />
               <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-main)' }}>Parâmetros</span>
             </div>
             {generated && filteredData.length > 0 && (
-              <button className="btn btn-secondary" onClick={handleGeneratePDF} style={{ padding: '4px 10px', fontSize: '0.8rem', gap: 4 }}>
+              <button className="btn btn-secondary" onClick={handleGeneratePDF} style={{ padding: '4px 10px', fontSize: '0.8rem', gap: 4, minHeight: 34 }}>
                 <Download size={14} /> PDF
               </button>
             )}
@@ -346,7 +346,7 @@ export default function Reports({ selectedCompanyId = 'all', companies = [], the
           </div>
 
           {period === 'custom' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: '0.75rem' }}>
               <div className="form-group">
                 <label>De</label>
                 <input type="date" value={customFrom} onChange={e => { setCustomFrom(e.target.value); setGenerated(false); }} />
@@ -397,7 +397,7 @@ export default function Reports({ selectedCompanyId = 'all', companies = [], the
           </div>
 
           {/* Range de Valor */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 120px), 1fr))', gap: '0.75rem' }}>
             <div className="form-group">
               <label>Valor Mín.</label>
               <input type="number" placeholder="0,00" value={filterMinValue} onChange={e => { setFilterMinValue(e.target.value); setGenerated(false); }} />
@@ -419,7 +419,7 @@ export default function Reports({ selectedCompanyId = 'all', companies = [], the
           </button>
 
           {generated && (
-            <button onClick={() => setGenerated(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
+            <button onClick={() => setGenerated(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center', minHeight: 34 }}>
               <X size={14} /> Limpar resultados
             </button>
           )}
@@ -428,13 +428,13 @@ export default function Reports({ selectedCompanyId = 'all', companies = [], the
         {/* ── Resultado ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {!generated ? (
-            <div className="fin-card" style={{ padding: '4rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-              <div style={{ width: 64, height: 64, borderRadius: 16, background: 'var(--brand-blue-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <FileBarChart2 size={32} color="var(--brand-blue)" />
+            <div className="fin-card" style={{ padding: '3rem 1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 56, height: 56, borderRadius: 16, background: 'var(--brand-blue-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <FileBarChart2 size={28} color="var(--brand-blue)" />
               </div>
               <div>
-                <p style={{ fontWeight: 800, fontSize: '1.1rem', margin: 0, color: 'var(--text-main)' }}>Monte seu relatório executivo</p>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '6px 0 0' }}>Escolha os filtros ao lado e clique em "Gerar Relatório"</p>
+                <p style={{ fontWeight: 800, fontSize: '1.05rem', margin: 0, color: 'var(--text-main)' }}>Monte seu relatório executivo</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '6px 0 0' }}>Escolha os filtros e clique em "Gerar Relatório"</p>
               </div>
             </div>
           ) : loading ? (
@@ -444,23 +444,23 @@ export default function Reports({ selectedCompanyId = 'all', companies = [], the
           ) : (
             <>
               {/* Cards de Resumo */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: '0.85rem' }}>
                 {[
                   { label: 'Registros', value: summary.count, icon: Search, color: 'var(--brand-blue)', bg: 'var(--brand-blue-light)' },
                   { label: 'Total Receitas', value: fmt(summary.totalIn), icon: TrendingUp, color: 'var(--success)', bg: 'var(--success-bg)' },
                   { label: 'Total Despesas', value: fmt(summary.totalOut), icon: TrendingDown, color: 'var(--danger)', bg: 'var(--danger-bg)' },
-                  { label: 'Saldo do Período', value: fmt(summary.saldo), icon: Wallet, color: summary.saldo >= 0 ? 'var(--success)' : 'var(--danger)', bg: summary.saldo >= 0 ? 'var(--success-bg)' : 'var(--danger-bg)' },
+                  { label: 'Saldo Período', value: fmt(summary.saldo), icon: Wallet, color: summary.saldo >= 0 ? 'var(--success)' : 'var(--danger)', bg: summary.saldo >= 0 ? 'var(--success-bg)' : 'var(--danger-bg)' },
                 ].map(card => {
                   const Icon = card.icon;
                   return (
-                    <div key={card.label} className="fin-card" style={{ padding: '1rem 1.25rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{card.label}</span>
-                        <div style={{ width: 30, height: 30, borderRadius: '50%', background: card.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Icon size={15} color={card.color} />
+                    <div key={card.label} className="fin-card" style={{ padding: '0.85rem 1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{card.label}</span>
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: card.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Icon size={14} color={card.color} />
                         </div>
                       </div>
-                      <div className="tabular-nums" style={{ fontSize: '1.25rem', fontWeight: 900, color: card.color }}>
+                      <div className="tabular-nums" style={{ fontSize: '1.15rem', fontWeight: 900, color: card.color }}>
                         {card.value}
                       </div>
                     </div>
@@ -471,7 +471,7 @@ export default function Reports({ selectedCompanyId = 'all', companies = [], the
               {/* Tabela */}
               <div className="fin-table-container">
                 {filteredData.length === 0 ? (
-                  <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <div style={{ padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                     <Calendar size={40} style={{ opacity: 0.3, margin: '0 auto 12px', display: 'block' }} />
                     <p style={{ fontWeight: 800, color: 'var(--text-main)' }}>Nenhum registro encontrado para os filtros selecionados.</p>
                   </div>
@@ -495,15 +495,15 @@ export default function Reports({ selectedCompanyId = 'all', companies = [], the
                         const refDate = t.status === 'PAID' && t.paymentDate ? t.paymentDate : t.dueDate;
                         return (
                           <tr key={t.id}>
-                            <td className="tabular-nums" style={{ whiteSpace: 'nowrap', color: 'var(--text-muted)', fontSize: '0.85rem' }}>{fmtDate(refDate)}</td>
+                            <td className="tabular-nums" style={{ whiteSpace: 'nowrap', color: 'var(--text-muted)', fontSize: '0.82rem' }}>{fmtDate(refDate)}</td>
                             <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{t.description}</td>
                             <td>
                               <span className={`badge-pill ${isIn ? 'badge-pill-success' : 'badge-pill-danger'}`}>
                                 {isIn ? '▲ Receita' : '▼ Despesa'}
                               </span>
                             </td>
-                            <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{t.category?.name || '—'}</td>
-                            <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{t.entity?.name || '—'}</td>
+                            <td style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>{t.category?.name || '—'}</td>
+                            <td style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>{t.entity?.name || '—'}</td>
                             <td>
                               <span className={`badge-pill ${isPaid ? 'badge-pill-success' : 'badge-pill-warning'}`}>
                                 {statusLabel(t.status)}
@@ -537,10 +537,10 @@ export default function Reports({ selectedCompanyId = 'all', companies = [], the
 
       {activeTab === 'futuras' && (
         <div className="fin-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>Provisões e Contas Futuras</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '4px 0 0' }}>Previsão de fluxo agrupada por mês e unidade</p>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>Provisões e Contas Futuras</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0' }}>Previsão de fluxo agrupada por mês e unidade</p>
             </div>
             <button className="btn btn-primary" onClick={handleGenerateProvisaoPDF} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Download size={16} /> Exportar PDF Detalhado
@@ -548,24 +548,26 @@ export default function Reports({ selectedCompanyId = 'all', companies = [], the
           </div>
 
           {/* Filtros de prazo */}
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '1.5rem', padding: '0.75rem 1rem', background: 'var(--bg-body)', borderRadius: 'var(--radius-md)', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', marginRight: 4, textTransform: 'uppercase' }}>Filtrar prazo:</span>
-            {[
-              { value: 'all', label: 'Todos' },
-              { value: '7', label: 'Próx. 7 dias' },
-              { value: '15', label: 'Próx. 15 dias' },
-              { value: '30', label: 'Próx. 30 dias' },
-              { value: '60', label: 'Próx. 60 dias' },
-              { value: 'month', label: 'Este Mês' },
-            ].map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => setProvisaoFilter(opt.value)}
-                className={`filter-pill ${provisaoFilter === opt.value ? 'active' : ''}`}
-              >
-                {opt.label}
-              </button>
-            ))}
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '1.25rem', padding: '0.75rem', background: 'var(--bg-body)', borderRadius: 'var(--radius-md)', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted)', marginRight: 2, textTransform: 'uppercase' }}>Filtrar prazo:</span>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flex: 1 }}>
+              {[
+                { value: 'all', label: 'Todos' },
+                { value: '7', label: 'Próx. 7 dias' },
+                { value: '15', label: 'Próx. 15 dias' },
+                { value: '30', label: 'Próx. 30 dias' },
+                { value: '60', label: 'Próx. 60 dias' },
+                { value: 'month', label: 'Este Mês' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setProvisaoFilter(opt.value)}
+                  className={`filter-pill ${provisaoFilter === opt.value ? 'active' : ''}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {loading ? (
@@ -573,38 +575,40 @@ export default function Reports({ selectedCompanyId = 'all', companies = [], the
           ) : provisaoData.length === 0 ? (
             <p style={{ color: 'var(--text-muted)' }}>Nenhuma conta pendente ou futura encontrada para o período selecionado.</p>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               {provisaoData.map(mes => (
                 <div key={mes.key} style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                  <div style={{ background: 'var(--bg-body)', padding: '1rem 1.35rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)' }}>
-                    <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)' }}>Mês: {mes.label}</h4>
-                    <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.88rem', fontWeight: 800 }}>
+                  <div style={{ background: 'var(--bg-body)', padding: '0.85rem 1.15rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap', gap: 8 }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)' }}>Mês: {mes.label}</h4>
+                    <div style={{ display: 'flex', gap: '0.85rem', fontSize: '0.82rem', fontWeight: 800, flexWrap: 'wrap' }}>
                       <span className="tabular-nums" style={{ color: 'var(--success)' }}>+ {fmt(mes.totalIn)}</span>
                       <span className="tabular-nums" style={{ color: 'var(--danger)' }}>- {fmt(mes.totalOut)}</span>
-                      <span className="tabular-nums" style={{ color: mes.saldo >= 0 ? 'var(--success)' : 'var(--danger)' }}>Previsto: {fmt(mes.saldo)}</span>
+                      <span className="tabular-nums" style={{ color: mes.saldo >= 0 ? 'var(--success)' : 'var(--danger)' }}>Prev: {fmt(mes.saldo)}</span>
                     </div>
                   </div>
-                  <div style={{ padding: '1.35rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', background: 'var(--bg-card)' }}>
+                  <div style={{ padding: '1.15rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-card)' }}>
                     {mes.companies.map(comp => (
                       <div key={comp.name}>
-                        <div style={{ margin: '0 0 0.5rem', color: 'var(--brand-blue)', fontSize: '0.9rem', fontWeight: 800, display: 'flex', justifyContent: 'space-between' }}>
+                        <div style={{ margin: '0 0 0.5rem', color: 'var(--brand-blue)', fontSize: '0.85rem', fontWeight: 800, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
                           <span>🏢 {comp.name}</span>
                           <span className="tabular-nums" style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Despesas: {fmt(comp.totalOut)}</span>
                         </div>
-                        <table style={{ width: '100%', fontSize: '0.85rem' }}>
-                          <tbody>
-                            {comp.items.map(t => (
-                              <tr key={t.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                <td className="tabular-nums" style={{ padding: '0.45rem 0', color: 'var(--text-muted)', width: '90px' }}>{fmtDate(t.dueDate)}</td>
-                                <td style={{ padding: '0.45rem 0', fontWeight: 700, color: 'var(--text-main)' }}>{t.description}</td>
-                                <td style={{ padding: '0.45rem 0', color: 'var(--text-muted)' }}>{t.category?.name || '—'}</td>
-                                <td className="tabular-nums" style={{ padding: '0.45rem 0', textAlign: 'right', fontWeight: 800, color: t.type === 'IN' ? 'var(--success)' : 'var(--danger)' }}>
-                                  {t.type === 'IN' ? '+' : '-'} {fmt(t.amount)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', fontSize: '0.82rem' }}>
+                            <tbody>
+                              {comp.items.map(t => (
+                                <tr key={t.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                  <td className="tabular-nums" style={{ padding: '0.45rem 0', color: 'var(--text-muted)', width: '85px', whiteSpace: 'nowrap' }}>{fmtDate(t.dueDate)}</td>
+                                  <td style={{ padding: '0.45rem 0', fontWeight: 700, color: 'var(--text-main)' }}>{t.description}</td>
+                                  <td style={{ padding: '0.45rem 0', color: 'var(--text-muted)' }}>{t.category?.name || '—'}</td>
+                                  <td className="tabular-nums" style={{ padding: '0.45rem 0', textAlign: 'right', fontWeight: 800, color: t.type === 'IN' ? 'var(--success)' : 'var(--danger)', whiteSpace: 'nowrap' }}>
+                                    {t.type === 'IN' ? '+' : '-'} {fmt(t.amount)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     ))}
                   </div>

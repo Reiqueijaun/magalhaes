@@ -232,7 +232,7 @@ export default function PersonalFinance({ theme = 'light' }) {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--bg-card)', padding: '0.4rem', borderRadius: 12, border: '1px solid var(--border-color)', width: 'fit-content' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--bg-card)', padding: '0.4rem', borderRadius: 12, border: '1px solid var(--border-color)', maxWidth: '100%', overflowX: 'auto' }}>
         {tab('dashboard', 'Dashboard', <BarChart3 size={16} />)}
         {tab('lancamentos', 'Lançamentos', <Wallet size={16} />)}
         {tab('orcamentos', 'Orçamentos', <PiggyBank size={16} />)}
@@ -247,10 +247,10 @@ export default function PersonalFinance({ theme = 'light' }) {
         <>
           {/* ── DASHBOARD ── */}
           {activeTab === 'dashboard' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
               {/* Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '1rem' }}>
                 {[
                   { label: 'Receitas do Mês', value: fmt(totalIn), icon: TrendingUp, color: 'var(--success)', bg: 'var(--success-bg)' },
                   { label: 'Despesas do Mês', value: fmt(totalOut), icon: TrendingDown, color: 'var(--danger)', bg: 'var(--danger-bg)' },
@@ -258,20 +258,20 @@ export default function PersonalFinance({ theme = 'light' }) {
                 ].map(c => {
                   const Icon = c.icon;
                   return (
-                    <div key={c.label} className="fin-card">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <div key={c.label} className="fin-card" style={{ padding: '1rem 1.25rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{c.label}</span>
-                        <div style={{ width: 36, height: 36, borderRadius: 8, background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.color }}>
-                          <Icon size={18} />
+                        <div style={{ width: 34, height: 34, borderRadius: 8, background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.color }}>
+                          <Icon size={16} />
                         </div>
                       </div>
-                      <div className="tabular-nums" style={{ fontSize: '1.65rem', fontWeight: 900, color: c.color }}>{c.value}</div>
+                      <div className="tabular-nums" style={{ fontSize: '1.55rem', fontWeight: 900, color: c.color }}>{c.value}</div>
                     </div>
                   );
                 })}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '1.25rem' }}>
                 {/* Gráfico Onde vai meu dinheiro */}
                 <div className="fin-card">
                   <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 1.25rem', color: 'var(--text-main)' }}>Onde vai meu dinheiro?</h3>
@@ -327,14 +327,14 @@ export default function PersonalFinance({ theme = 'light' }) {
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {pendentes.map(t => (
-                      <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.65rem 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.65rem 0', borderBottom: '1px solid var(--border-subtle)', flexWrap: 'wrap', gap: 8 }}>
                         <div>
                           <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{t.description}</span>
                           <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: '0.8rem' }}>• vence {fmtDate(t.dueDate)}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                           <span className="tabular-nums" style={{ fontWeight: 900, color: t.type === 'IN' ? 'var(--success)' : 'var(--danger)' }}>{fmt(t.amount)}</span>
-                          <button className="btn btn-success" style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }} onClick={() => payTx(t.id)}>
+                          <button className="btn btn-success" style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', minHeight: 34 }} onClick={() => payTx(t.id)}>
                             <CheckCircle2 size={13} /> Pago
                           </button>
                         </div>
@@ -350,81 +350,83 @@ export default function PersonalFinance({ theme = 'light' }) {
           {activeTab === 'lancamentos' && (
             <div className="fin-table-container">
               {transactions.length === 0 ? (
-                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <div style={{ padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                   <Wallet size={40} style={{ opacity: 0.3, margin: '0 auto 12px', display: 'block' }} />
                   <p style={{ fontWeight: 700, color: 'var(--text-main)' }}>Nenhum lançamento pessoal ainda. Clique em "Novo Lançamento" para começar!</p>
                 </div>
               ) : (
-                <table className="fin-table">
-                  <thead>
-                    <tr>
-                      <th>Data</th><th>Descrição</th><th>Categoria</th><th>Tipo</th><th>Status</th><th style={{ textAlign: 'right' }}>Valor</th><th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transactions.map(t => (
-                      <tr key={t.id}>
-                        <td className="tabular-nums" style={{ color: 'var(--text-muted)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{fmtDate(t.paymentDate || t.dueDate)}</td>
-                        <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>
-                          {t.description}
-                          {t.isRecurring && <Repeat size={12} style={{ marginLeft: 6, color: 'var(--brand-purple)', verticalAlign: 'middle' }} title="Recorrente" />}
-                        </td>
-                        <td>
-                          {t.category ? (
-                            <span className="badge-pill badge-info">
-                              {t.category.name}
-                            </span>
-                          ) : '—'}
-                        </td>
-                        <td>
-                          <span className={`badge-pill ${t.type === 'IN' ? 'badge-pill-success' : 'badge-pill-danger'}`}>
-                            {t.type === 'IN' ? '▲ Receita' : '▼ Despesa'}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`badge-pill ${t.status === 'PAID' ? 'badge-pill-success' : 'badge-pill-warning'}`}>
-                            {t.status === 'PAID' ? 'Pago' : 'Pendente'}
-                          </span>
-                        </td>
-                        <td className="tabular-nums" style={{ textAlign: 'right', fontWeight: 900, color: t.type === 'IN' ? 'var(--success)' : 'var(--danger)' }}>
-                          {t.type === 'IN' ? '+' : '-'} {fmt(t.amount)}
-                        </td>
-                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          {t.status === 'PENDING' && (
-                            <button onClick={() => payTx(t.id)} className="btn btn-secondary" style={{ padding: '0.35rem 0.5rem', color: 'var(--success)', marginRight: 6 }} title="Marcar como Pago">
-                              <CheckCircle2 size={15} />
-                            </button>
-                          )}
-                          <button onClick={() => deleteTx(t.id)} className="btn btn-secondary" style={{ padding: '0.35rem 0.5rem', color: 'var(--danger)' }} title="Excluir">
-                            <Trash2 size={15} />
-                          </button>
-                        </td>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="fin-table">
+                    <thead>
+                      <tr>
+                        <th>Data</th><th>Descrição</th><th>Categoria</th><th>Tipo</th><th>Status</th><th style={{ textAlign: 'right' }}>Valor</th><th></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {transactions.map(t => (
+                        <tr key={t.id}>
+                          <td className="tabular-nums" style={{ color: 'var(--text-muted)', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>{fmtDate(t.paymentDate || t.dueDate)}</td>
+                          <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>
+                            {t.description}
+                            {t.isRecurring && <Repeat size={12} style={{ marginLeft: 6, color: 'var(--brand-purple)', verticalAlign: 'middle' }} title="Recorrente" />}
+                          </td>
+                          <td>
+                            {t.category ? (
+                              <span className="badge-pill badge-info">
+                                {t.category.name}
+                              </span>
+                            ) : '—'}
+                          </td>
+                          <td>
+                            <span className={`badge-pill ${t.type === 'IN' ? 'badge-pill-success' : 'badge-pill-danger'}`}>
+                              {t.type === 'IN' ? '▲ Receita' : '▼ Despesa'}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`badge-pill ${t.status === 'PAID' ? 'badge-pill-success' : 'badge-pill-warning'}`}>
+                              {t.status === 'PAID' ? 'Pago' : 'Pendente'}
+                            </span>
+                          </td>
+                          <td className="tabular-nums" style={{ textAlign: 'right', fontWeight: 900, color: t.type === 'IN' ? 'var(--success)' : 'var(--danger)' }}>
+                            {t.type === 'IN' ? '+' : '-'} {fmt(t.amount)}
+                          </td>
+                          <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            {t.status === 'PENDING' && (
+                              <button onClick={() => payTx(t.id)} className="btn btn-secondary" style={{ padding: '0.35rem 0.5rem', color: 'var(--success)', marginRight: 6, minHeight: 34 }} title="Marcar como Pago">
+                                <CheckCircle2 size={15} />
+                              </button>
+                            )}
+                            <button onClick={() => deleteTx(t.id)} className="btn btn-secondary" style={{ padding: '0.35rem 0.5rem', color: 'var(--danger)', minHeight: 34 }} title="Excluir">
+                              <Trash2 size={15} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}
 
           {/* ── ORÇAMENTOS ── */}
           {activeTab === 'orcamentos' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button className="btn btn-primary" onClick={() => setBudgetModal(true)} style={{ background: 'var(--brand-purple)', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
                   <Plus size={18} /> Novo Orçamento
                 </button>
               </div>
               {budgetsWithProgress.length === 0 ? (
-                <div className="fin-card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <div className="fin-card" style={{ padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                   <PiggyBank size={48} style={{ opacity: 0.3, margin: '0 auto 12px', display: 'block', color: 'var(--brand-purple)' }} />
                   <p style={{ fontWeight: 800, color: 'var(--text-main)' }}>Defina quanto quer gastar por categoria no mês.</p>
                   <p style={{ fontSize: '0.85rem' }}>Ex: Lazer: R$ 500,00 | Alimentação: R$ 1.200,00</p>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.25rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))', gap: '1.25rem' }}>
                   {(budgetsWithProgress).map((b) => (
-                    <div key={b.id} className="fin-card" style={{ padding: '1.5rem', position: 'relative' }}>
+                    <div key={b.id} className="fin-card" style={{ padding: '1.25rem', position: 'relative' }}>
                       <button onClick={() => deleteBudget(b.id)} style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                         <Trash2 size={15} />
                       </button>
@@ -437,7 +439,7 @@ export default function PersonalFinance({ theme = 'light' }) {
                           <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>{MONTHS[b.month - 1]} / {b.year}</p>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 4 }}>
                         <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Gasto: <strong className="tabular-nums" style={{ color: b.pct >= 90 ? 'var(--danger)' : 'var(--brand-purple)' }}>{fmt(b.spent)}</strong></span>
                         <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Limite: <strong className="tabular-nums">{fmt(b.limitAmount)}</strong></span>
                       </div>
@@ -457,34 +459,34 @@ export default function PersonalFinance({ theme = 'light' }) {
 
           {/* ── METAS ── */}
           {activeTab === 'metas' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button className="btn btn-primary" onClick={() => setGoalModal(true)} style={{ background: 'var(--brand-purple)', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
                   <Plus size={18} /> Nova Meta
                 </button>
               </div>
               {goals.length === 0 ? (
-                <div className="fin-card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <div className="fin-card" style={{ padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                   <Target size={48} style={{ opacity: 0.3, margin: '0 auto 12px', display: 'block', color: 'var(--brand-purple)' }} />
                   <p style={{ fontWeight: 800, color: 'var(--text-main)' }}>Defina seus objetivos financeiros e acompanhe o progresso!</p>
                   <p style={{ fontSize: '0.85rem' }}>Ex: Viagem, Reserva de Emergência, Novo Carro...</p>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.25rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))', gap: '1.25rem' }}>
                   {(goals).map((g) => {
                     const pct = Math.min((g.currentAmount / g.targetAmount) * 100, 100);
                     const done = pct >= 100;
                     return (
-                      <div key={g.id} className="fin-card" style={{ padding: '1.5rem', position: 'relative', borderTop: done ? '4px solid var(--success)' : '4px solid var(--brand-purple)' }}>
+                      <div key={g.id} className="fin-card" style={{ padding: '1.25rem', position: 'relative', borderTop: done ? '4px solid var(--success)' : '4px solid var(--brand-purple)' }}>
                         <button onClick={() => deleteGoal(g.id)} style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                           <Trash2 size={15} />
                         </button>
-                        <div style={{ fontSize: '2.2rem', marginBottom: 8 }}>{g.emoji}</div>
+                        <div style={{ fontSize: '2rem', marginBottom: 6 }}>{g.emoji}</div>
                         <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 4px', color: 'var(--text-main)' }}>{g.name}</h3>
-                        {g.deadline && <p style={{ margin: '0 0 12px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>⏰ até {fmtDate(g.deadline)}</p>}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Guardado</span>
-                          <span className="tabular-nums" style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-main)' }}>{fmt(g.currentAmount)} / {fmt(g.targetAmount)}</span>
+                        {g.deadline && <p style={{ margin: '0 0 10px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>⏰ até {fmtDate(g.deadline)}</p>}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 4 }}>
+                          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Guardado</span>
+                          <span className="tabular-nums" style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-main)' }}>{fmt(g.currentAmount)} / {fmt(g.targetAmount)}</span>
                         </div>
                         <div style={{ height: 10, background: 'var(--bg-body)', borderRadius: 5, overflow: 'hidden', marginBottom: 10 }}>
                           <div style={{ width: `${pct}%`, height: '100%', borderRadius: 5, background: done ? 'var(--success)' : 'var(--brand-purple)', transition: 'width 0.5s' }} />
@@ -492,7 +494,7 @@ export default function PersonalFinance({ theme = 'light' }) {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span className="tabular-nums" style={{ fontSize: '0.85rem', fontWeight: 800, color: done ? 'var(--success)' : 'var(--brand-purple)' }}>{done ? '🎉 Concluída!' : `${pct.toFixed(1)}%`}</span>
                           {!done && (
-                            <button className="btn btn-secondary" style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem', color: 'var(--brand-purple)', borderColor: 'var(--brand-purple)' }} onClick={() => setDepositModal(g.id)}>
+                            <button className="btn btn-secondary" style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem', color: 'var(--brand-purple)', borderColor: 'var(--brand-purple)', minHeight: 34 }} onClick={() => setDepositModal(g.id)}>
                               + Depositar
                             </button>
                           )}
@@ -516,17 +518,17 @@ export default function PersonalFinance({ theme = 'light' }) {
               <button onClick={() => setTxModal(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>&times;</button>
             </div>
             <form onSubmit={saveTx} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                <button type="button" onClick={() => setTxType('OUT')} style={{ padding: '0.75rem', borderRadius: 8, border: `2px solid ${txType === 'OUT' ? 'var(--danger)' : 'var(--border-color)'}`, background: txType === 'OUT' ? 'var(--danger-bg)' : 'transparent', color: txType === 'OUT' ? 'var(--danger)' : 'var(--text-muted)', fontWeight: 800, cursor: 'pointer' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 120px), 1fr))', gap: '0.75rem' }}>
+                <button type="button" onClick={() => setTxType('OUT')} style={{ padding: '0.75rem', borderRadius: 8, border: `2px solid ${txType === 'OUT' ? 'var(--danger)' : 'var(--border-color)'}`, background: txType === 'OUT' ? 'var(--danger-bg)' : 'transparent', color: txType === 'OUT' ? 'var(--danger)' : 'var(--text-muted)', fontWeight: 800, cursor: 'pointer', minHeight: 44 }}>
                   ▼ Despesa
                 </button>
-                <button type="button" onClick={() => setTxType('IN')} style={{ padding: '0.75rem', borderRadius: 8, border: `2px solid ${txType === 'IN' ? 'var(--success)' : 'var(--border-color)'}`, background: txType === 'IN' ? 'var(--success-bg)' : 'transparent', color: txType === 'IN' ? 'var(--success)' : 'var(--text-muted)', fontWeight: 800, cursor: 'pointer' }}>
+                <button type="button" onClick={() => setTxType('IN')} style={{ padding: '0.75rem', borderRadius: 8, border: `2px solid ${txType === 'IN' ? 'var(--success)' : 'var(--border-color)'}`, background: txType === 'IN' ? 'var(--success-bg)' : 'transparent', color: txType === 'IN' ? 'var(--success)' : 'var(--text-muted)', fontWeight: 800, cursor: 'pointer', minHeight: 44 }}>
                   ▲ Receita
                 </button>
               </div>
               <div className="form-group"><label>Descrição</label><input value={txDesc} onChange={e => setTxDesc(e.target.value)} required /></div>
               <div className="form-group"><label>Valor (R$)</label><input placeholder="0,00" value={txAmount} onChange={e => setTxAmount(formatCurrency(e.target.value))} required style={{ fontWeight: 700 }} /></div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: '0.75rem' }}>
                 <div className="form-group"><label>Data</label><input type="date" value={txDate} onChange={e => setTxDate(e.target.value)} required /></div>
                 <div className="form-group">
                   <label>Status</label>
@@ -544,7 +546,7 @@ export default function PersonalFinance({ theme = 'light' }) {
                 </select>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input type="checkbox" id="pf_recorrente" checked={txRecurring} onChange={e => setTxRecurring(e.target.checked)} style={{ width: 'auto' }} />
+                <input type="checkbox" id="pf_recorrente" checked={txRecurring} onChange={e => setTxRecurring(e.target.checked)} style={{ width: 18, height: 18 }} />
                 <label htmlFor="pf_recorrente" style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Repetir todo mês <Repeat size={13} style={{ verticalAlign: 'middle' }} /></label>
               </div>
               <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: 'var(--brand-purple)', padding: '0.85rem', fontWeight: 800 }}>Salvar Lançamento</button>

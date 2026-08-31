@@ -227,63 +227,77 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
         key={item.id} 
         className="fin-card"
         style={{
-          padding: '1.1rem 1.35rem',
+          padding: '1.1rem 1.25rem',
           borderLeft: overdue ? '4px solid var(--danger)' : isToday ? '4px solid var(--warning)' : '4px solid var(--info)',
           display: 'flex',
           alignItems: 'center',
-          gap: '1.25rem',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.85rem',
           marginBottom: 10,
         }}
       >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flex: '1 1 240px', minWidth: 0 }}>
+          <div style={{ 
+            width: 42, 
+            height: 42, 
+            borderRadius: '50%', 
+            background: overdue ? 'var(--danger-bg)' : isToday ? 'var(--warning-bg)' : 'var(--info-bg)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            flexShrink: 0 
+          }}>
+            {overdue ? <AlertCircle size={20} color="var(--danger)" /> : isToday ? <Clock size={20} color="var(--warning)" /> : <Calendar size={20} color="var(--info)" />}
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: '0.98rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {item.description}
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+              {item.entity && (
+                <span className="badge-pill badge-neutral">
+                  <Truck size={11} /> {item.entity.name}
+                </span>
+              )}
+              {item.category && (
+                <span className="badge-pill badge-info">
+                  <Tag size={11} /> {item.category.name}
+                </span>
+              )}
+              {item.company && (
+                <span className="badge-pill badge-neutral">
+                  <Building2 size={11} /> {item.company.name}
+                </span>
+              )}
+              <span style={{ 
+                fontSize: '0.75rem', 
+                color: overdue ? 'var(--danger)' : isToday ? 'var(--warning-text)' : 'var(--text-muted)', 
+                fontWeight: 700 
+              }}>
+                {overdue ? `⚠️ Atrasado há ${Math.abs(diffDays)}d` : isToday ? '⏰ Vence hoje' : `📅 Vence em ${diffDays}d (${dueDate.toLocaleDateString('pt-BR')})`}
+              </span>
+              {item.isRecurring && (
+                <span className="badge-pill" style={{ background: 'rgba(124,58,237,0.12)', color: 'var(--brand-purple)', border: '1px solid rgba(124,58,237,0.25)' }}>
+                  ↺ Recorrente
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
         <div style={{ 
-          width: 44, 
-          height: 44, 
-          borderRadius: '50%', 
-          background: overdue ? 'var(--danger-bg)' : isToday ? 'var(--warning-bg)' : 'var(--info-bg)', 
           display: 'flex', 
           alignItems: 'center', 
-          justifyContent: 'center', 
-          flexShrink: 0 
+          justifyContent: 'space-between', 
+          flex: '1 1 auto', 
+          minWidth: '220px', 
+          gap: 10,
+          borderTop: '1px solid var(--border-subtle)',
+          paddingTop: 8,
+          marginTop: 2
         }}>
-          {overdue ? <AlertCircle size={20} color="var(--danger)" /> : isToday ? <Clock size={20} color="var(--warning)" /> : <Calendar size={20} color="var(--info)" />}
-        </div>
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 800, fontSize: '0.98rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {item.description}
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
-            {item.entity && (
-              <span className="badge-pill badge-neutral">
-                <Truck size={12} /> {item.entity.name}
-              </span>
-            )}
-            {item.category && (
-              <span className="badge-pill badge-info">
-                <Tag size={12} /> {item.category.name}
-              </span>
-            )}
-            {item.company && (
-              <span className="badge-pill badge-neutral">
-                <Building2 size={12} /> {item.company.name}
-              </span>
-            )}
-            <span style={{ 
-              fontSize: '0.75rem', 
-              color: overdue ? 'var(--danger)' : isToday ? 'var(--warning-text)' : 'var(--text-muted)', 
-              fontWeight: 700 
-            }}>
-              {overdue ? `⚠️ Atrasado há ${Math.abs(diffDays)} dia(s)` : isToday ? '⏰ Vence hoje' : `📅 Vence em ${diffDays} dia(s) (${dueDate.toLocaleDateString('pt-BR')})`}
-            </span>
-            {item.isRecurring && (
-              <span className="badge-pill" style={{ background: 'rgba(124,58,237,0.12)', color: 'var(--brand-purple)', border: '1px solid rgba(124,58,237,0.25)' }}>
-                ↺ Recorrente
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
           <div className="tabular-nums" style={{ fontWeight: 900, fontSize: '1.25rem', color: overdue ? 'var(--danger)' : 'var(--text-main)' }}>
             {fmt(item.amount)}
           </div>
@@ -291,17 +305,17 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
             <button
               onClick={() => setPayTransaction(item)}
               className="btn btn-success"
-              style={{ padding: '0.45rem 0.95rem', fontSize: '0.8rem', borderRadius: 8, gap: 5 }}
+              style={{ padding: '0.45rem 0.95rem', fontSize: '0.82rem', borderRadius: 8, gap: 5, minHeight: 38 }}
             >
-              <CheckCircle2 size={14} /> Dar Baixa
+              <CheckCircle2 size={15} /> Dar Baixa
             </button>
             <button
               onClick={() => setDeleteItem(item)}
               title="Excluir com segurança"
               className="btn btn-secondary"
-              style={{ padding: '0.45rem 0.65rem', borderRadius: 8, color: 'var(--danger)' }}
+              style={{ padding: '0.45rem 0.65rem', borderRadius: 8, color: 'var(--danger)', minHeight: 38 }}
             >
-              <Trash2 size={14} />
+              <Trash2 size={15} />
             </button>
           </div>
         </div>
@@ -310,10 +324,10 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
       {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '1rem' }}>
         {[
           {
             icon: TrendingDown, label: 'Total a Pagar Filtrado', value: fmt(totalPendente), color: 'var(--danger)', bg: 'var(--danger-bg)',
@@ -329,13 +343,13 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
           }
         ].map(({icon:Icon,label,value,color,bg,sub}) => (
           <div key={label} className="fin-card">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
               <div style={{ width: 34, height: 34, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Icon size={16} color={color} />
               </div>
             </div>
-            <div className="tabular-nums" style={{ fontSize: '1.65rem', fontWeight: 900, color }}>{value}</div>
+            <div className="tabular-nums" style={{ fontSize: '1.55rem', fontWeight: 900, color }}>{value}</div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>{sub}</div>
           </div>
         ))}
@@ -351,11 +365,11 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
           onClick={() => setTab('baixa')} 
           style={{ 
             flex: 1, 
-            padding: '0.75rem', 
+            padding: '0.75rem 0.5rem', 
             border: 'none', 
             borderRadius: 'var(--radius-md)', 
             fontWeight: 800, 
-            fontSize: '0.88rem', 
+            fontSize: '0.85rem', 
             cursor: 'pointer', 
             transition: 'all 0.2s', 
             background: tab === 'baixa' ? 'var(--brand-gradient)' : 'transparent', 
@@ -363,19 +377,19 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center', 
-            gap: 8,
+            gap: 6,
             boxShadow: tab === 'baixa' ? '0 2px 8px rgba(37,99,235,0.3)' : 'none'
           }}
         >
-          <CheckCircle2 size={18} /> Dar Baixa em Boletos
+          <CheckCircle2 size={17} /> Baixa em Boletos
           {filtered.length > 0 && (
             <span style={{ 
               background: tab === 'baixa' ? 'rgba(255,255,255,0.25)' : 'var(--danger-bg)', 
               color: tab === 'baixa' ? '#ffffff' : 'var(--danger)', 
               borderRadius: 99, 
-              fontSize: '0.72rem', 
+              fontSize: '0.7rem', 
               fontWeight: 800, 
-              padding: '2px 8px' 
+              padding: '2px 7px' 
             }}>
               {filtered.length}
             </span>
@@ -385,11 +399,11 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
           onClick={() => setTab('lancamento')} 
           style={{ 
             flex: 1, 
-            padding: '0.75rem', 
+            padding: '0.75rem 0.5rem', 
             border: 'none', 
             borderRadius: 'var(--radius-md)', 
             fontWeight: 800, 
-            fontSize: '0.88rem', 
+            fontSize: '0.85rem', 
             cursor: 'pointer', 
             transition: 'all 0.2s', 
             background: tab === 'lancamento' ? 'var(--brand-gradient)' : 'transparent', 
@@ -397,11 +411,11 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center', 
-            gap: 8,
+            gap: 6,
             boxShadow: tab === 'lancamento' ? '0 2px 8px rgba(37,99,235,0.3)' : 'none'
           }}
         >
-          <Plus size={18} /> + Lançar Novo Boleto / Dívida
+          <Plus size={17} /> + Lançar Boleto
         </button>
       </div>
 
@@ -410,13 +424,13 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           
           {/* ─── BARRA DE FILTROS MULTIDIMENSIONAIS ────────────────────────── */}
-          <div className="fin-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', padding: '1.15rem 1.35rem' }}>
+          <div className="fin-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', padding: '1.15rem 1.25rem' }}>
             
             {/* Linha 1: Dropdowns de Unidade, Categoria, Fornecedor e Busca */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', alignItems: 'center' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '0.65rem', alignItems: 'center' }}>
               
               {/* Dropdown Unidade */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-body)', padding: '5px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-body)', padding: '6px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <Building2 size={15} color="var(--brand-blue)" />
                 <select 
                   value={filterCompany} 
@@ -429,7 +443,7 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
               </div>
 
               {/* Dropdown Categoria */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-body)', padding: '5px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-body)', padding: '6px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <Tag size={15} color="var(--brand-blue)" />
                 <select 
                   value={filterCategory} 
@@ -442,14 +456,14 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
               </div>
 
               {/* Dropdown Fornecedor */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-body)', padding: '5px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-body)', padding: '6px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <UserCheck size={15} color="var(--brand-blue)" />
                 <select 
                   value={filterSupplier} 
                   onChange={e => setFilterSupplier(e.target.value)}
                   style={{ border: 'none', background: 'transparent', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', width: '100%', outline: 'none', padding: 0 }}
                 >
-                  <option value="all">🚚 Todos os Fornecedores</option>
+                  <option value="all">🚚 Todos Fornecedores</option>
                   {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
@@ -459,7 +473,7 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
                 <Search size={15} className="search-icon" />
                 <input
                   type="text"
-                  placeholder="Buscar descrição do boleto..."
+                  placeholder="Buscar boleto..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   style={{ fontSize: '0.82rem' }}
@@ -470,19 +484,21 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
 
             {/* Linha 2: Pílulas de Vencimento e Leitor OCR */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', marginRight: 4, textTransform: 'uppercase' }}>Vencimento:</span>
-              {FILTERS.map(f => (
-                <button 
-                  key={f.v} 
-                  onClick={() => setQuickFilter(f.v)} 
-                  className={`filter-pill ${quickFilter === f.v ? 'active' : ''}`}
-                >
-                  {f.l}
-                </button>
-              ))}
+              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-muted)', marginRight: 2, textTransform: 'uppercase' }}>Vencimento:</span>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flex: 1 }}>
+                {FILTERS.map(f => (
+                  <button 
+                    key={f.v} 
+                    onClick={() => setQuickFilter(f.v)} 
+                    className={`filter-pill ${quickFilter === f.v ? 'active' : ''}`}
+                  >
+                    {f.l}
+                  </button>
+                ))}
+              </div>
 
-              <label style={{ marginLeft: 'auto', padding: '5px 12px', background: 'var(--brand-blue-light)', borderRadius: 20, fontSize: '0.78rem', fontWeight: 700, color: 'var(--brand-blue)', cursor: ocrLoading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 5, border: '1px solid rgba(59,130,246,0.25)' }}>
-                {ocrLoading ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={13} />} {ocrLoading ? 'Lendo boleto...' : 'Leitor de Boleto (PDF)'}
+              <label style={{ marginLeft: 'auto', padding: '5px 12px', background: 'var(--brand-blue-light)', borderRadius: 20, fontSize: '0.78rem', fontWeight: 700, color: 'var(--brand-blue)', cursor: ocrLoading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 5, border: '1px solid rgba(59,130,246,0.25)', minHeight: 34 }}>
+                {ocrLoading ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={13} />} {ocrLoading ? 'Lendo boleto...' : 'Leitor OCR'}
                 <input type="file" accept="application/pdf,image/*" style={{ display: 'none' }} onChange={handleBoletoUpload} disabled={ocrLoading} />
               </label>
             </div>
@@ -495,7 +511,7 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
               <p style={{ color: 'var(--text-muted)', marginTop: 8, fontWeight: 600 }}>Carregando boletos...</p>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="fin-card" style={{ padding: '3.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <div className="fin-card" style={{ padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
               <CheckCircle2 size={44} style={{ margin: '0 auto 12px', opacity: 0.3, display: 'block', color: 'var(--success)' }} />
               <p style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)' }}>Nenhum boleto encontrado com os filtros atuais!</p>
               <p style={{ fontSize: '0.85rem' }}>Tente alterar a unidade, categoria ou período selecionado.</p>
@@ -546,7 +562,7 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
             </p>
           </div>
 
-          <form onSubmit={handleSave} style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <form onSubmit={handleSave} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
             
             {/* Descrição */}
             <div className="form-group">
@@ -554,13 +570,13 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
               <input 
                 value={desc} 
                 onChange={e => setDesc(e.target.value)} 
-                placeholder="Ex: Compra de Bicos e Válvulas Injetoras Bosch, Filtros e Óleo Lubrificante, Frete de Peças Diesel..." 
+                placeholder="Ex: Compra de Bicos e Válvulas Injetoras Bosch, Filtros e Óleo Lubrificante..." 
                 required 
               />
             </div>
 
             {/* Valor e Vencimento */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1rem' }}>
               <div className="form-group">
                 <label>💰 Valor do Boleto (R$) *</label>
                 <input 
@@ -584,7 +600,7 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
             </div>
 
             {/* Categoria e Fornecedor */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1rem' }}>
               <div className="form-group">
                 <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <Tag size={14} color="var(--brand-blue)" /> Categoria de Despesa
@@ -607,7 +623,7 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
             </div>
 
             {/* Conta Bancária e Empresa */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1rem' }}>
               <div className="form-group">
                 <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <CreditCard size={14} color="var(--brand-blue)" /> Conta de Pagamento (opcional)
@@ -630,8 +646,8 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
             </div>
 
             {/* Recorrência */}
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '0.75rem', background: 'var(--bg-body)', borderRadius: 8, border: '1px solid var(--border-color)' }}>
-              <input type="checkbox" checked={recorrente} onChange={e => setRecorrente(e.target.checked)} style={{ width: 16, height: 16 }} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '0.75rem', background: 'var(--bg-body)', borderRadius: 8, border: '1px solid var(--border-color)', minHeight: 44 }}>
+              <input type="checkbox" checked={recorrente} onChange={e => setRecorrente(e.target.checked)} style={{ width: 18, height: 18 }} />
               <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-main)' }}>
                 ↺ Repetir mensalmente (despesa fixa da loja/oficina)
               </span>

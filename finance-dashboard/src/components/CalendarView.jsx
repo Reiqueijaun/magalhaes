@@ -192,42 +192,42 @@ export default function CalendarView({ selectedCompanyId = 'all', companies = []
         </div>
 
         {/* 4 Cards de Resumo do Dia */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginTop: '1.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '0.85rem', marginTop: '1.25rem' }}>
           
           {/* Card: Pagar Hoje */}
-          <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 12, padding: '1.1rem', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
+          <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 12, padding: '1rem', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: '#fca5a5', letterSpacing: '0.05em' }}>🔴 A Pagar Hoje</span>
               <span style={{ fontSize: '0.72rem', background: 'var(--danger)', color: 'white', padding: '2px 8px', borderRadius: 10, fontWeight: 800 }}>{pagarHoje.length}</span>
             </div>
-            <div className="tabular-nums" style={{ fontSize: '1.45rem', fontWeight: 900, color: '#fca5a5' }}>
+            <div className="tabular-nums" style={{ fontSize: '1.35rem', fontWeight: 900, color: '#fca5a5' }}>
               {fmt(totalPagarHoje)}
             </div>
             {pagarHoje.length > 0 && (
               <button 
                 onClick={() => { setSelectedDay(now.getDate()); setViewMonth(now.getMonth()); setViewYear(now.getFullYear()); }}
                 className="btn btn-danger"
-                style={{ marginTop: 8, width: '100%', padding: '5px', borderRadius: 6, fontSize: '0.75rem' }}
+                style={{ marginTop: 8, width: '100%', padding: '6px', borderRadius: 6, fontSize: '0.75rem', minHeight: 34 }}
               >
-                Ver {pagarHoje.length} boleto(s) de hoje →
+                Ver {pagarHoje.length} de hoje →
               </button>
             )}
           </div>
 
           {/* Card: Receber Hoje */}
-          <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 12, padding: '1.1rem', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
+          <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 12, padding: '1rem', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: '#86efac', letterSpacing: '0.05em' }}>🟢 A Receber Hoje</span>
               <span style={{ fontSize: '0.72rem', background: 'var(--success)', color: 'white', padding: '2px 8px', borderRadius: 10, fontWeight: 800 }}>{receberHoje.length}</span>
             </div>
-            <div className="tabular-nums" style={{ fontSize: '1.45rem', fontWeight: 900, color: '#86efac' }}>
+            <div className="tabular-nums" style={{ fontSize: '1.35rem', fontWeight: 900, color: '#86efac' }}>
               {fmt(totalReceberHoje)}
             </div>
             {receberHoje.length > 0 && (
               <button 
                 onClick={() => { setSelectedDay(now.getDate()); setViewMonth(now.getMonth()); setViewYear(now.getFullYear()); }}
                 className="btn btn-success"
-                style={{ marginTop: 8, width: '100%', padding: '5px', borderRadius: 6, fontSize: '0.75rem' }}
+                style={{ marginTop: 8, width: '100%', padding: '6px', borderRadius: 6, fontSize: '0.75rem', minHeight: 34 }}
               >
                 Confirmar {receberHoje.length} entrada(s) →
               </button>
@@ -235,29 +235,29 @@ export default function CalendarView({ selectedCompanyId = 'all', companies = []
           </div>
 
           {/* Card: Quase Vencendo / Atrasadas */}
-          <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 12, padding: '1.1rem', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
+          <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 12, padding: '1rem', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: '#fde047', letterSpacing: '0.05em' }}>⚠️ Alerta de Vencimento</span>
+              <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: '#fde047', letterSpacing: '0.05em' }}>⚠️ Alerta Vencimento</span>
               <span style={{ fontSize: '0.72rem', background: 'var(--warning)', color: 'white', padding: '2px 8px', borderRadius: 10, fontWeight: 800 }}>{atrasadas.length + quaseVencendo.length}</span>
             </div>
-            <div className="tabular-nums" style={{ fontSize: '1.45rem', fontWeight: 900, color: '#fde047' }}>
+            <div className="tabular-nums" style={{ fontSize: '1.35rem', fontWeight: 900, color: '#fde047' }}>
               {fmt(totalAtrasadas + totalQuaseVencendo)}
             </div>
             <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.85)', marginTop: 4 }}>
-              {atrasadas.length > 0 ? `🔴 ${atrasadas.length} atrasada(s)` : '✅ Zero atrasos'} · 🟡 {quaseVencendo.length} próx. 3 dias
+              {atrasadas.length > 0 ? `🔴 ${atrasadas.length} atrasada(s)` : '✅ Zero atrasos'} · 🟡 {quaseVencendo.length} próx. dias
             </div>
           </div>
 
           {/* Card: Saldo Previsto do Fechamento */}
-          <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 12, padding: '1.1rem', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
+          <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 12, padding: '1rem', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: '#bae6fd', letterSpacing: '0.05em' }}>💵 Balanço de Hoje</span>
             </div>
-            <div className="tabular-nums" style={{ fontSize: '1.45rem', fontWeight: 900, color: (totalReceberHoje - totalPagarHoje) >= 0 ? '#86efac' : '#fca5a5' }}>
+            <div className="tabular-nums" style={{ fontSize: '1.35rem', fontWeight: 900, color: (totalReceberHoje - totalPagarHoje) >= 0 ? '#86efac' : '#fca5a5' }}>
               {(totalReceberHoje - totalPagarHoje) >= 0 ? '+' : ''}{fmt(totalReceberHoje - totalPagarHoje)}
             </div>
             <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.85)', marginTop: 4 }}>
-              {totalReceberHoje >= totalPagarHoje ? '✨ Entradas cobrem as despesas de hoje' : '⚠️ Mais contas a pagar do que a receber hoje'}
+              {totalReceberHoje >= totalPagarHoje ? '✨ Entradas cobrem saídas' : '⚠️ Mais saídas que entradas hoje'}
             </div>
           </div>
 
@@ -265,24 +265,24 @@ export default function CalendarView({ selectedCompanyId = 'all', companies = []
       </div>
 
       {/* ─── NAVEGAÇÃO DO CALENDÁRIO ─────────────────────────────────────────── */}
-      <div className="fin-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={prevMonth} className="btn btn-secondary" style={{ padding: '7px 12px', fontSize: '0.85rem' }}>
+      <div className="fin-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.85rem 1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={prevMonth} className="btn btn-secondary" style={{ padding: '6px 10px', fontSize: '0.82rem', minHeight: 36 }}>
             <ChevronLeft size={16} /> Mês Anterior
           </button>
-          <button onClick={nextMonth} className="btn btn-secondary" style={{ padding: '7px 12px', fontSize: '0.85rem' }}>
-            Próximo Mês <ChevronRight size={16} />
+          <button onClick={nextMonth} className="btn btn-secondary" style={{ padding: '6px 10px', fontSize: '0.82rem', minHeight: 36 }}>
+            Próximo <ChevronRight size={16} />
           </button>
         </div>
 
-        <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 900, color: 'var(--text-main)' }}>
+        <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 900, color: 'var(--text-main)' }}>
           {mesesNomes[viewMonth]} de {viewYear}
         </h3>
 
-        <div style={{ display: 'flex', gap: 14, alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)' }} /> Receitas</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--danger)' }} /> Despesas</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--warning)' }} /> Pendente</span>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: '0.75rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--success)' }} /> Entradas</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--danger)' }} /> Saídas</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--warning)' }} /> Pendente</span>
         </div>
       </div>
 
@@ -296,14 +296,14 @@ export default function CalendarView({ selectedCompanyId = 'all', companies = []
           {/* Cabeçalho dos dias da semana */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', background: 'var(--bg-body)', borderBottom: '1px solid var(--border-color)' }}>
             {diasDaSemana.map((d, i) => (
-              <div key={d} style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 800, fontSize: '0.78rem', color: (i === 0 || i === 6) ? 'var(--text-muted)' : 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div key={d} style={{ padding: '0.55rem 0.25rem', textAlign: 'center', fontWeight: 800, fontSize: '0.72rem', color: (i === 0 || i === 6) ? 'var(--text-muted)' : 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 {d}
               </div>
             ))}
           </div>
 
           {/* Células dos dias */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridAutoRows: 'minmax(110px, auto)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridAutoRows: 'minmax(75px, auto)' }}>
             {cells.map((day, idx) => {
               const isToday = day && day === now.getDate() && viewMonth === now.getMonth() && viewYear === now.getFullYear();
               const events = day ? (eventsByDay[day] || []) : [];
@@ -325,8 +325,8 @@ export default function CalendarView({ selectedCompanyId = 'all', companies = []
                   key={idx}
                   onClick={() => day && setSelectedDay(day)}
                   style={{
-                    minHeight: '110px',
-                    padding: '8px',
+                    minHeight: '75px',
+                    padding: '6px 4px',
                     borderRight: (idx + 1) % 7 !== 0 ? '1px solid var(--border-subtle)' : 'none',
                     borderBottom: '1px solid var(--border-subtle)',
                     backgroundColor: !day ? 'var(--bg-body)' : isToday ? 'var(--brand-blue-light)' : 'var(--bg-card)',
@@ -338,12 +338,12 @@ export default function CalendarView({ selectedCompanyId = 'all', companies = []
                 >
                   {day && (
                     <>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                         <span style={{ 
                           fontWeight: isToday ? 900 : 700, 
-                          fontSize: '0.9rem', 
-                          width: isToday ? '24px' : 'auto',
-                          height: isToday ? '24px' : 'auto',
+                          fontSize: '0.82rem', 
+                          width: isToday ? '20px' : 'auto',
+                          height: isToday ? '20px' : 'auto',
                           borderRadius: '50%',
                           background: isToday ? 'var(--brand-blue)' : 'transparent',
                           color: isToday ? '#ffffff' : 'var(--text-main)',
@@ -354,34 +354,27 @@ export default function CalendarView({ selectedCompanyId = 'all', companies = []
                           {day}
                         </span>
                         {isToday && (
-                          <span style={{ fontSize: '0.65rem', fontWeight: 800, background: 'var(--brand-blue)', color: '#ffffff', padding: '1px 6px', borderRadius: 10 }}>HOJE</span>
+                          <span style={{ fontSize: '0.55rem', fontWeight: 800, background: 'var(--brand-blue)', color: '#ffffff', padding: '1px 4px', borderRadius: 6 }}>HOJE</span>
                         )}
                         {hasPendingOut && !isToday && (
-                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--danger)' }} title="Possui contas a pagar pendentes" />
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--danger)' }} title="Possui contas a pagar pendentes" />
                         )}
                       </div>
 
                       {events.length > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                           {totalIn > 0 && (
-                            <div className="tabular-nums" style={{ fontSize: '0.72rem', color: 'var(--success-text)', background: 'var(--success-bg)', padding: '2px 5px', borderRadius: 4, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              + {fmt(totalIn)}
+                            <div className="tabular-nums" style={{ fontSize: '0.65rem', color: 'var(--success-text)', background: 'var(--success-bg)', padding: '1px 3px', borderRadius: 3, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              +{totalIn >= 1000 ? `${(totalIn/1000).toFixed(1)}k` : totalIn.toFixed(0)}
                             </div>
                           )}
                           {totalOut > 0 && (
-                            <div className="tabular-nums" style={{ fontSize: '0.72rem', color: 'var(--danger-text)', background: 'var(--danger-bg)', padding: '2px 5px', borderRadius: 8, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              - {fmt(totalOut)}
+                            <div className="tabular-nums" style={{ fontSize: '0.65rem', color: 'var(--danger-text)', background: 'var(--danger-bg)', padding: '1px 3px', borderRadius: 3, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              -{totalOut >= 1000 ? `${(totalOut/1000).toFixed(1)}k` : totalOut.toFixed(0)}
                             </div>
                           )}
-                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 2, fontWeight: 600 }}>
-                            {events.length} movimentação(ões)
-                          </div>
                         </div>
-                      ) : (
-                        <div style={{ height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', opacity: 0.4 }}>—</span>
-                        </div>
-                      )}
+                      ) : null}
                     </>
                   )}
                 </div>
@@ -394,13 +387,13 @@ export default function CalendarView({ selectedCompanyId = 'all', companies = []
       {/* ─── MODAL DETALHADO DO DIA SELECIONADO ─────────────────────────────── */}
       {selectedDay && (
         <div className="modal-backdrop" onClick={() => setSelectedDay(null)}>
-          <div className="modal-content" style={{ maxWidth: '680px' }} onClick={e => e.stopPropagation()}>
+          <div className="modal-content" style={{ maxWidth: '640px' }} onClick={e => e.stopPropagation()}>
             {/* Header do modal */}
             <div style={{ padding: '1.25rem 1.5rem', background: 'var(--brand-gradient)', color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Agenda Diária</span>
-                <h3 style={{ margin: '2px 0 0', fontSize: '1.2rem', fontWeight: 900, color: '#ffffff' }}>
-                  Movimentações do Dia {selectedDay} de {mesesNomes[viewMonth]} de {viewYear}
+                <h3 style={{ margin: '2px 0 0', fontSize: '1.15rem', fontWeight: 900, color: '#ffffff' }}>
+                  Dia {selectedDay} de {mesesNomes[viewMonth]} de {viewYear}
                 </h3>
               </div>
               <button onClick={() => setSelectedDay(null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#ffffff', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
@@ -409,7 +402,7 @@ export default function CalendarView({ selectedCompanyId = 'all', companies = []
             </div>
 
             {/* Lista de movimentações */}
-            <div style={{ padding: '1.5rem', overflowY: 'auto', maxHeight: '60vh', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ padding: '1.25rem', overflowY: 'auto', maxHeight: '60vh', display: 'flex', flexDirection: 'column', gap: 10 }}>
               {(eventsByDay[selectedDay] || []).length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
                   <Calendar size={40} style={{ margin: '0 auto 12px', opacity: 0.3, display: 'block' }} />
@@ -428,16 +421,17 @@ export default function CalendarView({ selectedCompanyId = 'all', companies = []
                         display: 'flex', 
                         alignItems: 'center', 
                         justifyContent: 'space-between', 
-                        padding: '1rem', 
+                        padding: '0.9rem', 
                         borderLeft: isPaid ? '4px solid var(--border-color)' : isOut ? '4px solid var(--danger)' : '4px solid var(--success)',
-                        gap: '1rem'
+                        flexWrap: 'wrap',
+                        gap: '0.75rem'
                       }}
                     >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                        <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.92rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {t.description}
                         </div>
-                        <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                           {t.entity && (
                             <span className="badge-pill badge-neutral">
                               🏢 {t.entity.name}
@@ -454,29 +448,31 @@ export default function CalendarView({ selectedCompanyId = 'all', companies = []
                         </div>
                       </div>
 
-                      <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div className="tabular-nums" style={{ fontWeight: 900, fontSize: '1.15rem', color: isOut ? 'var(--danger)' : 'var(--success)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: '1 1 auto', minWidth: '160px', gap: 8 }}>
+                        <div className="tabular-nums" style={{ fontWeight: 900, fontSize: '1.1rem', color: isOut ? 'var(--danger)' : 'var(--success)' }}>
                           {isOut ? '-' : '+'} {fmt(t.amount)}
                         </div>
 
-                        {!isPaid && (
-                          <button 
-                            onClick={() => setPayTransaction(t)}
-                            className="btn btn-success"
-                            style={{ padding: '6px 12px', fontSize: '0.8rem', gap: 4 }}
-                          >
-                            <CheckCircle2 size={14} /> Baixar
-                          </button>
-                        )}
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          {!isPaid && (
+                            <button 
+                              onClick={() => setPayTransaction(t)}
+                              className="btn btn-success"
+                              style={{ padding: '6px 12px', fontSize: '0.8rem', gap: 4, minHeight: 34 }}
+                            >
+                              <CheckCircle2 size={14} /> Baixar
+                            </button>
+                          )}
 
-                        <button 
-                          onClick={() => setDeleteItem(t)}
-                          title="Excluir com segurança"
-                          className="btn btn-secondary"
-                          style={{ padding: '6px 8px', color: 'var(--danger)' }}
-                        >
-                          <X size={14} />
-                        </button>
+                          <button 
+                            onClick={() => setDeleteItem(t)}
+                            title="Excluir com segurança"
+                            className="btn btn-secondary"
+                            style={{ padding: '6px 8px', color: 'var(--danger)', minHeight: 34 }}
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );

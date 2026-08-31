@@ -186,63 +186,77 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
         key={item.id} 
         className="fin-card"
         style={{
-          padding: '1.1rem 1.35rem',
+          padding: '1.1rem 1.25rem',
           borderLeft: isOverdue ? '4px solid var(--warning)' : isToday ? '4px solid var(--success)' : '4px solid var(--info)',
           display: 'flex',
           alignItems: 'center',
-          gap: '1.25rem',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.85rem',
           marginBottom: 10,
         }}
       >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flex: '1 1 240px', minWidth: 0 }}>
+          <div style={{ 
+            width: 42, 
+            height: 42, 
+            borderRadius: '50%', 
+            background: isOverdue ? 'var(--warning-bg)' : isToday ? 'var(--success-bg)' : 'var(--info-bg)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            flexShrink: 0 
+          }}>
+            {isOverdue ? <Clock size={20} color="var(--warning)" /> : isToday ? <CheckCircle2 size={20} color="var(--success)" /> : <Calendar size={20} color="var(--info)" />}
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: '0.98rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {item.description}
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+              {item.entity && (
+                <span className="badge-pill badge-pill-success">
+                  <User size={11} /> {item.entity.name}
+                </span>
+              )}
+              {item.category && (
+                <span className="badge-pill badge-info">
+                  <Tag size={11} /> {item.category.name}
+                </span>
+              )}
+              {item.company && (
+                <span className="badge-pill badge-neutral">
+                  <Building2 size={11} /> {item.company.name}
+                </span>
+              )}
+              <span style={{ 
+                fontSize: '0.75rem', 
+                color: isOverdue ? 'var(--warning-text)' : isToday ? 'var(--success-text)' : 'var(--text-muted)', 
+                fontWeight: 700 
+              }}>
+                {isOverdue ? `⚠️ Atrasado ${Math.abs(diffDays)}d` : isToday ? '✨ Entra hoje' : `📅 Previsão: ${dueDate.toLocaleDateString('pt-BR')} (${diffDays}d)`}
+              </span>
+              {item.isRecurring && (
+                <span className="badge-pill" style={{ background: 'rgba(124,58,237,0.12)', color: 'var(--brand-purple)', border: '1px solid rgba(124,58,237,0.25)' }}>
+                  ↺ Recorrente
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
         <div style={{ 
-          width: 44, 
-          height: 44, 
-          borderRadius: '50%', 
-          background: isOverdue ? 'var(--warning-bg)' : isToday ? 'var(--success-bg)' : 'var(--info-bg)', 
           display: 'flex', 
           alignItems: 'center', 
-          justifyContent: 'center', 
-          flexShrink: 0 
+          justifyContent: 'space-between', 
+          flex: '1 1 auto', 
+          minWidth: '220px', 
+          gap: 10,
+          borderTop: '1px solid var(--border-subtle)',
+          paddingTop: 8,
+          marginTop: 2
         }}>
-          {isOverdue ? <Clock size={20} color="var(--warning)" /> : isToday ? <CheckCircle2 size={20} color="var(--success)" /> : <Calendar size={20} color="var(--info)" />}
-        </div>
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 800, fontSize: '0.98rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {item.description}
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
-            {item.entity && (
-              <span className="badge-pill badge-pill-success">
-                <User size={12} /> Cliente: {item.entity.name}
-              </span>
-            )}
-            {item.category && (
-              <span className="badge-pill badge-info">
-                <Tag size={12} /> {item.category.name}
-              </span>
-            )}
-            {item.company && (
-              <span className="badge-pill badge-neutral">
-                <Building2 size={12} /> {item.company.name}
-              </span>
-            )}
-            <span style={{ 
-              fontSize: '0.75rem', 
-              color: isOverdue ? 'var(--warning-text)' : isToday ? 'var(--success-text)' : 'var(--text-muted)', 
-              fontWeight: 700 
-            }}>
-              {isOverdue ? `⚠️ Deveria ter entrado há ${Math.abs(diffDays)} dia(s)` : isToday ? '✨ Previsto para entrar hoje' : `📅 Previsão: ${dueDate.toLocaleDateString('pt-BR')} (em ${diffDays} dia(s))`}
-            </span>
-            {item.isRecurring && (
-              <span className="badge-pill" style={{ background: 'rgba(124,58,237,0.12)', color: 'var(--brand-purple)', border: '1px solid rgba(124,58,237,0.25)' }}>
-                ↺ Recorrente
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
           <div className="tabular-nums" style={{ fontWeight: 900, fontSize: '1.25rem', color: 'var(--success)' }}>
             {fmt(item.amount)}
           </div>
@@ -250,17 +264,17 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
             <button
               onClick={() => setPayTransaction(item)}
               className="btn btn-success"
-              style={{ padding: '0.45rem 0.95rem', fontSize: '0.8rem', borderRadius: 8, gap: 5 }}
+              style={{ padding: '0.45rem 0.95rem', fontSize: '0.82rem', borderRadius: 8, gap: 5, minHeight: 38 }}
             >
-              <CheckCircle2 size={14} /> Confirmar Recebido
+              <CheckCircle2 size={15} /> Confirmar Recebido
             </button>
             <button
               onClick={() => setDeleteItem(item)}
               title="Excluir com segurança"
               className="btn btn-secondary"
-              style={{ padding: '0.45rem 0.65rem', borderRadius: 8, color: 'var(--danger)' }}
+              style={{ padding: '0.45rem 0.65rem', borderRadius: 8, color: 'var(--danger)', minHeight: 38 }}
             >
-              <Trash2 size={14} />
+              <Trash2 size={15} />
             </button>
           </div>
         </div>
@@ -269,10 +283,10 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
       {/* Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '1rem' }}>
         {[
           {
             icon: TrendingUp, label: 'Total a Receber Filtrado', value: fmt(totalPendente), color: 'var(--success)', bg: 'var(--success-bg)',
@@ -283,18 +297,18 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
             sub: `${vencidos.length + hoje.length} recebimento(s)`
           },
           {
-            icon: Calendar, label: 'Previsões Futuras de Clientes', value: fmt(futuros.reduce((a,b)=>a+b.amount,0)), color: 'var(--brand-purple)', bg: 'rgba(124,58,237,0.12)',
+            icon: Calendar, label: 'Previsões Futuras', value: fmt(futuros.reduce((a,b)=>a+b.amount,0)), color: 'var(--brand-purple)', bg: 'rgba(124,58,237,0.12)',
             sub: `${futuros.length} recebimento(s) futuros`
           }
         ].map(({icon:Icon,label,value,color,bg,sub}) => (
           <div key={label} className="fin-card">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
               <div style={{ width: 34, height: 34, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Icon size={16} color={color} />
               </div>
             </div>
-            <div className="tabular-nums" style={{ fontSize: '1.65rem', fontWeight: 900, color }}>{value}</div>
+            <div className="tabular-nums" style={{ fontSize: '1.55rem', fontWeight: 900, color }}>{value}</div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>{sub}</div>
           </div>
         ))}
@@ -309,11 +323,11 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
           onClick={() => setTab('confirmar')} 
           style={{ 
             flex: 1, 
-            padding: '0.75rem', 
+            padding: '0.75rem 0.5rem', 
             border: 'none', 
             borderRadius: 'var(--radius-md)', 
             fontWeight: 800, 
-            fontSize: '0.88rem', 
+            fontSize: '0.85rem', 
             cursor: 'pointer', 
             transition: 'all 0.2s', 
             background: tab === 'confirmar' ? 'linear-gradient(135deg, #10b981, #059669)' : 'transparent', 
@@ -321,19 +335,19 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center', 
-            gap: 8,
+            gap: 6,
             boxShadow: tab === 'confirmar' ? '0 2px 8px rgba(16,185,129,0.3)' : 'none'
           }}
         >
-          <CheckCircle2 size={18} /> Confirmar Recebimentos
+          <CheckCircle2 size={17} /> Confirmar Recebidos
           {filtered.length > 0 && (
             <span style={{ 
               background: tab === 'confirmar' ? 'rgba(255,255,255,0.25)' : 'var(--success-bg)', 
               color: tab === 'confirmar' ? '#ffffff' : 'var(--success-text)', 
               borderRadius: 99, 
-              fontSize: '0.72rem', 
+              fontSize: '0.7rem', 
               fontWeight: 800, 
-              padding: '2px 8px' 
+              padding: '2px 7px' 
             }}>
               {filtered.length}
             </span>
@@ -343,11 +357,11 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
           onClick={() => setTab('lancamento')} 
           style={{ 
             flex: 1, 
-            padding: '0.75rem', 
+            padding: '0.75rem 0.5rem', 
             border: 'none', 
             borderRadius: 'var(--radius-md)', 
             fontWeight: 800, 
-            fontSize: '0.88rem', 
+            fontSize: '0.85rem', 
             cursor: 'pointer', 
             transition: 'all 0.2s', 
             background: tab === 'lancamento' ? 'var(--brand-gradient)' : 'transparent', 
@@ -355,11 +369,11 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center', 
-            gap: 8,
+            gap: 6,
             boxShadow: tab === 'lancamento' ? '0 2px 8px rgba(37,99,235,0.3)' : 'none'
           }}
         >
-          <Plus size={18} /> + Registrar Nova Cobrança / Venda
+          <Plus size={17} /> + Nova Cobrança
         </button>
       </div>
 
@@ -368,11 +382,11 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           
           {/* ─── BARRA DE FILTROS MULTIDIMENSIONAIS ────────────────────────── */}
-          <div className="fin-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', padding: '1.15rem 1.35rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', alignItems: 'center' }}>
+          <div className="fin-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', padding: '1.15rem 1.25rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '0.65rem', alignItems: 'center' }}>
               
               {/* Dropdown Unidade */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-body)', padding: '5px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-body)', padding: '6px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <Building2 size={15} color="var(--success)" />
                 <select 
                   value={filterCompany} 
@@ -385,7 +399,7 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
               </div>
 
               {/* Dropdown Categoria */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-body)', padding: '5px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-body)', padding: '6px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <Tag size={15} color="var(--success)" />
                 <select 
                   value={filterCategory} 
@@ -398,7 +412,7 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
               </div>
 
               {/* Dropdown Cliente */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-body)', padding: '5px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-body)', padding: '6px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <UserCheck size={15} color="var(--success)" />
                 <select 
                   value={filterClient} 
@@ -431,7 +445,7 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
               <p style={{ color: 'var(--text-muted)', marginTop: 8, fontWeight: 600 }}>Carregando cobranças...</p>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="fin-card" style={{ padding: '3.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <div className="fin-card" style={{ padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
               <CheckCircle2 size={44} style={{ margin: '0 auto 12px', opacity: 0.3, display: 'block', color: 'var(--success)' }} />
               <p style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)' }}>Nenhuma cobrança encontrada com os filtros atuais!</p>
               <p style={{ fontSize: '0.85rem' }}>Tente alterar a unidade ou categoria selecionada.</p>
@@ -473,7 +487,7 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
             </p>
           </div>
 
-          <form onSubmit={handleSave} style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <form onSubmit={handleSave} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
             
             {/* Descrição */}
             <div className="form-group">
@@ -481,13 +495,13 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
               <input 
                 value={desc} 
                 onChange={e => setDesc(e.target.value)} 
-                placeholder="Ex: Venda de Peças Diesel - Transportadora Silva, Manutenção de Bomba e Bicos Injetores..." 
+                placeholder="Ex: Venda de Peças Diesel - Transportadora Silva, Manutenção de Bomba e Bicos..." 
                 required 
               />
             </div>
 
             {/* Valor e Previsão */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1rem' }}>
               <div className="form-group">
                 <label>💰 Valor Previsto (R$) *</label>
                 <input 
@@ -511,7 +525,7 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
             </div>
 
             {/* Categoria e Cliente */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1rem' }}>
               <div className="form-group">
                 <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <Tag size={14} color="var(--success)" /> Categoria de Receita
@@ -534,7 +548,7 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
             </div>
 
             {/* Conta Bancária e Empresa */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1rem' }}>
               <div className="form-group">
                 <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <CreditCard size={14} color="var(--success)" /> Conta de Entrada (opcional)
@@ -557,8 +571,8 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
             </div>
 
             {/* Recorrência */}
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '0.75rem', background: 'var(--bg-body)', borderRadius: 8, border: '1px solid var(--border-color)' }}>
-              <input type="checkbox" checked={recorrente} onChange={e => setRecorrente(e.target.checked)} style={{ width: 16, height: 16 }} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '0.75rem', background: 'var(--bg-body)', borderRadius: 8, border: '1px solid var(--border-color)', minHeight: 44 }}>
+              <input type="checkbox" checked={recorrente} onChange={e => setRecorrente(e.target.checked)} style={{ width: 18, height: 18 }} />
               <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-main)' }}>
                 ↺ Repetir mensalmente (faturamento recorrente/mensalista)
               </span>

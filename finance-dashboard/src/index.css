@@ -647,3 +647,368 @@ input:focus, select:focus, textarea:focus {
   background: var(--text-muted);
 }
 
+/* ==========================================================================
+   MOBILE & RESPONSIVE DESIGN ERGONOMICS (HCI, THUMB ZONE & WCAG 2.2)
+   ========================================================================== */
+
+/* Safe Area Inset Support for Modern iOS / Android Notches */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --bottom-nav-height: 64px;
+}
+
+/* Mobile Drawer Overlay */
+.mobile-drawer-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(9, 13, 22, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 998;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.mobile-drawer-overlay.active {
+  display: block;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Mobile Hamburger Toggle Button */
+.mobile-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: all 0.15s ease;
+}
+
+.mobile-menu-btn:active {
+  transform: scale(0.95);
+  background-color: var(--bg-hover-row);
+}
+
+/* Mobile Bottom Navigation Bar (Thumb Zone) */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--bottom-nav-height) + var(--sab));
+  padding-bottom: var(--sab);
+  background: var(--bg-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border-color);
+  z-index: 990;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+  grid-template-columns: repeat(5, 1fr);
+  align-items: center;
+  justify-content: space-around;
+}
+
+.mobile-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 6px 4px;
+  min-height: 48px; /* WCAG touch target */
+  transition: color 0.15s ease, transform 0.15s ease;
+  position: relative;
+  text-align: center;
+  width: 100%;
+}
+
+.mobile-nav-btn.active {
+  color: var(--brand-blue);
+}
+
+.mobile-nav-btn.active::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  width: 16px;
+  height: 3px;
+  background: var(--brand-blue);
+  border-radius: 99px;
+}
+
+.mobile-nav-btn svg {
+  transition: transform 0.15s ease;
+}
+
+.mobile-nav-btn:active svg {
+  transform: scale(0.9);
+}
+
+/* Modal Backdrops & Overlays (Desktop & Mobile Unified) */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(9, 13, 22, 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 1rem;
+  animation: overlayFadeIn 0.2s ease;
+}
+
+.modal-content {
+  background-color: var(--bg-card);
+  color: var(--text-main);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-xl);
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
+  animation: modalScaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+/* ─── MEDIA QUERIES FOR TABLETS & LAPTOPS (< 1024px) ────────────────────────── */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 230px;
+  }
+  
+  .page-content {
+    padding: 1.25rem;
+  }
+
+  .topbar {
+    padding: 0.65rem 1.25rem;
+  }
+}
+
+/* ─── MEDIA QUERIES FOR MOBILE SMARTPHONES (< 768px) ────────────────────────── */
+@media (max-width: 768px) {
+  /* Layout Adjustments */
+  .app-container {
+    height: 100vh;
+    height: 100dvh;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Transform Sidebar into Off-Canvas Slide Drawer */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    max-width: 82vw;
+    z-index: 999;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+    box-shadow: none;
+    background-color: var(--bg-card);
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.35);
+  }
+
+  .mobile-drawer-overlay {
+    display: block;
+  }
+
+  .mobile-menu-btn {
+    display: inline-flex;
+  }
+
+  .mobile-bottom-nav {
+    display: grid;
+  }
+
+  .main-content {
+    width: 100vw;
+    min-width: 100vw;
+    padding-bottom: calc(var(--bottom-nav-height) + var(--sab) + 16px);
+  }
+
+  .topbar {
+    padding: 0.65rem 0.85rem;
+    gap: 8px;
+    min-height: 56px;
+  }
+
+  .topbar h2 {
+    font-size: 1rem !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+  }
+
+  .page-content {
+    padding: 0.85rem 0.75rem;
+    max-width: 100vw;
+    box-sizing: border-box;
+  }
+
+  /* Prevent iOS Safari 16px input zoom */
+  input, select, textarea {
+    font-size: 16px !important;
+    min-height: 44px; /* Touch target */
+  }
+
+  /* Buttons on mobile - WCAG Touch Targets */
+  .btn {
+    min-height: 42px;
+    padding: 0.55rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  .filter-pill {
+    min-height: 38px;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.8rem;
+  }
+
+  /* Cards on Mobile */
+  .fin-card {
+    padding: 1.1rem;
+    border-radius: var(--radius-md);
+  }
+
+  .fin-hero-card {
+    padding: 1.25rem 1rem;
+    border-radius: var(--radius-lg);
+  }
+
+  .fin-hero-card h2 {
+    font-size: 1.3rem !important;
+  }
+
+  /* Modals as Mobile Bottom-Sheets or Full-Screen Responsive */
+  .modal-overlay, .modal-backdrop {
+    padding: 0.5rem;
+    align-items: flex-end;
+  }
+
+  .modal, .modal-content {
+    border-radius: 20px 20px 0 0;
+    max-height: 88dvh;
+    padding: 1.25rem 1rem;
+    margin-bottom: 0;
+    animation: modalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes modalSlideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  /* Tables horizontal scrolling optimization */
+  .fin-table-container {
+    border-radius: var(--radius-md);
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 0.5rem;
+  }
+
+  .fin-table th, .fin-table td {
+    padding: 0.75rem 0.85rem;
+    font-size: 0.8rem;
+  }
+}
+
+/* Settings Responsive Layout */
+.settings-layout-container {
+  min-height: 600px;
+  display: flex;
+  flex-direction: row;
+  padding: 0;
+  overflow: hidden;
+}
+
+.settings-sidebar {
+  width: 250px;
+  border-right: 1px solid var(--border-color);
+  background-color: var(--bg-body);
+  padding: 1.5rem;
+  flex-shrink: 0;
+}
+
+.settings-content {
+  flex: 1;
+  padding: 2rem;
+  overflow: auto;
+}
+
+/* ─── EXTRA SMALL SCREENS (< 420px) ─────────────────────────────────────────── */
+@media (max-width: 420px) {
+  .topbar h2 {
+    max-width: 120px;
+    font-size: 0.92rem !important;
+  }
+
+  .page-content {
+    padding: 0.65rem 0.5rem;
+  }
+
+  .fin-card {
+    padding: 0.95rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .settings-layout-container {
+    flex-direction: column;
+    min-height: auto;
+  }
+  .settings-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.75rem 1rem;
+    overflow-x: auto;
+  }
+  .settings-sidebar nav {
+    flex-direction: row !important;
+    overflow-x: auto;
+    width: 100%;
+    gap: 0.4rem !important;
+  }
+  .settings-sidebar .nav-item {
+    white-space: nowrap;
+    width: auto !important;
+    padding: 0.5rem 0.85rem !important;
+    font-size: 0.82rem;
+  }
+  .settings-content {
+    padding: 1.25rem 1rem;
+  }
+}
+
+
