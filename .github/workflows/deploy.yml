@@ -26,12 +26,31 @@ jobs:
           npm ci || npm install
           npm run build
 
+      # Diagnóstico: falha cedo e com mensagem clara se a porta SSH do VPS não
+      # estiver acessível a partir do runner (causa comum de "i/o timeout").
+      - name: Check VPS SSH reachability
+        run: |
+          HOST="${{ secrets.VPS_IP }}"
+          PORT="${{ secrets.VPS_PORT }}"
+          PORT="${PORT:-22}"
+          echo "Testando conexão TCP em $HOST:$PORT ..."
+          if timeout 20 bash -c "cat < /dev/null > /dev/tcp/$HOST/$PORT" 2>/dev/null; then
+            echo "OK: porta $PORT acessível."
+          else
+            echo "::error::Não foi possível abrir TCP em $HOST:$PORT a partir do GitHub Actions."
+            echo "::error::Verifique: (1) o secret VPS_IP aponta para o IP atual do VPS; (2) firewall/ufw libera a porta 22; (3) fail2ban não baniu faixas de IP; (4) painel Hostinger sem restrição de SSH por IP."
+            exit 1
+          fi
+
       - name: Deploy Frontend to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_IP }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          timeout: 60s
+          command_timeout: 10m
           source: "finance-dashboard/dist/*"
           target: "/var/www/magalhaes/frontend"
           strip_components: 2
@@ -42,6 +61,9 @@ jobs:
           host: ${{ secrets.VPS_IP }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          timeout: 60s
+          command_timeout: 10m
           source: "backend/*"
           target: "/var/www/magalhaes"
 
@@ -51,10 +73,13 @@ jobs:
           host: ${{ secrets.VPS_IP }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          timeout: 60s
+          command_timeout: 15m
           script: |
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             cd /var/www/magalhaes/backend
             npm ci || npm install
             npm run build
-            pm2 restart magalhaes-backend || pm2 start dist/server.js --name magalhaes-backend
+            pm2 restart magalhaes-backend --update-env || pm2 start dist/server.js --name magalhaes-backend
