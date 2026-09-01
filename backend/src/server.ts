@@ -394,6 +394,8 @@ async function writeAudit(req: Request, entry: {
   context?: string | null;
   before?: any;
   after?: any;
+  // Autor explícito — usado em rotas sem `req.user` (ex.: login/reset de senha).
+  actor?: { id?: string | null; name?: string | null };
 }): Promise<void> {
   try {
     const user = (req as any).user;
@@ -402,8 +404,8 @@ async function writeAudit(req: Request, entry: {
         entityType: entry.entityType,
         entityId: entry.entityId ?? null,
         action: entry.action,
-        userId: user?.id ?? null,
-        userName: user?.name ?? null,
+        userId: entry.actor?.id ?? user?.id ?? null,
+        userName: entry.actor?.name ?? user?.name ?? null,
         context: entry.context ?? null,
         before: entry.before === undefined ? undefined : JSON.parse(JSON.stringify(entry.before)),
         after: entry.after === undefined ? undefined : JSON.parse(JSON.stringify(entry.after)),
@@ -446,6 +448,7 @@ app.post('/api/auth/logout', authMiddleware, async (req: Request, res: Response)
       console.error('⚠️ Falha ao persistir token revogado:', e);
     }
   }
+  await writeAudit(req, { entityType: 'Auth', entityId: user?.id ?? null, action: 'LOGOUT', after: { ip: req.ip } });
   res.json({ message: 'Logout realizado com sucesso.' });
 });
 
@@ -658,6 +661,7 @@ app.post('/api/auth/register', authMiddleware, adminMiddleware, async (req: Requ
       },
       select: { id: true, name: true, email: true, role: true, module: true, createdAt: true },
     });
+    await writeAudit(req, { entityType: 'User', entityId: newUser.id, action: 'CREATE', after: { name: newUser.name, email: newUser.email, module: newUser.module } });
     res.status(201).json({ message: 'Usuário criado com sucesso.', id: newUser.id });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao criar usuário.' });
@@ -677,6 +681,13 @@ app.post('/api/auth/login', authLimiter, async (req: Request, res: Response) => 
     const dummyHash = '$2b$12$invalidhashfortimingnormalizationonlyxx';
     const valid = await bcrypt.compare(String(password), user ? user.password : dummyHash);
     if (!user || !valid) {
+      await writeAudit(req, {
+        entityType: 'Auth',
+        entityId: user?.id ?? null,
+        action: 'LOGIN_FALHA',
+        actor: { id: user?.id ?? null, name: String(email).toLowerCase().trim().slice(0, 120) },
+        after: { ip: req.ip, motivo: user ? 'senha incorreta' : 'e-mail inexistente' },
+      });
       res.status(401).json({ error: "E-mail ou senha incorretos." });
       return;
     }
@@ -692,6 +703,13 @@ app.post('/api/auth/login', authLimiter, async (req: Request, res: Response) => 
       JWT_SECRET,
       { expiresIn: '2h', algorithm: 'HS256' }
     );
+    await writeAudit(req, {
+      entityType: 'Auth',
+      entityId: user.id,
+      action: 'LOGIN',
+      actor: { id: user.id, name: user.name },
+      after: { ip: req.ip, module, role: user.role },
+    });
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, module, role: user.role } });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao processar autenticação.' });
@@ -735,6 +753,13 @@ app.post('/api/auth/reset', authLimiter, async (req: Request, res: Response) => 
       data: { password: hashedPassword },
     });
 
+    await writeAudit(req, {
+      entityType: 'User',
+      entityId: user.id,
+      action: 'RESET_SENHA',
+      actor: { id: user.id, name: user.name },
+      after: { via: 'PIN mestre', ip: req.ip },
+    });
     res.json({ message: 'Senha alterada com sucesso! Você já pode fazer login.' });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao redefinir a senha.' });
@@ -763,9 +788,17 @@ app.patch('/api/auth/users/:id/module', authMiddleware, adminMiddleware, validat
     return;
   }
   try {
+    const before = await prisma.user.findUnique({ where: { id }, select: { name: true, email: true, module: true } });
     await prisma.user.update({
       where: { id },
       data: { module },
+    });
+    await writeAudit(req, {
+      entityType: 'User',
+      entityId: id,
+      action: 'ALTERAR_MODULO',
+      before: before ? { module: before.module } : undefined,
+      after: { alvo: before?.name ?? before?.email ?? id, module },
     });
     res.json({ message: 'Módulo atualizado com sucesso.' });
   } catch {
@@ -782,10 +815,17 @@ app.patch('/api/auth/users/:id/password', authMiddleware, adminMiddleware, valid
     return;
   }
   try {
+    const alvo = await prisma.user.findUnique({ where: { id }, select: { name: true, email: true } });
     const hashedPassword = await bcrypt.hash(newPassword, 12);
     await prisma.user.update({
       where: { id },
       data: { password: hashedPassword },
+    });
+    await writeAudit(req, {
+      entityType: 'User',
+      entityId: id,
+      action: 'ALTERAR_SENHA',
+      after: { alvo: alvo?.name ?? alvo?.email ?? id },
     });
     res.json({ message: 'Senha atualizada com sucesso.' });
   } catch {
@@ -802,10 +842,180 @@ app.delete('/api/auth/users/:id', authMiddleware, adminMiddleware, validateUuidP
     return;
   }
   try {
+    const before = await prisma.user.findUnique({ where: { id: String(id) }, select: { name: true, email: true, module: true, role: true } });
     await prisma.user.delete({ where: { id: String(id) } });
+    await writeAudit(req, { entityType: 'User', entityId: id, action: 'DELETE', before: before ?? undefined });
     res.json({ message: 'Usuário excluído com sucesso.' });
   } catch {
     res.status(500).json({ error: 'Erro ao excluir usuário.' });
+  }
+});
+
+// ─── PAINEL DE LOGS DO SISTEMA (SOMENTE ADMIN) ────────────────────────────────
+// Consulta paginada e filtrável da trilha de auditoria. Só leitura — os registros
+// nunca são alterados ou apagados por aqui.
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas requisições ao painel administrativo. Aguarde alguns minutos.' },
+});
+
+app.get('/api/admin/logs', authMiddleware, adminMiddleware, adminLimiter, async (req: Request, res: Response) => {
+  try {
+    const pageNum = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+
+    const where: any = {};
+    const entityType = req.query.entityType ? String(req.query.entityType).slice(0, 40) : undefined;
+    const action = req.query.action ? String(req.query.action).slice(0, 40) : undefined;
+    const context = req.query.context ? String(req.query.context).slice(0, 10) : undefined;
+    const userId = req.query.userId && UUID_V4_REGEX.test(String(req.query.userId)) ? String(req.query.userId) : undefined;
+    const search = req.query.search ? String(req.query.search).trim().slice(0, 120) : undefined;
+
+    if (entityType) where.entityType = entityType;
+    if (action) where.action = action;
+    if (context) where.context = context;
+    if (userId) where.userId = userId;
+    if (search) {
+      where.OR = [
+        { userName: { contains: search, mode: 'insensitive' } },
+        { entityId: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    if (req.query.from || req.query.to) {
+      where.createdAt = {};
+      const from = parseDateInput(req.query.from);
+      const to = parseDateInput(req.query.to);
+      if (from) where.createdAt.gte = from;
+      if (to) { const t = new Date(to); t.setUTCHours(23, 59, 59, 999); where.createdAt.lte = t; }
+    }
+
+    const skip = (pageNum - 1) * limitNum;
+    const [rows, total] = await Promise.all([
+      (prisma as any).auditLog.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limitNum }),
+      (prisma as any).auditLog.count({ where }),
+    ]);
+
+    res.json({ data: rows, total, page: pageNum, totalPages: Math.max(1, Math.ceil(total / limitNum)) });
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao buscar logs do sistema.' });
+  }
+});
+
+// Opções para os filtros (tipos de entidade e ações já registradas).
+app.get('/api/admin/logs/meta', authMiddleware, adminMiddleware, adminLimiter, async (_req: Request, res: Response) => {
+  try {
+    const [byType, byAction, totalCount, lastEntry] = await Promise.all([
+      (prisma as any).auditLog.groupBy({ by: ['entityType'], _count: { _all: true } }),
+      (prisma as any).auditLog.groupBy({ by: ['action'], _count: { _all: true } }),
+      (prisma as any).auditLog.count(),
+      (prisma as any).auditLog.findFirst({ orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
+    ]);
+    res.json({
+      entityTypes: byType.map((r: any) => ({ value: r.entityType, count: r._count._all })).sort((a: any, b: any) => b.count - a.count),
+      actions: byAction.map((r: any) => ({ value: r.action, count: r._count._all })).sort((a: any, b: any) => b.count - a.count),
+      total: totalCount,
+      lastEntryAt: lastEntry?.createdAt ?? null,
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao buscar filtros de logs.' });
+  }
+});
+
+// ─── BACKUP COMPLETO DO SISTEMA ──────────────────────────────────────────────
+// Exporta todos os dados do banco como um único JSON. Senhas de usuários e tokens
+// de sessão NUNCA são incluídos. Serve tanto para download manual pelo admin
+// quanto para automação externa (cron) via cabeçalho x-backup-token.
+const backupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 12,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Limite de backups por hora atingido. Tente novamente mais tarde.' },
+});
+
+async function buildBackup(): Promise<any> {
+  const [
+    users, categories, entities, companies, bankAccounts, transactions,
+    auditLogs, budgets, goals, stockSuppliers, stockLocations, products,
+    stockMovements, warehouseCategories,
+  ] = await Promise.all([
+    prisma.user.findMany({ select: { id: true, name: true, email: true, role: true, module: true, createdAt: true, updatedAt: true } }),
+    prisma.category.findMany(),
+    prisma.entity.findMany(),
+    (prisma as any).company.findMany(),
+    (prisma as any).bankAccount.findMany(),
+    prisma.transaction.findMany(),
+    (prisma as any).auditLog.findMany({ orderBy: { createdAt: 'asc' } }),
+    (prisma as any).budget.findMany(),
+    (prisma as any).goal.findMany(),
+    prisma.stockSupplier.findMany(),
+    prisma.stockLocation.findMany(),
+    prisma.product.findMany(),
+    prisma.stockMovement.findMany(),
+    prisma.warehouseCategory.findMany(),
+  ]);
+
+  return {
+    meta: {
+      sistema: 'Magalhães — Gestão Financeira e Almoxarifado',
+      geradoEm: new Date().toISOString(),
+      versaoFormato: 1,
+      totais: {
+        usuarios: users.length,
+        transacoes: transactions.length,
+        produtos: products.length,
+        movimentacoesEstoque: stockMovements.length,
+        logsAuditoria: auditLogs.length,
+      },
+    },
+    data: {
+      users, categories, entities, companies, bankAccounts, transactions,
+      auditLogs, budgets, goals, stockSuppliers, stockLocations, products,
+      stockMovements, warehouseCategories,
+    },
+  };
+}
+
+function sendBackup(res: Response, payload: any) {
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="backup-magalhaes-${stamp}.json"`);
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(JSON.stringify(payload, null, 2));
+}
+
+// Download manual — exige sessão de administrador.
+app.get('/api/admin/backup', authMiddleware, adminMiddleware, backupLimiter, async (req: Request, res: Response) => {
+  try {
+    const payload = await buildBackup();
+    await writeAudit(req, { entityType: 'System', action: 'BACKUP_DOWNLOAD', after: { ip: req.ip, totais: payload.meta.totais } });
+    sendBackup(res, payload);
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao gerar o backup.' });
+  }
+});
+
+// Automação externa (cron) — exige o token secreto BACKUP_TOKEN.
+const BACKUP_TOKEN = process.env.BACKUP_TOKEN;
+app.get('/api/admin/backup/auto', backupLimiter, async (req: Request, res: Response) => {
+  if (!BACKUP_TOKEN || String(BACKUP_TOKEN).length < 16) {
+    res.status(403).json({ error: 'Backup automático desabilitado (BACKUP_TOKEN não configurado no servidor).' });
+    return;
+  }
+  const provided = req.headers['x-backup-token'];
+  if (!provided || !safeStringEqual(String(provided), String(BACKUP_TOKEN))) {
+    console.warn(`🚨 [BACKUP] Token inválido em tentativa de backup automático do IP ${req.ip}`);
+    res.status(403).json({ error: 'Token de backup inválido.' });
+    return;
+  }
+  try {
+    const payload = await buildBackup();
+    sendBackup(res, payload);
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao gerar o backup.' });
   }
 });
 
@@ -1142,7 +1352,9 @@ app.post('/api/categories', authMiddleware, financeMiddleware, async (req: Reque
     return;
   }
   try {
-    res.status(201).json(await prisma.category.create({ data: { name: String(name).trim(), type: type === 'IN' ? 'IN' : 'OUT', color: color || null } }));
+    const cat = await prisma.category.create({ data: { name: String(name).trim(), type: type === 'IN' ? 'IN' : 'OUT', color: color || null } });
+    await writeAudit(req, { entityType: 'Category', entityId: cat.id, action: 'CREATE', context: cat.context, after: { name: cat.name, type: cat.type } });
+    res.status(201).json(cat);
   } catch {
     res.status(500).json({ error: 'Erro ao criar categoria.' });
   }
@@ -1150,7 +1362,9 @@ app.post('/api/categories', authMiddleware, financeMiddleware, async (req: Reque
 
 app.delete('/api/categories/:id', authMiddleware, financeMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   try {
+    const before = await prisma.category.findUnique({ where: { id: String(req.params.id) } });
     await prisma.category.delete({ where: { id: String(req.params.id) } });
+    await writeAudit(req, { entityType: 'Category', entityId: String(req.params.id), action: 'DELETE', context: before?.context, before: before ? { name: before.name, type: before.type } : undefined });
     res.json({ message: 'Excluído.' });
   } catch {
     res.status(500).json({ error: 'Erro ao excluir categoria.' });
@@ -1173,7 +1387,9 @@ app.post('/api/entities', authMiddleware, financeMiddleware, async (req: Request
     return;
   }
   try {
-    res.status(201).json(await prisma.entity.create({ data: { name: String(name).trim(), document: document ? String(document).replace(/[^0-9a-zA-Z.\-\/]/g, '').slice(0, 20) : null, type: type || 'SUPPLIER' } }));
+    const ent = await prisma.entity.create({ data: { name: String(name).trim(), document: document ? String(document).replace(/[^0-9a-zA-Z.\-\/]/g, '').slice(0, 20) : null, type: type || 'SUPPLIER' } });
+    await writeAudit(req, { entityType: 'Entity', entityId: ent.id, action: 'CREATE', after: { name: ent.name, type: ent.type, document: ent.document } });
+    res.status(201).json(ent);
   } catch {
     res.status(500).json({ error: 'Erro ao criar entidade.' });
   }
@@ -1181,7 +1397,9 @@ app.post('/api/entities', authMiddleware, financeMiddleware, async (req: Request
 
 app.delete('/api/entities/:id', authMiddleware, financeMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   try {
+    const before = await prisma.entity.findUnique({ where: { id: String(req.params.id) } });
     await prisma.entity.delete({ where: { id: String(req.params.id) } });
+    await writeAudit(req, { entityType: 'Entity', entityId: String(req.params.id), action: 'DELETE', before: before ? { name: before.name, type: before.type, document: before.document } : undefined });
     res.json({ message: 'Excluído.' });
   } catch {
     res.status(500).json({ error: 'Erro ao excluir entidade.' });
@@ -1204,7 +1422,9 @@ app.post('/api/companies', authMiddleware, financeMiddleware, async (req: Reques
     return;
   }
   try {
-    res.status(201).json(await (prisma as any).company.create({ data: { name: String(name).trim(), document: document || null } }));
+    const comp = await (prisma as any).company.create({ data: { name: String(name).trim(), document: document || null } });
+    await writeAudit(req, { entityType: 'Company', entityId: comp.id, action: 'CREATE', after: { name: comp.name, document: comp.document } });
+    res.status(201).json(comp);
   } catch {
     res.status(500).json({ error: 'Erro ao criar empresa.' });
   }
@@ -1212,7 +1432,9 @@ app.post('/api/companies', authMiddleware, financeMiddleware, async (req: Reques
 
 app.delete('/api/companies/:id', authMiddleware, financeMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   try {
+    const before = await (prisma as any).company.findUnique({ where: { id: String(req.params.id) } });
     await (prisma as any).company.delete({ where: { id: String(req.params.id) } });
+    await writeAudit(req, { entityType: 'Company', entityId: String(req.params.id), action: 'DELETE', before: before ? { name: before.name, document: before.document } : undefined });
     res.json({ message: 'Excluído.' });
   } catch {
     res.status(500).json({ error: 'Erro ao excluir empresa.' });
@@ -1234,7 +1456,9 @@ app.post('/api/bank-accounts', authMiddleware, financeMiddleware, async (req: Re
     return;
   }
   try {
-    res.status(201).json(await (prisma as any).bankAccount.create({ data: { name: String(name).trim(), agency: agency || null, account: account || null } }));
+    const bank = await (prisma as any).bankAccount.create({ data: { name: String(name).trim(), agency: agency || null, account: account || null } });
+    await writeAudit(req, { entityType: 'BankAccount', entityId: bank.id, action: 'CREATE', after: { name: bank.name, agency: bank.agency, account: bank.account } });
+    res.status(201).json(bank);
   } catch {
     res.status(500).json({ error: 'Erro ao criar conta bancária.' });
   }
@@ -1242,7 +1466,9 @@ app.post('/api/bank-accounts', authMiddleware, financeMiddleware, async (req: Re
 
 app.delete('/api/bank-accounts/:id', authMiddleware, financeMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   try {
+    const before = await (prisma as any).bankAccount.findUnique({ where: { id: String(req.params.id) } });
     await (prisma as any).bankAccount.delete({ where: { id: String(req.params.id) } });
+    await writeAudit(req, { entityType: 'BankAccount', entityId: String(req.params.id), action: 'DELETE', before: before ? { name: before.name, agency: before.agency, account: before.account } : undefined });
     res.json({ message: 'Excluído.' });
   } catch {
     res.status(500).json({ error: 'Erro ao excluir conta bancária.' });
@@ -1283,6 +1509,7 @@ app.post('/api/pf/categories', authMiddleware, financeMiddleware, async (req: Re
   }
   try {
     const cat = await (prisma as any).category.create({ data: { name: String(name).trim(), type, color: color || '#94a3b8', context: 'PF' } });
+    await writeAudit(req, { entityType: 'Category', entityId: cat.id, action: 'CREATE', context: 'PF', after: { name: cat.name, type: cat.type } });
     res.status(201).json(cat);
   } catch (e) {
     res.status(500).json({ error: 'Erro ao criar categoria PF.' });
@@ -1291,7 +1518,9 @@ app.post('/api/pf/categories', authMiddleware, financeMiddleware, async (req: Re
 
 app.delete('/api/pf/categories/:id', authMiddleware, financeMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   try {
+    const before = await (prisma as any).category.findUnique({ where: { id: String(req.params.id) } });
     await (prisma as any).category.delete({ where: { id: String(req.params.id) } });
+    await writeAudit(req, { entityType: 'Category', entityId: String(req.params.id), action: 'DELETE', context: 'PF', before: before ? { name: before.name, type: before.type } : undefined });
     res.json({ message: 'Excluído.' });
   } catch {
     res.status(500).json({ error: 'Erro ao excluir categoria PF.' });
@@ -1515,6 +1744,7 @@ app.post('/api/warehouse/categories', authMiddleware, warehouseMiddleware, async
     const row = await prisma.warehouseCategory.create({
       data: { name: String(name).trim(), color: color || '#64748b' },
     });
+    await writeAudit(req, { entityType: 'WarehouseCategory', entityId: row.id, action: 'CREATE', after: { name: row.name } });
     res.status(201).json(row);
   } catch (e) {
     res.status(500).json({ error: 'Erro ao criar categoria.' });
@@ -1523,7 +1753,9 @@ app.post('/api/warehouse/categories', authMiddleware, warehouseMiddleware, async
 
 app.delete('/api/warehouse/categories/:id', authMiddleware, warehouseMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   try {
+    const before = await prisma.warehouseCategory.findUnique({ where: { id: String(req.params.id) } });
     await prisma.warehouseCategory.delete({ where: { id: String(req.params.id) } });
+    await writeAudit(req, { entityType: 'WarehouseCategory', entityId: String(req.params.id), action: 'DELETE', before: before ? { name: before.name } : undefined });
     res.json({ message: 'Excluído.' });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao excluir categoria.' });
@@ -1553,6 +1785,7 @@ app.post('/api/warehouse/suppliers', authMiddleware, warehouseMiddleware, async 
         phone: phone || null,
       },
     });
+    await writeAudit(req, { entityType: 'StockSupplier', entityId: row.id, action: 'CREATE', after: { name: row.name, document: row.document } });
     res.status(201).json(row);
   } catch (e) {
     res.status(500).json({ error: 'Erro ao criar fornecedor.' });
@@ -1561,7 +1794,9 @@ app.post('/api/warehouse/suppliers', authMiddleware, warehouseMiddleware, async 
 
 app.delete('/api/warehouse/suppliers/:id', authMiddleware, warehouseMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   try {
+    const before = await prisma.stockSupplier.findUnique({ where: { id: String(req.params.id) } });
     await prisma.stockSupplier.delete({ where: { id: String(req.params.id) } });
+    await writeAudit(req, { entityType: 'StockSupplier', entityId: String(req.params.id), action: 'DELETE', before: before ? { name: before.name, document: before.document } : undefined });
     res.json({ message: 'Excluído.' });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao excluir fornecedor.' });
@@ -1589,6 +1824,7 @@ app.post('/api/warehouse/locations', authMiddleware, warehouseMiddleware, async 
     const row = await prisma.stockLocation.create({
       data: { aisle: String(aisle).trim(), shelf: String(shelf).trim(), position: String(position).trim(), label },
     });
+    await writeAudit(req, { entityType: 'StockLocation', entityId: row.id, action: 'CREATE', after: { label: row.label } });
     res.status(201).json(row);
   } catch (e) {
     res.status(500).json({ error: 'Erro ao criar localização.' });
@@ -1597,7 +1833,9 @@ app.post('/api/warehouse/locations', authMiddleware, warehouseMiddleware, async 
 
 app.delete('/api/warehouse/locations/:id', authMiddleware, warehouseMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   try {
+    const before = await prisma.stockLocation.findUnique({ where: { id: String(req.params.id) } });
     await prisma.stockLocation.delete({ where: { id: String(req.params.id) } });
+    await writeAudit(req, { entityType: 'StockLocation', entityId: String(req.params.id), action: 'DELETE', before: before ? { label: before.label } : undefined });
     res.json({ message: 'Excluído.' });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao excluir localização.' });
@@ -1739,6 +1977,7 @@ app.post('/api/warehouse/products', authMiddleware, warehouseMiddleware, async (
         active: true,
       },
     });
+    await writeAudit(req, { entityType: 'Product', entityId: product.id, action: 'CREATE', after: { name: product.name, code: product.code, unit: product.unit, category: product.category } });
     res.status(201).json(product);
   } catch (e: any) {
     if (e.code === 'P2002') return res.status(400).json({ error: 'Código já existe. Use um código único.' });
@@ -1750,6 +1989,7 @@ app.patch('/api/warehouse/products/:id', authMiddleware, warehouseMiddleware, va
   const id = String(req.params.id);
   const { name, description, code, manufacturerCode, unit, category, minStock, costPrice, salePrice, locationId, supplierId, active } = req.body;
   try {
+    const antes = await prisma.product.findUnique({ where: { id }, select: { name: true, code: true, unit: true, category: true, minStock: true, costPrice: true, salePrice: true, active: true } });
     const product = await prisma.product.update({
       where: { id },
       data: {
@@ -1766,6 +2006,13 @@ app.patch('/api/warehouse/products/:id', authMiddleware, warehouseMiddleware, va
         supplierId: supplierId !== undefined ? (supplierId || null) : undefined,
         active: active != null ? Boolean(active) : undefined,
       },
+    });
+    await writeAudit(req, {
+      entityType: 'Product',
+      entityId: id,
+      action: 'UPDATE',
+      before: antes ?? undefined,
+      after: { name: product.name, code: product.code, unit: product.unit, category: product.category, minStock: product.minStock, costPrice: product.costPrice, salePrice: product.salePrice, active: product.active },
     });
     res.json(product);
   } catch (e) {
@@ -1787,8 +2034,11 @@ app.patch('/api/warehouse/products/:id/image', authMiddleware, warehouseMiddlewa
 app.delete('/api/warehouse/products/:id', authMiddleware, warehouseMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   const id = String(req.params.id);
   try {
+    const before = await prisma.product.findUnique({ where: { id: String(id) }, select: { name: true, code: true, currentStock: true, category: true } });
+    const movCount = await prisma.stockMovement.count({ where: { productId: id } });
     await prisma.stockMovement.deleteMany({ where: { productId: id } });
     await prisma.product.delete({ where: { id: String(id) } });
+    await writeAudit(req, { entityType: 'Product', entityId: id, action: 'DELETE', before: before ? { ...before, movimentacoesExcluidas: movCount } : undefined });
     res.json({ message: 'Produto e histórico excluídos com sucesso.' });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao excluir produto.' });
@@ -1927,6 +2177,12 @@ app.post('/api/warehouse/movements', authMiddleware, warehouseMiddleware, async 
       return { movement, newStock: updated.currentStock, warning };
     });
 
+    await writeAudit(req, {
+      entityType: 'StockMovement',
+      entityId: result.movement.id,
+      action: `ESTOQUE_${type}`,
+      after: { produto: prod.name, codigo: prod.code, quantidade: result.movement.quantity, tipo: type, saldoFinal: result.newStock, documento: document || null },
+    });
     res.json({ ...result.movement, newStock: result.newStock, warning: result.warning });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao registrar movimentação.' });

@@ -8,3 +8,7 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Token para o backup automático (GET /api/admin/backup/auto, header x-backup-token).
+      # Gerado automaticamente pelo Render; consulte o valor no painel do serviço.
+      - key: BACKUP_TOKEN
+        generateValue: true
