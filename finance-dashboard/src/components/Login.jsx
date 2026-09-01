@@ -34,12 +34,13 @@ export default function Login({ onLogin }) {
           body: JSON.stringify({ email, newPassword: password, pin }),
         });
         
+        const data = await res.json().catch(() => ({}));
+
         if (res.status === 429) {
-          setError('🚨 Você tentou redefinir a senha muitas vezes. Seu IP foi bloqueado por segurança. Tente novamente daqui a 15 minutos.');
+          setError('⏳ ' + (data?.error || 'Muitas tentativas de redefinição. Aguarde alguns minutos e tente novamente.'));
           return;
         }
 
-        const data = await res.json();
         if (!res.ok) { setError(data.error || 'Erro ao resetar senha'); return; }
         
         setSuccess('Senha alterada! Agora você pode fazer login.');
@@ -62,16 +63,20 @@ export default function Login({ onLogin }) {
         body: JSON.stringify({ email, password }),
       });
       
-      if (res.status === 429) {
-        setError('🚨 Muitas tentativas de acesso incorretas. Aguarde alguns instantes e tente novamente.');
-        return;
-      }
-
       let data;
       try {
         data = await res.json();
       } catch {
-        setError(`Erro no servidor (status ${res.status}). Tente novamente em instantes.`);
+        if (res.status === 429) {
+          setError('⏳ Muitas tentativas em pouco tempo. Aguarde um ou dois minutos e tente novamente.');
+        } else {
+          setError(`Erro no servidor (status ${res.status}). Tente novamente em instantes.`);
+        }
+        return;
+      }
+
+      if (res.status === 429) {
+        setError('⏳ ' + (data?.error || 'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.'));
         return;
       }
 

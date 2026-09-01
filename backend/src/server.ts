@@ -3,7 +3,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import compression from 'compression';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import hpp from 'hpp';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -235,22 +235,37 @@ app.use(compression({ filter: (req, res) => { const cl = parseInt(req.headers['c
 app.use(express.json({ limit: '1mb' }));
 
 // ─── RATE LIMITERS MULTINÍVEL ──────────────────────────────────────────────────
-// Limite Global da API (200 reqs / 15 min / IP)
+// Limite Global da API — folgado o bastante para vários usuários atrás do mesmo
+// IP/NAT (ex.: escritório, casa) usando o dashboard, que faz dezenas de chamadas
+// por tela. As rotas de autenticação têm o seu próprio limiter dedicado abaixo e
+// ficam de fora deste, para que o uso pesado do painel nunca impeça alguém de logar.
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
-  message: { error: 'Muitas requisições deste IP. Tente novamente em alguns minutos.' },
+  max: 1200,
+  message: { error: 'Muitas requisições deste IP em pouco tempo. Aguarde um ou dois minutos e recarregue a página.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    const url = req.originalUrl || req.url || '';
+    return url.startsWith('/api/auth/') || url === '/api/health';
+  },
 });
 app.use('/api', globalLimiter);
 
-// Limite Estrito para Login e Recuperação de Senha (Anti-Força Bruta)
+// Limite Estrito para Login e Recuperação de Senha (Anti-Força Bruta).
+// A chave combina IP + e-mail: os erros de digitação de uma pessoa não travam
+// as outras que compartilham o mesmo IP (irmãos na mesma internet, escritório).
+// Só conta tentativas malsucedidas; um login correto zera o contador.
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
+  windowMs: 10 * 60 * 1000,
+  max: 25,
   skipSuccessfulRequests: true,
-  message: { error: 'Muitas tentativas inválidas. Por segurança, aguarde 15 minutos antes de tentar novamente.' },
+  keyGenerator: (req) => {
+    const ipKey = ipKeyGenerator(req.ip || '');
+    const email = String(req.body?.email || '').toLowerCase().trim().slice(0, 120);
+    return email ? `${ipKey}|${email}` : ipKey;
+  },
+  message: { error: 'Muitas tentativas de acesso malsucedidas para esta conta. Aguarde cerca de 10 minutos e tente novamente.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
