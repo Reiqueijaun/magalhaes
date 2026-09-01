@@ -145,6 +145,26 @@ function isSecureUrl(url: string): boolean {
   } catch { return false; }
 }
 
+// Aceita imagens embutidas (data URI) de tipos conhecidos, com teto de tamanho.
+// Usado pelas fotos de produto do almoxarifado — o front envia base64.
+function isSafeImageDataUri(value: string, maxBytes: number = 3 * 1024 * 1024): boolean {
+  const m = /^data:image\/(png|jpe?g|webp|gif);base64,([A-Za-z0-9+/=\s]+)$/i.exec(value);
+  if (!m || !m[2]) return false;
+  const b64 = m[2].replace(/\s/g, '');
+  // Cada 4 chars de base64 = 3 bytes.
+  const approxBytes = Math.floor(b64.length * 3 / 4);
+  return approxBytes > 0 && approxBytes <= maxBytes;
+}
+
+// Normaliza o valor da imagem recebida: aceita data URI de imagem ou URL http(s);
+// devolve null para qualquer outra coisa (nunca lança).
+function sanitizeProductImage(value: any): string | null {
+  if (!value || typeof value !== 'string') return null;
+  const v = value.trim();
+  if (v.startsWith('data:')) return isSafeImageDataUri(v) ? v : null;
+  return isSecureUrl(v) ? v : null;
+}
+
 // ─── CORS RESTRITIVO E CONTROLADO ──────────────────────────────────────────────
 const isProd = process.env.NODE_ENV === 'production';
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -606,11 +626,22 @@ async function runMigrations() {
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    // Almoxarifado — colunas incrementais (código de barras + razão de movimentações reconstruível)
+    await pool.query(`ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "barcode" TEXT;`);
+    await pool.query(`ALTER TABLE "StockMovement" ADD COLUMN IF NOT EXISTS "balanceAfter" DOUBLE PRECISION;`);
+    await pool.query(`ALTER TABLE "StockMovement" ADD COLUMN IF NOT EXISTS "unitCostAfter" DOUBLE PRECISION;`);
+    await pool.query(`ALTER TABLE "StockMovement" ADD COLUMN IF NOT EXISTS "batchRef" TEXT;`);
+    await pool.query(`ALTER TABLE "StockMovement" ADD COLUMN IF NOT EXISTS "reversedAt" TIMESTAMP(3);`);
+    await pool.query(`ALTER TABLE "StockMovement" ADD COLUMN IF NOT EXISTS "reversedBy" TEXT;`);
+    await pool.query(`ALTER TABLE "StockMovement" ADD COLUMN IF NOT EXISTS "reversalReason" TEXT;`);
     await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_product_code" ON "Product"(code);`).catch(() => {});
     await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_product_active" ON "Product"(active);`).catch(() => {});
+    await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_product_barcode" ON "Product"(barcode);`).catch(() => {});
+    await pool.query(`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "uq_product_barcode" ON "Product"(barcode) WHERE barcode IS NOT NULL;`).catch(() => {});
     await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_stockmovement_productId" ON "StockMovement"("productId");`).catch(() => {});
     await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_stockmovement_type" ON "StockMovement"(type);`).catch(() => {});
     await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_stockmovement_date" ON "StockMovement"(date);`).catch(() => {});
+    await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_stockmovement_batchRef" ON "StockMovement"("batchRef");`).catch(() => {});
     await pool.query(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS module TEXT NOT NULL DEFAULT 'FINANCE';`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS "WarehouseCategory" (
@@ -1078,7 +1109,7 @@ app.get('/api/transactions/:id/attachment', authMiddleware, financeMiddleware, v
 });
 
 app.post('/api/transactions', authMiddleware, financeMiddleware, async (req: Request, res: Response) => {
-  const { description, amount, type, status, dueDate, paymentDate, isRecurring, categoryId, entityId, companyId, attachmentUrl } = req.body;
+  const { description, amount, type, status, dueDate, paymentDate, isRecurring, categoryId, entityId, companyId, bankAccountId, attachmentUrl } = req.body;
   if (!description || amount == null || !dueDate) {
     res.status(400).json({ error: 'Descrição, valor e data de vencimento são obrigatórios.' });
     return;
@@ -1106,6 +1137,7 @@ app.post('/api/transactions', authMiddleware, financeMiddleware, async (req: Req
         categoryId: categoryId || null,
         entityId: entityId || null,
         companyId: companyId || null,
+        bankAccountId: bankAccountId || null,
         attachmentUrl: (attachmentUrl && isSecureUrl(String(attachmentUrl))) ? String(attachmentUrl) : null,
         context: 'PJ',
       },
@@ -1727,6 +1759,98 @@ app.delete('/api/pf/goals/:id', authMiddleware, financeMiddleware, validateUuidP
 
 // ─── ALMOXARIFADO (WAREHOUSE - PROTEGIDO COM RBAC) ─────────────────────────────
 
+const WAREHOUSE_MOVEMENT_TYPES = ['ENTRY', 'EXIT', 'RETURN', 'SALE', 'ADJUSTMENT', 'LOSS'] as const;
+const INBOUND_TYPES = new Set(['ENTRY', 'RETURN']);
+const OUTBOUND_TYPES = new Set(['EXIT', 'SALE', 'LOSS']);
+
+const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+const round3 = (n: number) => Math.round((Number(n) || 0) * 1000) / 1000;
+const round6 = (n: number) => Math.round((Number(n) || 0) * 1e6) / 1e6;
+
+// Reconstrói saldo e custo médio de um produto a partir do razão completo de
+// movimentações não estornadas, na ordem cronológica. É a fonte única de verdade:
+// toda criação/estorno de lançamento chama isto dentro da mesma transação, então
+// currentStock e costPrice nunca divergem do histórico e o estorno fica trivial.
+async function recomputeProduct(tx: any, productId: string): Promise<{ currentStock: number; costPrice: number }> {
+  const [movements, current] = await Promise.all([
+    tx.stockMovement.findMany({
+      where: { productId, reversedAt: null },
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+    }),
+    tx.product.findUnique({ where: { id: productId }, select: { costPrice: true } }),
+  ]);
+
+  let stock = 0;
+  // Semeia com o custo atual: ajustes de inventário e produtos sem entradas
+  // preservam o custo já informado; a 1ª entrada real recalcula a partir do saldo 0.
+  let avgCost = Number(current?.costPrice) || 0;
+
+  for (const m of movements) {
+    const qty = Math.abs(Number(m.quantity) || 0);
+    if (INBOUND_TYPES.has(m.type)) {
+      const price = Number(m.unitPrice) || 0;
+      const newStock = stock + qty;
+      avgCost = newStock > 0 ? round6((stock * avgCost + qty * price) / newStock) : avgCost;
+      stock = newStock;
+    } else if (OUTBOUND_TYPES.has(m.type)) {
+      stock = stock - qty;
+    } else if (m.type === 'ADJUSTMENT') {
+      // Em ajustes a quantidade gravada é o SALDO ABSOLUTO contado.
+      stock = Number(m.quantity) || 0;
+    }
+    stock = round3(stock);
+    await tx.stockMovement.update({
+      where: { id: m.id },
+      data: { balanceAfter: stock, unitCostAfter: round6(avgCost) },
+    });
+  }
+
+  const updated = await tx.product.update({
+    where: { id: productId },
+    data: { currentStock: round3(stock), costPrice: round6(avgCost) },
+    select: { currentStock: true, costPrice: true },
+  });
+  return updated;
+}
+
+// Sugere o próximo código interno a partir do último produto cadastrado.
+// Preserva prefixo e zero-padding: "MAG-001" -> "MAG-002", "3" -> "4", "A9" -> "A10".
+async function suggestNextProductCode(): Promise<{ suggestion: string; prefix: string; lastCode: string | null }> {
+  const last = await prisma.product.findFirst({ orderBy: { createdAt: 'desc' }, select: { code: true } });
+  if (!last?.code) return { suggestion: '1', prefix: '', lastCode: null };
+  const raw = String(last.code).trim();
+  const m = /^(.*?)(\d+)(\D*)$/.exec(raw);
+  if (!m) {
+    // Sem parte numérica no fim: não há como incrementar com segurança.
+    return { suggestion: '', prefix: raw, lastCode: raw };
+  }
+  const prefix = m[1] ?? '';
+  const digits = m[2] ?? '0';
+  const suffix = m[3] ?? '';
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Considera o maior número já usado com o mesmo prefixo/sufixo, evitando colisão.
+  const siblings = await prisma.product.findMany({
+    where: prefix ? { code: { startsWith: prefix, mode: 'insensitive' } } : {},
+    select: { code: true },
+    take: 5000,
+  });
+  const re = new RegExp('^' + esc(prefix) + '(\\d+)' + esc(suffix) + '$', 'i');
+  let maxN = parseInt(digits, 10);
+  for (const s of siblings) {
+    const mm = re.exec(String(s.code).trim());
+    if (mm && mm[1]) maxN = Math.max(maxN, parseInt(mm[1], 10));
+  }
+  const next = String(maxN + 1).padStart(digits.length, '0');
+  return { suggestion: `${prefix}${next}${suffix}`, prefix, lastCode: raw };
+}
+
+function normalizeBarcode(value: any): string | null {
+  if (value == null || value === '') return null;
+  const digits = String(value).replace(/\D/g, '');
+  if (!digits) return null;
+  return digits.slice(0, 14);
+}
+
 // Categorias do Almoxarifado
 app.get('/api/warehouse/categories', authMiddleware, warehouseMiddleware, async (_req: Request, res: Response) => {
   try {
@@ -1740,9 +1864,12 @@ app.get('/api/warehouse/categories', authMiddleware, warehouseMiddleware, async 
 app.post('/api/warehouse/categories', authMiddleware, warehouseMiddleware, async (req: Request, res: Response) => {
   const { name, color } = req.body;
   if (!name) { res.status(400).json({ error: 'Nome da categoria é obrigatório.' }); return; }
+  const clean = String(name).trim().slice(0, 60);
   try {
+    const dup = await prisma.warehouseCategory.findFirst({ where: { name: { equals: clean, mode: 'insensitive' } } });
+    if (dup) { res.status(409).json({ error: 'Já existe uma categoria com esse nome.' }); return; }
     const row = await prisma.warehouseCategory.create({
-      data: { name: String(name).trim(), color: color || '#64748b' },
+      data: { name: clean, color: color || '#64748b' },
     });
     await writeAudit(req, { entityType: 'WarehouseCategory', entityId: row.id, action: 'CREATE', after: { name: row.name } });
     res.status(201).json(row);
@@ -1753,10 +1880,16 @@ app.post('/api/warehouse/categories', authMiddleware, warehouseMiddleware, async
 
 app.delete('/api/warehouse/categories/:id', authMiddleware, warehouseMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   try {
-    const before = await prisma.warehouseCategory.findUnique({ where: { id: String(req.params.id) } });
-    await prisma.warehouseCategory.delete({ where: { id: String(req.params.id) } });
-    await writeAudit(req, { entityType: 'WarehouseCategory', entityId: String(req.params.id), action: 'DELETE', before: before ? { name: before.name } : undefined });
-    res.json({ message: 'Excluído.' });
+    const id = String(req.params.id);
+    const before = await prisma.warehouseCategory.findUnique({ where: { id } });
+    if (!before) { res.status(404).json({ error: 'Categoria não encontrada.' }); return; }
+    const result = await prisma.$transaction(async (tx) => {
+      const moved = await tx.product.updateMany({ where: { category: before.name }, data: { category: 'Geral' } });
+      await tx.warehouseCategory.delete({ where: { id } });
+      return moved.count;
+    });
+    await writeAudit(req, { entityType: 'WarehouseCategory', entityId: id, action: 'DELETE', before: { name: before.name }, after: { produtosRealocadosParaGeral: result } });
+    res.json({ message: 'Excluído.', affected: result });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao excluir categoria.' });
   }
@@ -1775,10 +1908,13 @@ app.get('/api/warehouse/suppliers', authMiddleware, warehouseMiddleware, async (
 app.post('/api/warehouse/suppliers', authMiddleware, warehouseMiddleware, async (req: Request, res: Response) => {
   const { name, document, contact, email, phone } = req.body;
   if (!name) { res.status(400).json({ error: 'Nome do fornecedor é obrigatório.' }); return; }
+  const cleanName = String(name).trim().slice(0, 120);
   try {
+    const dup = await prisma.stockSupplier.findFirst({ where: { name: { equals: cleanName, mode: 'insensitive' } } });
+    if (dup) { res.status(409).json({ error: 'Já existe um fornecedor com esse nome.' }); return; }
     const row = await prisma.stockSupplier.create({
       data: {
-        name: String(name).trim(),
+        name: cleanName,
         document: document ? String(document).replace(/[^0-9.\-\/]/g, '').slice(0, 20) : null,
         contact: contact ? String(contact).slice(0, 100) : null,
         email: email || null,
@@ -1794,10 +1930,16 @@ app.post('/api/warehouse/suppliers', authMiddleware, warehouseMiddleware, async 
 
 app.delete('/api/warehouse/suppliers/:id', authMiddleware, warehouseMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   try {
-    const before = await prisma.stockSupplier.findUnique({ where: { id: String(req.params.id) } });
-    await prisma.stockSupplier.delete({ where: { id: String(req.params.id) } });
-    await writeAudit(req, { entityType: 'StockSupplier', entityId: String(req.params.id), action: 'DELETE', before: before ? { name: before.name, document: before.document } : undefined });
-    res.json({ message: 'Excluído.' });
+    const id = String(req.params.id);
+    const before = await prisma.stockSupplier.findUnique({ where: { id } });
+    if (!before) { res.status(404).json({ error: 'Fornecedor não encontrado.' }); return; }
+    const affected = await prisma.$transaction(async (tx) => {
+      const cleared = await tx.product.updateMany({ where: { supplierId: id }, data: { supplierId: null } });
+      await tx.stockSupplier.delete({ where: { id } });
+      return cleared.count;
+    });
+    await writeAudit(req, { entityType: 'StockSupplier', entityId: id, action: 'DELETE', before: { name: before.name, document: before.document }, after: { produtosDesvinculados: affected } });
+    res.json({ message: 'Excluído.', affected });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao excluir fornecedor.' });
   }
@@ -1821,6 +1963,8 @@ app.post('/api/warehouse/locations', authMiddleware, warehouseMiddleware, async 
   }
   try {
     const label = `${String(aisle).toUpperCase()}-${String(shelf).padStart(2,'0')}-${String(position).padStart(2,'0')}`;
+    const dup = await prisma.stockLocation.findFirst({ where: { label } });
+    if (dup) { res.status(409).json({ error: `A localização ${label} já existe.` }); return; }
     const row = await prisma.stockLocation.create({
       data: { aisle: String(aisle).trim(), shelf: String(shelf).trim(), position: String(position).trim(), label },
     });
@@ -1833,10 +1977,16 @@ app.post('/api/warehouse/locations', authMiddleware, warehouseMiddleware, async 
 
 app.delete('/api/warehouse/locations/:id', authMiddleware, warehouseMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   try {
-    const before = await prisma.stockLocation.findUnique({ where: { id: String(req.params.id) } });
-    await prisma.stockLocation.delete({ where: { id: String(req.params.id) } });
-    await writeAudit(req, { entityType: 'StockLocation', entityId: String(req.params.id), action: 'DELETE', before: before ? { label: before.label } : undefined });
-    res.json({ message: 'Excluído.' });
+    const id = String(req.params.id);
+    const before = await prisma.stockLocation.findUnique({ where: { id } });
+    if (!before) { res.status(404).json({ error: 'Localização não encontrada.' }); return; }
+    const affected = await prisma.$transaction(async (tx) => {
+      const cleared = await tx.product.updateMany({ where: { locationId: id }, data: { locationId: null } });
+      await tx.stockLocation.delete({ where: { id } });
+      return cleared.count;
+    });
+    await writeAudit(req, { entityType: 'StockLocation', entityId: id, action: 'DELETE', before: { label: before.label }, after: { produtosDesvinculados: affected } });
+    res.json({ message: 'Excluído.', affected });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao excluir localização.' });
   }
@@ -1849,22 +1999,28 @@ app.get('/api/warehouse/products', authMiddleware, warehouseMiddleware, async (r
     const limitNum = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
     const search = req.query.search ? String(req.query.search).trim().slice(0, 100) : undefined;
     const category = req.query.category ? String(req.query.category).trim() : undefined;
+    const status = String(req.query.status || 'active').toLowerCase();
 
     let where: any = {};
+    if (status === 'active') where.active = true;
+    else if (status === 'inactive') where.active = false;
+    // status === 'all' → sem filtro
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { code: { contains: search, mode: 'insensitive' } },
         { manufacturerCode: { contains: search, mode: 'insensitive' } },
+        { barcode: { contains: search.replace(/\D/g, '') || '\0', mode: 'insensitive' } },
       ];
     }
     if (category) where.category = category;
 
     const skip = (pageNum - 1) * limitNum;
-    
+
     const [products, total] = await prisma.$transaction([
       prisma.product.findMany({
         where,
+        omit: { imageUrl: true },
         include: { location: true, supplier: true },
         orderBy: { name: 'asc' },
         skip,
@@ -1873,11 +2029,17 @@ app.get('/api/warehouse/products', authMiddleware, warehouseMiddleware, async (r
       prisma.product.count({ where }),
     ]);
 
+    const withImage = await prisma.product.findMany({
+      where: { id: { in: products.map((p: any) => p.id) }, imageUrl: { not: null } },
+      select: { id: true },
+    });
+    const imageSet = new Set(withImage.map((p: any) => p.id));
+
     const result = products.map((p: any) => {
-      const { imageUrl, location, supplier, ...rest } = p;
+      const { location, supplier, ...rest } = p;
       return {
         ...rest,
-        hasImage: !!imageUrl,
+        hasImage: imageSet.has(p.id),
         locationLabel: location?.label,
         aisle: location?.aisle,
         shelf: location?.shelf,
@@ -1886,7 +2048,7 @@ app.get('/api/warehouse/products', authMiddleware, warehouseMiddleware, async (r
         supplierDocument: supplier?.document,
       };
     });
-    
+
     res.json({
       data: result,
       total,
@@ -1898,6 +2060,48 @@ app.get('/api/warehouse/products', authMiddleware, warehouseMiddleware, async (r
   }
 });
 
+// Próximo código interno sugerido (ex.: último = "MAG-014" → "MAG-015")
+app.get('/api/warehouse/products/next-code', authMiddleware, warehouseMiddleware, async (_req: Request, res: Response) => {
+  try {
+    res.json(await suggestNextProductCode());
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao sugerir código.' });
+  }
+});
+
+// Posição de estoque completa — alimenta seletores, inventário e exportações.
+app.get('/api/warehouse/report/stock', authMiddleware, warehouseMiddleware, async (req: Request, res: Response) => {
+  try {
+    const status = String(req.query.status || 'active').toLowerCase();
+    const where: any = {};
+    if (status === 'active') where.active = true;
+    else if (status === 'inactive') where.active = false;
+    const products = await prisma.product.findMany({
+      where,
+      select: {
+        id: true, code: true, barcode: true, name: true, unit: true, category: true,
+        currentStock: true, minStock: true, costPrice: true, salePrice: true, active: true,
+        location: { select: { label: true } }, supplier: { select: { name: true } },
+      },
+      take: 5000,
+      orderBy: { name: 'asc' },
+    });
+    res.json(products.map((p: any) => {
+      const { location, supplier, ...rest } = p;
+      return {
+        ...rest,
+        locationLabel: location?.label || null,
+        supplierName: supplier?.name || null,
+        stockValue: round2((p.currentStock || 0) * (p.costPrice || 0)),
+        lowStock: p.minStock > 0 && p.currentStock <= p.minStock,
+      };
+    }));
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao buscar posição de estoque.' });
+  }
+});
+
+// Compat: seletor antigo de produtos (agora sem cap de 50).
 app.get('/api/warehouse/products-search', authMiddleware, warehouseMiddleware, async (req: Request, res: Response) => {
   try {
     const q = req.query.q ? String(req.query.q).trim() : undefined;
@@ -1906,12 +2110,13 @@ app.get('/api/warehouse/products-search', authMiddleware, warehouseMiddleware, a
       where.OR = [
         { name: { contains: q, mode: 'insensitive' } },
         { code: { contains: q, mode: 'insensitive' } },
+        { barcode: { contains: q.replace(/\D/g, '') || '\0', mode: 'insensitive' } },
       ];
     }
     const products = await prisma.product.findMany({
       where,
-      select: { id: true, name: true, code: true, currentStock: true, unit: true, costPrice: true, location: { select: { label: true } } },
-      take: 50,
+      select: { id: true, name: true, code: true, barcode: true, currentStock: true, minStock: true, unit: true, costPrice: true, category: true, location: { select: { label: true } } },
+      take: 5000,
       orderBy: { name: 'asc' },
     });
     res.json(products.map((p: any) => ({ ...p, locationLabel: p.location?.label })));
@@ -1924,6 +2129,7 @@ app.get('/api/warehouse/products/:id', authMiddleware, warehouseMiddleware, vali
   try {
     const p: any = await prisma.product.findUnique({
       where: { id: String(req.params.id) },
+      omit: { imageUrl: true },
       include: { location: true, supplier: true },
     });
     if (!p) return res.status(404).json({ error: 'Produto não encontrado.' });
@@ -1952,20 +2158,48 @@ app.get('/api/warehouse/products/:id/image', authMiddleware, warehouseMiddleware
   }
 });
 
+// Valida que localização/fornecedor informados existem (as tabelas raw não têm FK).
+async function assertRefsExist(locationId?: string | null, supplierId?: string | null): Promise<string | null> {
+  if (locationId) {
+    const loc = await prisma.stockLocation.findUnique({ where: { id: locationId }, select: { id: true } });
+    if (!loc) return 'Localização informada não existe.';
+  }
+  if (supplierId) {
+    const sup = await prisma.stockSupplier.findUnique({ where: { id: supplierId }, select: { id: true } });
+    if (!sup) return 'Fornecedor informado não existe.';
+  }
+  return null;
+}
+
 app.post('/api/warehouse/products', authMiddleware, warehouseMiddleware, async (req: Request, res: Response) => {
-  const { name, description, code, manufacturerCode, imageUrl, unit, category, minStock, costPrice, salePrice, locationId, supplierId } = req.body;
+  const { name, description, code, manufacturerCode, barcode, imageUrl, unit, category, minStock, costPrice, salePrice, locationId, supplierId } = req.body;
   if (!name || !code) {
     res.status(400).json({ error: 'Nome e código são obrigatórios.' });
     return;
   }
+  const cleanCode = String(code).trim();
+  if (!cleanCode) { res.status(400).json({ error: 'Código inválido.' }); return; }
+  const bc = normalizeBarcode(barcode);
+  if (barcode && !bc) { res.status(400).json({ error: 'Código de barras inválido (use apenas dígitos).' }); return; }
+  if (bc && (bc.length < 8 || bc.length > 14)) { res.status(400).json({ error: 'Código de barras deve ter entre 8 e 14 dígitos.' }); return; }
   try {
+    const dupCode = await prisma.product.findFirst({ where: { code: { equals: cleanCode, mode: 'insensitive' } }, select: { id: true } });
+    if (dupCode) { res.status(409).json({ error: 'Código já existe. Use um código único.' }); return; }
+    if (bc) {
+      const dupBc = await prisma.product.findFirst({ where: { barcode: bc }, select: { id: true } });
+      if (dupBc) { res.status(409).json({ error: 'Código de barras já cadastrado em outro produto.' }); return; }
+    }
+    const refErr = await assertRefsExist(locationId || null, supplierId || null);
+    if (refErr) { res.status(400).json({ error: refErr }); return; }
+
     const product = await prisma.product.create({
       data: {
         name: String(name).trim(),
         description: description || null,
-        code: String(code).trim(),
-        manufacturerCode: manufacturerCode || null,
-        imageUrl: (imageUrl && isSecureUrl(String(imageUrl))) ? String(imageUrl) : null,
+        code: cleanCode,
+        manufacturerCode: manufacturerCode ? String(manufacturerCode).trim().slice(0, 80) : null,
+        barcode: bc,
+        imageUrl: sanitizeProductImage(imageUrl),
         unit: unit || 'UN',
         category: category || 'Geral',
         minStock: Math.max(0, Number(minStock) || 0),
@@ -1976,27 +2210,56 @@ app.post('/api/warehouse/products', authMiddleware, warehouseMiddleware, async (
         currentStock: 0,
         active: true,
       },
+      omit: { imageUrl: true },
     });
-    await writeAudit(req, { entityType: 'Product', entityId: product.id, action: 'CREATE', after: { name: product.name, code: product.code, unit: product.unit, category: product.category } });
+    await writeAudit(req, { entityType: 'Product', entityId: product.id, action: 'CREATE', after: { name: product.name, code: product.code, barcode: product.barcode, unit: product.unit, category: product.category } });
     res.status(201).json(product);
   } catch (e: any) {
-    if (e.code === 'P2002') return res.status(400).json({ error: 'Código já existe. Use um código único.' });
+    if (e.code === 'P2002') return res.status(409).json({ error: 'Código ou código de barras já existe.' });
     res.status(500).json({ error: 'Erro ao criar produto.' });
   }
 });
 
 app.patch('/api/warehouse/products/:id', authMiddleware, warehouseMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   const id = String(req.params.id);
-  const { name, description, code, manufacturerCode, unit, category, minStock, costPrice, salePrice, locationId, supplierId, active } = req.body;
+  const { name, description, code, manufacturerCode, barcode, unit, category, minStock, costPrice, salePrice, locationId, supplierId, active } = req.body;
   try {
-    const antes = await prisma.product.findUnique({ where: { id }, select: { name: true, code: true, unit: true, category: true, minStock: true, costPrice: true, salePrice: true, active: true } });
+    const antes = await prisma.product.findUnique({ where: { id }, select: { name: true, code: true, barcode: true, unit: true, category: true, minStock: true, costPrice: true, salePrice: true, active: true } });
+    if (!antes) { res.status(404).json({ error: 'Produto não encontrado.' }); return; }
+
+    let cleanCode: string | undefined;
+    if (code != null) {
+      cleanCode = String(code).trim();
+      if (!cleanCode) { res.status(400).json({ error: 'Código inválido.' }); return; }
+      const dup = await prisma.product.findFirst({ where: { code: { equals: cleanCode, mode: 'insensitive' }, NOT: { id } }, select: { id: true } });
+      if (dup) { res.status(409).json({ error: 'Código já existe em outro produto.' }); return; }
+    }
+
+    let bc: string | null | undefined;
+    if (barcode !== undefined) {
+      bc = normalizeBarcode(barcode);
+      if (barcode && !bc) { res.status(400).json({ error: 'Código de barras inválido.' }); return; }
+      if (bc && (bc.length < 8 || bc.length > 14)) { res.status(400).json({ error: 'Código de barras deve ter entre 8 e 14 dígitos.' }); return; }
+      if (bc) {
+        const dupBc = await prisma.product.findFirst({ where: { barcode: bc, NOT: { id } }, select: { id: true } });
+        if (dupBc) { res.status(409).json({ error: 'Código de barras já cadastrado em outro produto.' }); return; }
+      }
+    }
+
+    const refErr = await assertRefsExist(
+      locationId !== undefined ? (locationId || null) : undefined,
+      supplierId !== undefined ? (supplierId || null) : undefined,
+    );
+    if (refErr) { res.status(400).json({ error: refErr }); return; }
+
     const product = await prisma.product.update({
       where: { id },
       data: {
         name: name ? String(name).trim() : undefined,
         description: description !== undefined ? description : undefined,
-        code: code ? String(code).trim() : undefined,
-        manufacturerCode: manufacturerCode !== undefined ? manufacturerCode : undefined,
+        code: cleanCode,
+        manufacturerCode: manufacturerCode !== undefined ? (manufacturerCode ? String(manufacturerCode).trim().slice(0, 80) : null) : undefined,
+        barcode: barcode !== undefined ? bc : undefined,
         unit: unit || undefined,
         category: category || undefined,
         minStock: minStock != null ? Math.max(0, Number(minStock)) : undefined,
@@ -2006,13 +2269,14 @@ app.patch('/api/warehouse/products/:id', authMiddleware, warehouseMiddleware, va
         supplierId: supplierId !== undefined ? (supplierId || null) : undefined,
         active: active != null ? Boolean(active) : undefined,
       },
+      omit: { imageUrl: true },
     });
     await writeAudit(req, {
       entityType: 'Product',
       entityId: id,
-      action: 'UPDATE',
-      before: antes ?? undefined,
-      after: { name: product.name, code: product.code, unit: product.unit, category: product.category, minStock: product.minStock, costPrice: product.costPrice, salePrice: product.salePrice, active: product.active },
+      action: active != null && Boolean(active) !== antes.active ? (active ? 'REATIVAR' : 'DESATIVAR') : 'UPDATE',
+      before: antes,
+      after: { name: product.name, code: product.code, barcode: product.barcode, unit: product.unit, category: product.category, minStock: product.minStock, costPrice: product.costPrice, salePrice: product.salePrice, active: product.active },
     });
     res.json(product);
   } catch (e) {
@@ -2022,9 +2286,12 @@ app.patch('/api/warehouse/products/:id', authMiddleware, warehouseMiddleware, va
 
 app.patch('/api/warehouse/products/:id/image', authMiddleware, warehouseMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   const { imageUrl } = req.body;
-  const safeImg = (imageUrl && isSecureUrl(String(imageUrl))) ? String(imageUrl) : null;
+  if (imageUrl && !sanitizeProductImage(imageUrl)) {
+    res.status(400).json({ error: 'Imagem inválida. Envie PNG, JPG ou WEBP de até 3MB.' });
+    return;
+  }
   try {
-    await prisma.product.update({ where: { id: String(req.params.id) }, data: { imageUrl: safeImg } });
+    await prisma.product.update({ where: { id: String(req.params.id) }, data: { imageUrl: sanitizeProductImage(imageUrl) } });
     res.json({ message: 'Imagem atualizada com sucesso.' });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao atualizar imagem.' });
@@ -2034,12 +2301,20 @@ app.patch('/api/warehouse/products/:id/image', authMiddleware, warehouseMiddlewa
 app.delete('/api/warehouse/products/:id', authMiddleware, warehouseMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   const id = String(req.params.id);
   try {
-    const before = await prisma.product.findUnique({ where: { id: String(id) }, select: { name: true, code: true, currentStock: true, category: true } });
+    const before = await prisma.product.findUnique({ where: { id: String(id) }, select: { name: true, code: true, currentStock: true, category: true, active: true } });
+    if (!before) { res.status(404).json({ error: 'Produto não encontrado.' }); return; }
     const movCount = await prisma.stockMovement.count({ where: { productId: id } });
-    await prisma.stockMovement.deleteMany({ where: { productId: id } });
+    if (movCount > 0) {
+      res.status(409).json({
+        error: 'Este produto possui histórico de movimentações e não pode ser excluído. Desative-o para removê-lo das listas mantendo o histórico.',
+        hasHistory: true,
+        movements: movCount,
+      });
+      return;
+    }
     await prisma.product.delete({ where: { id: String(id) } });
-    await writeAudit(req, { entityType: 'Product', entityId: id, action: 'DELETE', before: before ? { ...before, movimentacoesExcluidas: movCount } : undefined });
-    res.json({ message: 'Produto e histórico excluídos com sucesso.' });
+    await writeAudit(req, { entityType: 'Product', entityId: id, action: 'DELETE', before });
+    res.json({ message: 'Produto excluído.' });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao excluir produto.' });
   }
@@ -2075,14 +2350,14 @@ app.get('/api/warehouse/movements', authMiddleware, warehouseMiddleware, async (
     const [movs, total] = await prisma.$transaction([
       prisma.stockMovement.findMany({
         where,
-        orderBy: { date: 'desc' },
+        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
         skip,
         take: limitNum,
-        include: { product: true },
+        include: { product: { select: { name: true, code: true, unit: true } } },
       }),
       prisma.stockMovement.count({ where }),
     ]);
-    
+
     const result = movs.map((m: any) => {
       const { product, ...rest } = m;
       return {
@@ -2103,89 +2378,205 @@ app.get('/api/warehouse/movements', authMiddleware, warehouseMiddleware, async (
   }
 });
 
+class StockError extends Error { status: number; constructor(msg: string, status = 400) { super(msg); this.status = status; } }
+
 app.post('/api/warehouse/movements', authMiddleware, warehouseMiddleware, async (req: Request, res: Response) => {
-  const { productId, type, quantity, unitPrice, reason, document, date } = req.body;
+  const { productId, type, quantity, unitPrice, reason, document, date, allowNegative } = req.body;
   const user = (req as any).user;
   if (!productId || !type || quantity == null) {
     res.status(400).json({ error: 'Produto, tipo e quantidade são obrigatórios.' });
     return;
   }
-    const VALID_MOVEMENT_TYPES = ['ENTRY', 'EXIT', 'RETURN', 'SALE', 'ADJUSTMENT', 'LOSS'];
-  // VULN-03: Rejeitar tipos de movimentacao nao permitidos
-  if (!VALID_MOVEMENT_TYPES.includes(String(type))) {
-    res.status(400).json({ error: 'Tipo de movimentacao invalido.' });
+  if (!WAREHOUSE_MOVEMENT_TYPES.includes(String(type) as any)) {
+    res.status(400).json({ error: 'Tipo de movimentação inválido.' });
     return;
   }
-  const qtyInput = Math.abs(Number(quantity));
+  const qtyInput = round3(Math.abs(Number(quantity)));
   if (!isFinite(qtyInput) || qtyInput <= 0) {
     res.status(400).json({ error: 'Quantidade inválida.' });
     return;
   }
+  const cleanReason = reason ? String(reason).trim().slice(0, 300) : '';
+  if ((type === 'ADJUSTMENT' || type === 'LOSS') && !cleanReason) {
+    res.status(400).json({ error: 'Informe o motivo para ajustes e perdas.' });
+    return;
+  }
+  const movDate = parseDateInput(date) ?? new Date();
+  const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
+  if (movDate.getTime() > endOfToday.getTime()) {
+    res.status(400).json({ error: 'A data do lançamento não pode ser futura.' });
+    return;
+  }
+  if (movDate.getUTCFullYear() < 2000) {
+    res.status(400).json({ error: 'Data do lançamento inválida.' });
+    return;
+  }
+
   try {
-    const prod = await prisma.product.findUnique({ where: { id: productId } });
-    if (!prod) return res.status(404).json({ error: 'Produto não encontrado.' });
+    const prod = await prisma.product.findUnique({ where: { id: productId }, select: { id: true, name: true, code: true, costPrice: true, currentStock: true, active: true } });
+    if (!prod) { res.status(404).json({ error: 'Produto não encontrado.' }); return; }
 
-    const price = Math.max(0, Number(unitPrice) || prod.costPrice || 0);
-    const movDate = parseDateInput(date) ?? new Date();
+    const isOutbound = OUTBOUND_TYPES.has(String(type));
+    const isInbound = INBOUND_TYPES.has(String(type));
+    // Saída/perda usam o custo médio como valor (COGS); entrada usa o preço informado.
+    let price = Number(unitPrice);
+    if (!isFinite(price) || price < 0) price = isInbound ? 0 : (prod.costPrice || 0);
+    price = round6(price);
 
-    // Transação interativa: lê o estoque atual e grava movimento + saldo de forma
-    // consistente, evitando "lost update" quando duas movimentações ocorrem juntas.
     const result = await prisma.$transaction(async (tx) => {
       const fresh = await tx.product.findUnique({ where: { id: productId }, select: { currentStock: true } });
       const current = fresh?.currentStock ?? prod.currentStock;
 
-      let newStock: number;
-      let recordedQty = qtyInput;      // quantidade registrada no histórico
-      let autoReason: string | null = reason || null;
-      let warning: string | undefined;
-
-      if (type === 'ENTRY' || type === 'RETURN') {
-        newStock = current + qtyInput;
-      } else if (type === 'EXIT' || type === 'SALE' || type === 'LOSS') {
-        newStock = current - qtyInput;
-        if (newStock < 0) {
-          warning = `Estoque insuficiente (${current}). Saldo ajustado para 0 — confira a contagem física.`;
-          recordedQty = current;       // só saiu o que havia
-          newStock = 0;
-        }
-      } else { // ADJUSTMENT: a quantidade informada é a CONTAGEM FÍSICA (novo saldo absoluto)
-        const delta = qtyInput - current;
-        recordedQty = Math.abs(delta);
-        newStock = qtyInput;
-        autoReason = `${reason ? reason + ' — ' : ''}Ajuste de inventário: ${current} → ${qtyInput} (${delta >= 0 ? '+' : ''}${Math.round(delta * 1000) / 1000})`;
+      if (isOutbound && !allowNegative && qtyInput > current + 1e-9) {
+        throw new StockError(`Estoque insuficiente: há ${round3(current)} disponível e a saída é de ${qtyInput}.`, 409);
       }
 
-      const total = Math.round(recordedQty * price * 100) / 100;
+      let storedQty = qtyInput;
+      let autoReason: string | null = cleanReason || null;
+      let totalPrice = round2(qtyInput * price);
+
+      if (type === 'ADJUSTMENT') {
+        // A quantidade gravada é o SALDO ABSOLUTO contado (o replay do razão usa isso).
+        storedQty = qtyInput;
+        const delta = round3(qtyInput - current);
+        autoReason = `${cleanReason ? cleanReason + ' — ' : ''}Contagem: ${round3(current)} → ${qtyInput} (${delta >= 0 ? '+' : ''}${delta})`;
+        totalPrice = 0;
+        price = 0;
+      }
 
       const movement = await tx.stockMovement.create({
         data: {
           productId,
-          type,
-          quantity: recordedQty,
+          type: String(type),
+          quantity: storedQty,
           unitPrice: price,
-          totalPrice: total,
+          totalPrice,
           reason: autoReason,
-          document: document || null,
+          document: document ? String(document).trim().slice(0, 120) : null,
           date: movDate,
           createdBy: user?.name || null,
         },
       });
-      const updated = await tx.product.update({
-        where: { id: productId },
-        data: { currentStock: newStock },
-      });
-      return { movement, newStock: updated.currentStock, warning };
+
+      const recomputed = await recomputeProduct(tx, productId);
+      if (!allowNegative && recomputed.currentStock < -1e-9) {
+        throw new StockError('A operação deixaria o estoque negativo. Verifique lançamentos retroativos.', 409);
+      }
+      const savedMov = await tx.stockMovement.findUnique({ where: { id: movement.id } });
+      return { movement: savedMov, newStock: recomputed.currentStock, newCost: recomputed.costPrice };
     });
 
     await writeAudit(req, {
       entityType: 'StockMovement',
-      entityId: result.movement.id,
+      entityId: result.movement!.id,
       action: `ESTOQUE_${type}`,
-      after: { produto: prod.name, codigo: prod.code, quantidade: result.movement.quantity, tipo: type, saldoFinal: result.newStock, documento: document || null },
+      after: { produto: prod.name, codigo: prod.code, quantidade: qtyInput, tipo: type, saldoFinal: result.newStock, custoMedio: result.newCost, documento: document || null },
     });
-    res.json({ ...result.movement, newStock: result.newStock, warning: result.warning });
-  } catch (e) {
+    res.status(201).json({ ...result.movement, newStock: result.newStock, newCost: result.newCost });
+  } catch (e: any) {
+    if (e instanceof StockError) { res.status(e.status).json({ error: e.message }); return; }
     res.status(500).json({ error: 'Erro ao registrar movimentação.' });
+  }
+});
+
+// Estorno (soft) de um lançamento: anula sem apagar e recompõe o razão.
+app.post('/api/warehouse/movements/:id/reverse', authMiddleware, warehouseMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  const user = (req as any).user;
+  const reason = req.body?.reason ? String(req.body.reason).trim().slice(0, 300) : '';
+  if (!reason) { res.status(400).json({ error: 'Informe o motivo do estorno.' }); return; }
+  try {
+    const mov = await prisma.stockMovement.findUnique({ where: { id }, include: { product: { select: { name: true, code: true } } } });
+    if (!mov) { res.status(404).json({ error: 'Lançamento não encontrado.' }); return; }
+    if (mov.reversedAt) { res.status(409).json({ error: 'Este lançamento já foi estornado.' }); return; }
+
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.stockMovement.update({
+        where: { id },
+        data: { reversedAt: new Date(), reversedBy: user?.name || null, reversalReason: reason },
+      });
+      return recomputeProduct(tx, mov.productId);
+    });
+
+    await writeAudit(req, {
+      entityType: 'StockMovement',
+      entityId: id,
+      action: 'ESTORNO',
+      before: { tipo: mov.type, quantidade: mov.quantity, produto: mov.product?.name },
+      after: { motivo: reason, saldoFinal: result.currentStock, custoMedio: result.costPrice },
+    });
+    res.json({ message: 'Lançamento estornado.', newStock: result.currentStock, newCost: result.costPrice });
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao estornar lançamento.' });
+  }
+});
+
+// Inventário em lote: recebe as contagens físicas e gera os ajustes numa transação.
+app.post('/api/warehouse/inventory', authMiddleware, warehouseMiddleware, async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const { note, items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    res.status(400).json({ error: 'Envie ao menos um item contado.' });
+    return;
+  }
+  if (items.length > 5000) { res.status(400).json({ error: 'Limite de 5000 itens por sessão de inventário.' }); return; }
+
+  const cleanNote = note ? String(note).trim().slice(0, 120) : '';
+  const stamp = new Date().toISOString().slice(0, 10);
+  const batchRef = `INV-${stamp}-${Math.random().toString(36).slice(2, 8)}`;
+
+  try {
+    const parsed: Array<{ productId: string; counted: number }> = [];
+    for (const it of items) {
+      const pid = String(it?.productId || '');
+      const counted = round3(Number(it?.counted));
+      if (!pid || !isFinite(counted) || counted < 0) {
+        res.status(400).json({ error: 'Item de inventário inválido (produto ou quantidade).' });
+        return;
+      }
+      parsed.push({ productId: pid, counted });
+    }
+
+    const ids = parsed.map(p => p.productId);
+    const prods = await prisma.product.findMany({ where: { id: { in: ids } }, select: { id: true, currentStock: true } });
+    const stockById = new Map(prods.map(p => [p.id, p.currentStock]));
+
+    const adjustments = await prisma.$transaction(async (tx) => {
+      let n = 0;
+      for (const { productId, counted } of parsed) {
+        if (!stockById.has(productId)) continue;
+        const current = stockById.get(productId)!;
+        if (round3(counted) === round3(current)) continue;
+        const delta = round3(counted - current);
+        await tx.stockMovement.create({
+          data: {
+            productId,
+            type: 'ADJUSTMENT',
+            quantity: counted,
+            unitPrice: 0,
+            totalPrice: 0,
+            reason: `Inventário ${cleanNote || batchRef}: ${round3(current)} → ${counted} (${delta >= 0 ? '+' : ''}${delta})`,
+            document: batchRef,
+            batchRef,
+            date: new Date(),
+            createdBy: user?.name || null,
+          },
+        });
+        await recomputeProduct(tx, productId);
+        n++;
+      }
+      return n;
+    });
+
+    await writeAudit(req, {
+      entityType: 'InventoryCount',
+      entityId: batchRef,
+      action: 'INVENTARIO',
+      after: { batchRef, nota: cleanNote || null, itensContados: parsed.length, ajustesGerados: adjustments },
+    });
+    res.status(201).json({ message: 'Inventário processado.', batchRef, counted: parsed.length, adjustments });
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao processar inventário.' });
   }
 });
 
@@ -2194,47 +2585,73 @@ app.get('/api/warehouse/summary', authMiddleware, warehouseMiddleware, async (_r
   try {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    
-    const activeProducts = await prisma.product.findMany({ where: { active: true }, take: 500, select: { currentStock: true, costPrice: true, minStock: true } });
-    const totalProducts = activeProducts.length;
-    let totalValue = 0;
-    let totalItems = 0;
-    let lowStockCount = 0;
-    
-    activeProducts.forEach(p => {
-      totalValue += p.currentStock * p.costPrice;
-      totalItems += p.currentStock;
-      if (p.minStock > 0 && p.currentStock <= p.minStock) lowStockCount++;
-    });
-    
+    const last30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    // Totais agregados no banco (sem cap) — precisão cent-exata na valorização.
+    const totalsRaw = await prisma.$queryRaw<Array<{ produtos: bigint; itens: number | null; valor: number | null; baixo: bigint }>>`
+      SELECT
+        COUNT(*)::bigint AS produtos,
+        COALESCE(SUM("currentStock"), 0) AS itens,
+        COALESCE(SUM("currentStock" * "costPrice"), 0) AS valor,
+        COALESCE(SUM(CASE WHEN "minStock" > 0 AND "currentStock" <= "minStock" THEN 1 ELSE 0 END), 0)::bigint AS baixo
+      FROM "Product" WHERE active = true`;
+    const t = totalsRaw[0] || ({} as any);
+    const totalProducts = Number(t.produtos || 0);
+    const totalItems = Number(t.itens || 0);
+    const totalValue = Math.round(Number(t.valor || 0) * 100) / 100;
+    const lowStockCount = Number(t.baixo || 0);
+
     const lowStockItems = await prisma.product.findMany({
       where: { active: true, minStock: { gt: 0 } },
       include: { location: true },
-      take: 200,
+      take: 500,
     });
-    
+
     const filteredLowStock = lowStockItems
       .filter((p: any) => p.currentStock <= p.minStock)
       .sort((a: any, b: any) => (a.currentStock / a.minStock) - (b.currentStock / b.minStock))
-      .slice(0, 10)
+      .slice(0, 12)
       .map((p: any) => {
-        const { location, ...rest } = p;
-        return { ...rest, locationLabel: location?.label };
+        const { location, imageUrl, ...rest } = p;
+        return { ...rest, locationLabel: location?.label, suggestedReorder: Math.max(0, round3(p.minStock * 2 - p.currentStock)) };
       });
 
     const movements = await prisma.stockMovement.groupBy({
       by: ['type'],
-      where: { date: { gte: startOfMonth } },
+      where: { date: { gte: startOfMonth }, reversedAt: null },
       _count: { _all: true },
       _sum: { totalPrice: true },
     });
-    
     const movementsByType = movements.map(m => ({
       type: m.type,
       count: m._count._all,
       total: m._sum.totalPrice || 0,
     }));
-    
+
+    const valueByCategoryRaw = await prisma.$queryRaw<Array<{ category: string; valor: number | null; itens: number | null }>>`
+      SELECT category, COALESCE(SUM("currentStock" * "costPrice"), 0) AS valor, COALESCE(SUM("currentStock"), 0) AS itens
+      FROM "Product" WHERE active = true GROUP BY category ORDER BY valor DESC LIMIT 12`;
+    const valueByCategory = valueByCategoryRaw.map(r => ({ category: r.category, value: Math.round(Number(r.valor || 0) * 100) / 100, items: Number(r.itens || 0) }));
+
+    const topMovedRaw = await prisma.stockMovement.groupBy({
+      by: ['productId'],
+      where: { date: { gte: last30 }, reversedAt: null, type: { in: ['EXIT', 'SALE'] } },
+      _sum: { quantity: true },
+      _count: { _all: true },
+    });
+    const topSorted = topMovedRaw
+      .sort((a, b) => (b._sum.quantity || 0) - (a._sum.quantity || 0))
+      .slice(0, 8);
+    const topProducts = topSorted.length
+      ? await prisma.product.findMany({ where: { id: { in: topSorted.map(x => x.productId) } }, select: { id: true, name: true, code: true, unit: true } })
+      : [];
+    const topById = new Map(topProducts.map(p => [p.id, p]));
+    const topMovimentados = topSorted.map(x => ({
+      ...(topById.get(x.productId) || { id: x.productId, name: '—', code: '', unit: '' }),
+      qty: round3(x._sum.quantity || 0),
+      movements: x._count._all,
+    }));
+
     res.json({
       totalProducts,
       totalValue,
@@ -2242,6 +2659,8 @@ app.get('/api/warehouse/summary', authMiddleware, warehouseMiddleware, async (_r
       lowStockCount,
       lowStockItems: filteredLowStock,
       movementsByType,
+      valueByCategory,
+      topMovimentados,
     });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao buscar resumo do estoque.' });
@@ -2255,9 +2674,10 @@ app.get('/api/warehouse/low-stock', authMiddleware, warehouseMiddleware, async (
         active: true,
         minStock: { gt: 0 },
       },
+      omit: { imageUrl: true },
       include: { location: true, supplier: true },
     });
-    
+
     const result = items
       .filter((p: any) => p.currentStock <= p.minStock)
       .sort((a: any, b: any) => (a.currentStock / a.minStock) - (b.currentStock / b.minStock))
@@ -2267,6 +2687,7 @@ app.get('/api/warehouse/low-stock', authMiddleware, warehouseMiddleware, async (
           ...rest,
           locationLabel: location?.label,
           supplierName: supplier?.name,
+          suggestedReorder: Math.max(0, round3(p.minStock * 2 - p.currentStock)),
         };
       });
       

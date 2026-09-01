@@ -1,39 +1,66 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Package, Warehouse, AlertTriangle,
   Plus, Search, Edit2, Trash2, X, Check, Upload, MapPin,
   Truck, BarChart2, ArrowUpCircle, ArrowDownCircle, ShoppingCart,
   RotateCcw, Settings, Eye, FileText,
-  DollarSign, Hash, Tag, Box, Layers, TrendingDown
+  DollarSign, Hash, Tag, Box, Layers, TrendingDown,
+  Barcode, ScanLine, Power, RefreshCw, Download, ClipboardList, Undo2, PackageX
 } from 'lucide-react';
-import API_URL from '../config.js';
-const API = API_URL;
+import { authFetch } from '../config.js';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
+const INT_UNITS = new Set(['UN', 'CX', 'PC', 'RL', 'PR']);
 const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 const fmtNum = (v, dec = 2) => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v || 0);
+// Quantidade sensível à unidade: inteiras sem casas, fracionadas com até 3.
+const fmtQty = (v, unit) => {
+  const n = Number(v) || 0;
+  if (INT_UNITS.has(unit) && Number.isInteger(n)) return new Intl.NumberFormat('pt-BR').format(n);
+  return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 }).format(n);
+};
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString('pt-BR') : '—';
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const MOVEMENT_TYPES = {
   ENTRY:      { label: 'Entrada',    icon: ArrowUpCircle,   color: '#10b981', bg: '#d1fae5' },
   EXIT:       { label: 'Saída',      icon: ArrowDownCircle, color: '#ef4444', bg: '#fee2e2' },
   SALE:       { label: 'Venda',      icon: ShoppingCart,    color: '#3b82f6', bg: '#dbeafe' },
-  ADJUSTMENT: { label: 'Ajuste',     icon: Settings,        color: '#f59e0b', bg: '#fef3c7' },
   RETURN:     { label: 'Devolução',  icon: RotateCcw,       color: '#8b5cf6', bg: '#ede9fe' },
+  ADJUSTMENT: { label: 'Ajuste',     icon: Settings,        color: '#f59e0b', bg: '#fef3c7' },
+  LOSS:       { label: 'Perda',      icon: PackageX,        color: '#b91c1c', bg: '#fee2e2' },
 };
 
 const UNITS = ['UN', 'KG', 'CX', 'MT', 'LT', 'M²', 'PC', 'RL', 'PR', 'TON'];
 
-const token = () => localStorage.getItem('token');
-const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` });
-
-// ─── API calls ────────────────────────────────────────────────────────────────
+// ─── API calls (usa authFetch → intercepta 401 e limpa sessão expirada) ────────
+const parseJson = (r) => r.json().catch(() => ({ error: 'Resposta inválida do servidor.' }));
 const api = {
-  get: (path) => fetch(`${API}${path}`, { headers: authHeaders() }).then(r => r.json()),
-  post: (path, body) => fetch(`${API}${path}`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(r => r.json()),
-  patch: (path, body) => fetch(`${API}${path}`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(body) }).then(r => r.json()),
-  del: (path) => fetch(`${API}${path}`, { method: 'DELETE', headers: authHeaders() }).then(r => r.json()),
+  get: (path) => authFetch(path).then(parseJson),
+  post: (path, body) => authFetch(path, { method: 'POST', body: JSON.stringify(body) }).then(parseJson),
+  patch: (path, body) => authFetch(path, { method: 'PATCH', body: JSON.stringify(body) }).then(parseJson),
+  del: (path) => authFetch(path, { method: 'DELETE' }).then(parseJson),
 };
+
+// ─── Exportação CSV (client-side, sem dependências) ───────────────────────────
+function downloadCSV(filename, headers, rows) {
+  const esc = (v) => {
+    const s = v == null ? '' : String(v);
+    return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const body = [headers, ...rows].map(r => r.map(esc).join(';')).join('\r\n');
+  const blob = new Blob(['﻿' + body], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 // ─── Subcomponents ────────────────────────────────────────────────────────────
 
@@ -86,19 +113,22 @@ function StockBar({ current, min }) {
 function ProductModal({ product, locations, suppliers, categories, onSave, onClose }) {
   const [form, setForm] = useState(product ? {
     name: product.name, description: product.description || '', code: product.code,
-    manufacturerCode: product.manufacturerCode || '', unit: product.unit || 'UN',
+    manufacturerCode: product.manufacturerCode || '', barcode: product.barcode || '',
+    unit: product.unit || 'UN',
     category: product.category || 'Geral', minStock: product.minStock || 0,
     costPrice: product.costPrice || 0, salePrice: product.salePrice || 0,
     locationId: product.locationId || '', supplierId: product.supplierId || '',
   } : {
-    name: '', description: '', code: '', manufacturerCode: '', unit: 'UN',
+    name: '', description: '', code: '', manufacturerCode: '', barcode: '', unit: 'UN',
     category: 'Geral', minStock: 0, costPrice: 0, salePrice: 0, locationId: '', supplierId: '',
   });
   const [imagePreview, setImagePreview] = useState(null);
   const [imageB64, setImageB64] = useState(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [codeHint, setCodeHint] = useState('');
   const fileRef = useRef();
+  const barcodeRef = useRef();
 
   // Load existing image
   useEffect(() => {
@@ -108,25 +138,45 @@ function ProductModal({ product, locations, suppliers, categories, onSave, onClo
     }
   }, [product]);
 
+  // Sugestão automática de código para produto novo
+  const suggestCode = () => {
+    api.get('/api/warehouse/products/next-code').then(d => {
+      if (d && d.suggestion) {
+        setForm(p => ({ ...p, code: p.code ? p.code : d.suggestion }));
+        setCodeHint(d.lastCode ? `Sugerido a partir do último código (${d.lastCode})` : 'Primeiro produto do sistema');
+      }
+    });
+  };
+  useEffect(() => { if (!product) suggestCode(); /* eslint-disable-next-line */ }, []);
+
   const handleImage = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) { setErr('Imagem muito grande. Máximo 2MB.'); return; }
+    if (!/^image\/(png|jpe?g|webp|gif)$/i.test(file.type)) { setErr('Formato não suportado. Use PNG, JPG ou WEBP.'); return; }
     const reader = new FileReader();
-    reader.onload = (ev) => { setImagePreview(ev.target.result); setImageB64(ev.target.result); };
+    reader.onload = (ev) => { setImagePreview(ev.target.result); setImageB64(ev.target.result); setErr(''); };
     reader.readAsDataURL(file);
   };
 
   const handleSave = async () => {
     if (!form.name || !form.code) { setErr('Nome e código são obrigatórios.'); return; }
+    const bc = String(form.barcode || '').replace(/\D/g, '');
+    if (bc && (bc.length < 8 || bc.length > 14)) { setErr('Código de barras deve ter entre 8 e 14 dígitos.'); return; }
+    if (Number(form.salePrice) > 0 && Number(form.costPrice) > 0 && Number(form.salePrice) < Number(form.costPrice)
+        && !window.confirm('O preço de venda está abaixo do custo. Deseja continuar?')) return;
     setSaving(true); setErr('');
     try {
       let saved;
+      const payload = { ...form, barcode: bc };
       if (product) {
-        saved = await api.patch(`/api/warehouse/products/${product.id}`, form);
-        if (imageB64) await api.patch(`/api/warehouse/products/${product.id}/image`, { imageUrl: imageB64 });
+        saved = await api.patch(`/api/warehouse/products/${product.id}`, payload);
+        if (!saved.error && imageB64) {
+          await api.patch(`/api/warehouse/products/${product.id}/image`, { imageUrl: imageB64 });
+          imageCache.delete(product.id);
+        }
       } else {
-        saved = await api.post('/api/warehouse/products', { ...form, imageUrl: imageB64 });
+        saved = await api.post('/api/warehouse/products', { ...payload, imageUrl: imageB64 });
       }
       if (saved.error) { setErr(saved.error); setSaving(false); return; }
       onSave();
@@ -164,17 +214,38 @@ function ProductModal({ product, locations, suppliers, categories, onSave, onClo
             <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImage} />
           </div>
 
-          {/* Campos */}
-          {[
-            { label: 'Nome do Produto *', key: 'name', col: '1/-1' },
-            { label: 'Código Interno *', key: 'code', placeholder: 'Ex: MAG-001' },
-            { label: 'Código do Fabricante', key: 'manufacturerCode', placeholder: 'Ex: FAB-XYZ-123' },
-          ].map(({ label, key, col, placeholder }) => (
-            <div key={key} style={{ gridColumn: col || 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>{label}</label>
-              <input value={form[key]} onChange={e => f(key, e.target.value)} placeholder={placeholder || ''} style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem', outline: 'none' }} />
+          {/* Nome */}
+          <div style={{ gridColumn: '1/-1', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Nome do Produto *</label>
+            <input value={form.name} onChange={e => f('name', e.target.value)} style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem', outline: 'none' }} />
+          </div>
+
+          {/* Código interno + sugestão automática */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Código Interno *</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input value={form.code} onChange={e => { f('code', e.target.value); setCodeHint(''); }} placeholder="Ex: MAG-001" style={{ flex: 1, minWidth: 0, padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem', outline: 'none' }} />
+              {!product && (
+                <button type="button" onClick={suggestCode} title="Sugerir próximo código" style={{ padding: '0 10px', background: '#eef1f8', border: '1px solid #e2e8f0', borderRadius: 8, color: '#243b9d', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><RefreshCw size={14} /></button>
+              )}
             </div>
-          ))}
+            {codeHint && <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{codeHint}</span>}
+          </div>
+
+          {/* Código do fabricante */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Código do Fabricante</label>
+            <input value={form.manufacturerCode} onChange={e => f('manufacturerCode', e.target.value)} placeholder="Ex: FAB-XYZ-123" style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem', outline: 'none' }} />
+          </div>
+
+          {/* Código de barras */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569', display: 'flex', alignItems: 'center', gap: 4 }}><Barcode size={13} /> Código de Barras (EAN/GTIN)</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input ref={barcodeRef} value={form.barcode} onChange={e => f('barcode', e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="Escaneie ou digite" style={{ flex: 1, minWidth: 0, padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem', outline: 'none' }} />
+              <button type="button" onClick={() => barcodeRef.current?.focus()} title="Focar para escanear" style={{ padding: '0 10px', background: '#eef1f8', border: '1px solid #e2e8f0', borderRadius: 8, color: '#243b9d', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><ScanLine size={14} /></button>
+            </div>
+          </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Categoria</label>
@@ -197,8 +268,9 @@ function ProductModal({ product, locations, suppliers, categories, onSave, onClo
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Preço de Custo (R$)</label>
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>{product ? 'Custo Médio (R$)' : 'Preço de Custo inicial (R$)'}</label>
             <input type="number" value={form.costPrice} onChange={e => f('costPrice', e.target.value)} min="0" step="0.01" style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem' }} />
+            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Recalculado automaticamente a cada entrada (média ponderada).</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -242,31 +314,60 @@ function ProductModal({ product, locations, suppliers, categories, onSave, onClo
 }
 
 // ─── MODAL: Movimentação ──────────────────────────────────────────────────────
-function MovementModal({ products, onSave, onClose, defaultType }) {
-  const [form, setForm] = useState({ productId: '', type: defaultType || 'ENTRY', quantity: 1, unitPrice: 0, reason: '', document: '', date: new Date().toISOString().slice(0, 10) });
+function MovementModal({ products, onSave, onClose, defaultType, presetProductId }) {
+  const [form, setForm] = useState({ productId: presetProductId || '', type: defaultType || 'ENTRY', quantity: 1, unitPrice: 0, reason: '', document: '', date: todayISO() });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [prodQuery, setProdQuery] = useState('');
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const selectedProduct = products.find(p => p.id === form.productId);
 
   useEffect(() => {
     if (selectedProduct) f('unitPrice', selectedProduct.costPrice || 0);
+    // eslint-disable-next-line
   }, [form.productId]);
 
   const isAdjustment = form.type === 'ADJUSTMENT';
-  const adjustDelta = isAdjustment && selectedProduct
-    ? Number(form.quantity) - Number(selectedProduct.currentStock || 0)
-    : null;
+  const isOutbound = ['EXIT', 'SALE', 'LOSS'].includes(form.type);
+  const needsReason = isAdjustment || form.type === 'LOSS';
+  const cur = Number(selectedProduct?.currentStock || 0);
+  const adjustDelta = isAdjustment && selectedProduct ? Math.round((Number(form.quantity) - cur) * 1000) / 1000 : null;
+  const insufficient = isOutbound && selectedProduct && Number(form.quantity) > cur;
+
+  const filteredProducts = useMemo(() => {
+    const q = prodQuery.trim().toLowerCase();
+    const list = products.filter(Boolean);
+    if (!q) return list.slice(0, 100);
+    return list.filter(p =>
+      p.name?.toLowerCase().includes(q) ||
+      p.code?.toLowerCase().includes(q) ||
+      (p.barcode || '').includes(q.replace(/\D/g, ''))
+    ).slice(0, 100);
+  }, [products, prodQuery]);
+
+  // Leitura de código de barras: 1 resultado exato → seleciona automaticamente.
+  useEffect(() => {
+    const q = prodQuery.trim();
+    if (q.length >= 6 && filteredProducts.length === 1 && form.productId !== filteredProducts[0].id) {
+      f('productId', filteredProducts[0].id);
+    }
+    // eslint-disable-next-line
+  }, [prodQuery, filteredProducts]);
 
   const handleSave = async () => {
     if (!form.productId) { setErr('Selecione um produto.'); return; }
     if (form.quantity === '' || !isFinite(Number(form.quantity)) || Number(form.quantity) < 0) { setErr('Informe uma quantidade válida.'); return; }
     if (!isAdjustment && Number(form.quantity) <= 0) { setErr('Quantidade deve ser maior que zero.'); return; }
+    if (needsReason && !form.reason.trim()) { setErr('Informe o motivo para ajustes e perdas.'); return; }
+    if (form.date > todayISO()) { setErr('A data não pode ser futura.'); return; }
+    if (insufficient && !window.confirm(`Estoque insuficiente: há ${fmtQty(cur, selectedProduct.unit)} e a saída é de ${fmtQty(form.quantity, selectedProduct.unit)}. Registrar mesmo assim com saldo negativo?`)) return;
     setSaving(true); setErr('');
-    const res = await api.post('/api/warehouse/movements', { ...form, quantity: Number(form.quantity), unitPrice: Number(form.unitPrice) });
+    const res = await api.post('/api/warehouse/movements', {
+      ...form, quantity: Number(form.quantity), unitPrice: Number(form.unitPrice),
+      allowNegative: !!insufficient,
+    });
     if (res.error) { setErr(res.error); setSaving(false); return; }
-    if (res.warning) alert('⚠️ ' + res.warning);
     onSave(res);
   };
 
@@ -297,19 +398,24 @@ function MovementModal({ products, onSave, onClose, defaultType }) {
             </div>
           </div>
 
-          {/* Produto */}
+          {/* Produto (busca por nome, código ou código de barras) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Produto *</label>
-            <select value={form.productId} onChange={e => f('productId', e.target.value)} style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem' }}>
-              <option value="">— Selecione o produto —</option>
-              {products.filter(Boolean).map(p => <option key={p.id} value={p.id}>{p.code} — {p.name} (Estoque: {fmtNum(p.currentStock, 2)} {p.unit})</option>)}
+            <div style={{ position: 'relative' }}>
+              <Search size={14} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+              <input autoFocus value={prodQuery} onChange={e => setProdQuery(e.target.value)} placeholder="Buscar por nome, código ou código de barras..." style={{ width: '100%', padding: '0.5rem 0.75rem 0.5rem 1.9rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.85rem' }} />
+            </div>
+            <select value={form.productId} onChange={e => f('productId', e.target.value)} style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.85rem' }}>
+              <option value="">— Selecione o produto {prodQuery && `(${filteredProducts.length} encontrado(s))`} —</option>
+              {filteredProducts.map(p => <option key={p.id} value={p.id}>{p.code} — {p.name} ({fmtQty(p.currentStock, p.unit)} {p.unit})</option>)}
             </select>
           </div>
 
           {selectedProduct && (
             <div style={{ background: '#f8fafc', borderRadius: 8, padding: '0.75rem', border: '1px solid #e2e8f0', fontSize: '0.8rem', color: '#475569' }}>
-              <strong>Estoque atual:</strong> {fmtNum(selectedProduct.currentStock, 2)} {selectedProduct.unit} |
-              <strong> Mínimo:</strong> {fmtNum(selectedProduct.minStock, 2)} {selectedProduct.unit} |
+              <strong>Estoque atual:</strong> {fmtQty(selectedProduct.currentStock, selectedProduct.unit)} {selectedProduct.unit} |
+              <strong> Mínimo:</strong> {fmtQty(selectedProduct.minStock, selectedProduct.unit)} {selectedProduct.unit} |
+              <strong> Custo médio:</strong> {fmt(selectedProduct.costPrice)} |
               <strong> Local:</strong> {selectedProduct.locationLabel || '—'}
             </div>
           )}
@@ -319,20 +425,23 @@ function MovementModal({ products, onSave, onClose, defaultType }) {
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>
                 {isAdjustment ? 'Contagem física (novo saldo) *' : 'Quantidade *'}
               </label>
-              <input type="number" value={form.quantity} onChange={e => f('quantity', e.target.value)} min={isAdjustment ? '0' : '0.001'} step="0.001" style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem' }} />
+              <input type="number" value={form.quantity} onChange={e => f('quantity', e.target.value)} min={isAdjustment ? '0' : '0.001'} step="0.001" style={{ padding: '0.5rem 0.75rem', border: `1px solid ${insufficient ? '#f59e0b' : '#e2e8f0'}`, borderRadius: 8, fontSize: '0.875rem' }} />
               {isAdjustment && adjustDelta != null && (
                 <span style={{ fontSize: '0.72rem', color: adjustDelta === 0 ? '#64748b' : adjustDelta > 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>
                   {adjustDelta === 0 ? 'Sem alteração de saldo' : `Ajuste de ${adjustDelta > 0 ? '+' : ''}${adjustDelta} ${selectedProduct?.unit || ''}`}
                 </span>
               )}
+              {insufficient && <span style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: 600 }}>⚠ Maior que o saldo disponível ({fmtQty(cur, selectedProduct.unit)})</span>}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Preço Unitário (R$)</label>
-              <input type="number" value={form.unitPrice} onChange={e => f('unitPrice', e.target.value)} min="0" step="0.01" style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem' }} />
-            </div>
+            {!isAdjustment && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Preço Unitário (R$)</label>
+                <input type="number" value={form.unitPrice} onChange={e => f('unitPrice', e.target.value)} min="0" step="0.01" style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem' }} />
+              </div>
+            )}
           </div>
 
-          {Number(form.quantity) > 0 && Number(form.unitPrice) > 0 && (
+          {!isAdjustment && Number(form.quantity) > 0 && Number(form.unitPrice) > 0 && (
             <div style={{ background: '#eef1f8', borderRadius: 8, padding: '0.5rem 0.75rem', fontSize: '0.85rem', fontWeight: 700, color: '#243b9d', textAlign: 'right' }}>
               Total: {fmt(Number(form.quantity) * Number(form.unitPrice))}
             </div>
@@ -341,7 +450,7 @@ function MovementModal({ products, onSave, onClose, defaultType }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: '0.75rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Data</label>
-              <input type="date" value={form.date} onChange={e => f('date', e.target.value)} style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem' }} />
+              <input type="date" max={todayISO()} value={form.date} onChange={e => f('date', e.target.value)} style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem' }} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Documento (NF, Pedido…)</label>
@@ -350,7 +459,7 @@ function MovementModal({ products, onSave, onClose, defaultType }) {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Motivo / Discriminação</label>
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Motivo / Discriminação {needsReason && '*'}</label>
             <input value={form.reason} onChange={e => f('reason', e.target.value)} placeholder="Ex: Compra de reposição, Venda ao cliente X..." style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem' }} />
           </div>
 
@@ -369,16 +478,18 @@ function MovementModal({ products, onSave, onClose, defaultType }) {
 }
 
 // ─── MODAL: Produto Detalhe ───────────────────────────────────────────────────
-function ProductDetailModal({ product, movements, onClose }) {
+function ProductDetailModal({ product, onClose }) {
   const [imageUrl, setImageUrl] = useState(null);
+  const [prdMovements, setPrdMovements] = useState([]);
 
   useEffect(() => {
     if (product?.hasImage) {
       api.get(`/api/warehouse/products/${product.id}/image`).then(d => { if (d.imageUrl) setImageUrl(d.imageUrl); });
     }
+    api.get(`/api/warehouse/movements?productId=${product.id}&limit=20`).then(d => {
+      setPrdMovements(Array.isArray(d?.data) ? d.data : []);
+    });
   }, [product]);
-
-  const prdMovements = movements.filter(m => m.productId === product.id).slice(0, 20);
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(4px)' }}>
@@ -531,6 +642,7 @@ const TABS = [
   { id: 'products',  label: 'Produtos',     icon: Package },
   { id: 'movements', label: 'Lançamentos',  icon: Layers },
   { id: 'sales',     label: 'Baixas/Vendas',icon: ShoppingCart },
+  { id: 'inventory', label: 'Inventário',   icon: ClipboardList },
   { id: 'settings',  label: 'Configurações',icon: Settings },
 ];
 
@@ -561,6 +673,7 @@ export default function WarehouseModule() {
   // Filters
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('');
+  const [prodStatus, setProdStatus] = useState('active');
   const [movFilter, setMovFilter] = useState({ type: '', productId: '', from: '', to: '' });
 
   // Settings sub-tabs
@@ -568,6 +681,12 @@ export default function WarehouseModule() {
   const [newLoc, setNewLoc] = useState({ aisle: '', shelf: '', position: '' });
   const [newSup, setNewSup] = useState({ name: '', document: '', contact: '', email: '', phone: '' });
   const [newCat, setNewCat] = useState({ name: '', color: '#64748b' });
+
+  // Inventário em lote
+  const [invCounts, setInvCounts] = useState({}); // { productId: countedStr }
+  const [invNote, setInvNote] = useState('');
+  const [invSaving, setInvSaving] = useState(false);
+  const [invSearch, setInvSearch] = useState('');
 
   // Confirm modal
   const [confirmModal, setConfirmModal] = useState(null); // { title, message, onConfirm }
@@ -581,14 +700,16 @@ export default function WarehouseModule() {
         api.get('/api/warehouse/locations'),
         api.get('/api/warehouse/suppliers'),
         api.get('/api/warehouse/summary'),
-        api.get('/api/warehouse/products-search')
+        api.get('/api/warehouse/report/stock'),
+        api.get('/api/warehouse/categories'),
       ]);
       const val = (r) => (r.status === 'fulfilled' ? r.value : null);
-      const [locs, sups, sum, simProds] = results.map(val);
+      const [locs, sups, sum, simProds, cats] = results.map(val);
       setLocations(Array.isArray(locs) ? locs : []);
       setSuppliers(Array.isArray(sups) ? sups : []);
       setSummary(sum && !sum.error ? sum : null);
       setSimpleProducts(Array.isArray(simProds) ? simProds : []);
+      setCategories(Array.isArray(cats) ? cats : []);
     } catch (e) {
       console.error('Erro ao carregar dados base:', e);
     } finally {
@@ -598,16 +719,19 @@ export default function WarehouseModule() {
 
   useEffect(() => { loadBaseData(true); }, []);
 
+  const reloadProducts = () => {
+    const q = new URLSearchParams({ page: productPage, limit: 50, status: prodStatus });
+    if (search) q.append('search', search);
+    if (filterCat) q.append('category', filterCat);
+    api.get(`/api/warehouse/products?${q.toString()}`).then(res => {
+      if (!res.error) setProductsData(res);
+    });
+  };
+
   useEffect(() => {
-    if (tab === 'products') {
-      const q = new URLSearchParams({ page: productPage, limit: 50 });
-      if (search) q.append('search', search);
-      if (filterCat) q.append('category', filterCat);
-      api.get(`/api/warehouse/products?${q.toString()}`).then(res => {
-        if (!res.error) setProductsData(res);
-      });
-    }
-  }, [tab, productPage, search, filterCat]);
+    if (tab === 'products') reloadProducts();
+    // eslint-disable-next-line
+  }, [tab, productPage, search, filterCat, prodStatus]);
 
   useEffect(() => {
     if (tab === 'movements') {
@@ -634,56 +758,83 @@ export default function WarehouseModule() {
     }
   }, [tab, salesPage, movFilter]);
 
+  const refreshMovements = () => {
+    const q1 = new URLSearchParams({ page: movPage, limit: 50 });
+    if (movFilter.type) q1.append('type', movFilter.type);
+    if (movFilter.productId) q1.append('productId', movFilter.productId);
+    if (movFilter.from) q1.append('from', movFilter.from);
+    if (movFilter.to) q1.append('to', movFilter.to);
+    api.get(`/api/warehouse/movements?${q1.toString()}`).then(res => !res.error && setMovData(res));
+    const q2 = new URLSearchParams({ page: salesPage, limit: 50, fetchTypes: 'SALE,EXIT' });
+    if (movFilter.productId) q2.append('productId', movFilter.productId);
+    if (movFilter.from) q2.append('from', movFilter.from);
+    if (movFilter.to) q2.append('to', movFilter.to);
+    api.get(`/api/warehouse/movements?${q2.toString()}`).then(res => !res.error && setSalesData(res));
+  };
+
   const onSaveProduct = () => {
     setShowProductModal(false);
-    setProductPage(1); 
     loadBaseData(false);
-    const q = new URLSearchParams({ page: 1, limit: 50 });
-    if (search) q.append('search', search);
-    if (filterCat) q.append('category', filterCat);
-    api.get(`/api/warehouse/products?${q.toString()}`).then(res => {
-      if (!res.error) setProductsData(res);
-    });
+    reloadProducts();
   };
 
   const onSaveMovement = () => {
     setShowMovModal(false);
-    setMovPage(1);
-    setSalesPage(1);
     loadBaseData(false);
-    
-    const q1 = new URLSearchParams({ page: 1, limit: 50 });
-    api.get(`/api/warehouse/movements?${q1.toString()}`).then(res => !res.error && setMovData(res));
-    
-    const q2 = new URLSearchParams({ page: 1, limit: 50, fetchTypes: 'SALE,EXIT' });
-    api.get(`/api/warehouse/movements?${q2.toString()}`).then(res => !res.error && setSalesData(res));
+    refreshMovements();
+    if (tab === 'products') reloadProducts();
   };
 
-
-  const uniqueCategories = [...new Set(simpleProducts.map(p => p.category))].filter(Boolean).sort();
+  const uniqueCategories = [...new Set([
+    ...simpleProducts.map(p => p.category),
+    ...categories.map(c => c.name),
+  ])].filter(Boolean).sort();
   const filteredProducts = productsData.data || [];
   const filteredMovements = movData.data || [];
   const sales = salesData.data || [];
 
-  const handleDeleteProduct = async (id) => {
+  const handleDeleteProduct = async (p) => {
     askConfirm(
       'Excluir Produto',
-      'Tem certeza? O produto e todo o histórico de movimentações serão excluídos permanentemente.',
+      `Excluir "${p.name}"? Só é possível excluir produtos sem histórico de movimentações. Produtos com histórico devem ser desativados.`,
       async () => {
-        await api.del(`/api/warehouse/products/${id}`);
-        setProductsData(p => ({ ...p, data: p.data.filter(x => x.id !== id) }));
+        const res = await api.del(`/api/warehouse/products/${p.id}`);
+        if (res?.error) {
+          if (res.hasHistory && window.confirm(`${res.error}\n\nDeseja DESATIVAR o produto agora?`)) {
+            await api.patch(`/api/warehouse/products/${p.id}`, { active: false });
+          }
+        }
         loadBaseData(false);
+        reloadProducts();
       }
     );
+  };
+
+  const handleToggleActive = async (p) => {
+    const res = await api.patch(`/api/warehouse/products/${p.id}`, { active: !p.active });
+    if (res?.error) { alert(res.error); return; }
+    loadBaseData(false);
+    reloadProducts();
+  };
+
+  const handleReverseMovement = (m) => {
+    const reason = window.prompt(`Estornar ${MOVEMENT_TYPES[m.type]?.label || m.type} de ${m.productName}?\n\nInforme o motivo do estorno:`);
+    if (reason == null) return;
+    if (!reason.trim()) { alert('O motivo é obrigatório.'); return; }
+    api.post(`/api/warehouse/movements/${m.id}/reverse`, { reason: reason.trim() }).then(res => {
+      if (res?.error) { alert(res.error); return; }
+      loadBaseData(false);
+      refreshMovements();
+    });
   };
 
   const handleDeleteLocation = async (id) => {
     askConfirm(
       'Excluir Localização',
-      'Tem certeza que deseja excluir esta localização?',
+      'Tem certeza? Os produtos vinculados a esta localização ficarão sem localização.',
       async () => {
         await api.del(`/api/warehouse/locations/${id}`);
-        setLocations(l => l.filter(x => x.id !== id));
+        loadBaseData(false);
       }
     );
   };
@@ -691,31 +842,34 @@ export default function WarehouseModule() {
   const handleDeleteSupplier = async (id) => {
     askConfirm(
       'Excluir Fornecedor',
-      'Tem certeza que deseja excluir este fornecedor?',
+      'Tem certeza? Os produtos vinculados a este fornecedor ficarão sem fornecedor.',
       async () => {
         await api.del(`/api/warehouse/suppliers/${id}`);
-        setSuppliers(s => s.filter(x => x.id !== id));
+        loadBaseData(false);
       }
     );
   };
 
   const handleAddLocation = async () => {
     if (!newLoc.aisle || !newLoc.shelf || !newLoc.position) return alert('Preencha corredor, prateleira e posição.');
-    await api.post('/api/warehouse/locations', newLoc);
+    const res = await api.post('/api/warehouse/locations', newLoc);
+    if (res?.error) return alert(res.error);
     setNewLoc({ aisle: '', shelf: '', position: '' });
     loadBaseData(false);
   };
 
   const handleAddSupplier = async () => {
     if (!newSup.name) return alert('Nome do fornecedor é obrigatório.');
-    await api.post('/api/warehouse/suppliers', newSup);
+    const res = await api.post('/api/warehouse/suppliers', newSup);
+    if (res?.error) return alert(res.error);
     setNewSup({ name: '', document: '', contact: '', email: '', phone: '' });
     loadBaseData(false);
   };
 
   const handleAddCategory = async () => {
     if (!newCat.name) return alert('Nome da categoria é obrigatório.');
-    await api.post('/api/warehouse/categories', newCat);
+    const res = await api.post('/api/warehouse/categories', newCat);
+    if (res?.error) return alert(res.error);
     setNewCat({ name: '', color: '#64748b' });
     loadBaseData(false);
   };
@@ -726,9 +880,69 @@ export default function WarehouseModule() {
       'Tem certeza? Os produtos desta categoria ficarão com a categoria "Geral".',
       async () => {
         await api.del(`/api/warehouse/categories/${id}`);
-        setCategories(c => c.filter(x => x.id !== id));
+        loadBaseData(false);
+        reloadProducts();
       }
     );
+  };
+
+  // ─── Exportações ───────────────────────────────────────────────────────────
+  const exportStockCSV = () => {
+    downloadCSV(`posicao-estoque-${todayISO()}.csv`,
+      ['Código', 'Cód. Barras', 'Produto', 'Categoria', 'Unidade', 'Estoque', 'Mínimo', 'Custo médio', 'Preço venda', 'Valor em estoque', 'Localização', 'Fornecedor'],
+      simpleProducts.map(p => [p.code, p.barcode || '', p.name, p.category, p.unit, p.currentStock, p.minStock, p.costPrice, p.salePrice, p.stockValue, p.locationLabel || '', p.supplierName || '']));
+  };
+  const exportMovementsCSV = () => {
+    downloadCSV(`lancamentos-${todayISO()}.csv`,
+      ['Data', 'Tipo', 'Produto', 'Código', 'Quantidade', 'Preço unit.', 'Total', 'Saldo após', 'Documento', 'Motivo', 'Por', 'Estornado'],
+      filteredMovements.map(m => [fmtDateTime(m.date), MOVEMENT_TYPES[m.type]?.label || m.type, m.productName, m.productCode, m.quantity, m.unitPrice, m.totalPrice, m.balanceAfter ?? '', m.document || '', m.reason || '', m.createdBy || '', m.reversedAt ? `Sim (${m.reversalReason || ''})` : '']));
+  };
+  const exportPurchaseList = () => {
+    const rows = (summary?.lowStockItems || []).map(p => [p.code, p.name, p.currentStock, p.minStock, p.suggestedReorder ?? '', p.unit, p.supplierName || '', p.locationLabel || '']);
+    if (!rows.length) return alert('Nenhum item abaixo do mínimo.');
+    downloadCSV(`lista-compras-${todayISO()}.csv`, ['Código', 'Produto', 'Estoque atual', 'Mínimo', 'Sugestão de compra', 'Unidade', 'Fornecedor', 'Localização'], rows);
+  };
+  const printCountSheet = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(14);
+    doc.text('Folha de Contagem de Inventário — Almoxarifado', 14, 16);
+    doc.setFontSize(9);
+    doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 22);
+    autoTable(doc, {
+      startY: 28,
+      head: [['Código', 'Produto', 'Local', 'Un.', 'Sistema', 'Contado']],
+      body: simpleProducts.map(p => [p.code, p.name, p.locationLabel || '—', p.unit, fmtQty(p.currentStock, p.unit), '']),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [36, 59, 157] },
+    });
+    doc.save(`folha-contagem-${todayISO()}.pdf`);
+  };
+
+  // ─── Inventário ────────────────────────────────────────────────────────────
+  const invItems = useMemo(() => {
+    const q = invSearch.trim().toLowerCase();
+    return simpleProducts.filter(p => !q ||
+      p.name?.toLowerCase().includes(q) || p.code?.toLowerCase().includes(q) || (p.barcode || '').includes(q.replace(/\D/g, '')));
+  }, [simpleProducts, invSearch]);
+
+  const invPending = Object.entries(invCounts).filter(([id, v]) => {
+    if (v === '' || v == null) return false;
+    const prod = simpleProducts.find(p => p.id === id);
+    return prod && Number(v) !== Number(prod.currentStock);
+  });
+
+  const submitInventory = async () => {
+    if (!invPending.length) return alert('Nenhuma contagem diferente do sistema foi informada.');
+    if (!window.confirm(`Gerar ${invPending.length} ajuste(s) de inventário? Esta ação registra movimentações de ajuste e recalcula os saldos.`)) return;
+    setInvSaving(true);
+    const items = invPending.map(([productId, counted]) => ({ productId, counted: Number(counted) }));
+    const res = await api.post('/api/warehouse/inventory', { note: invNote.trim(), items });
+    setInvSaving(false);
+    if (res?.error) { alert(res.error); return; }
+    alert(`Inventário processado: ${res.adjustments} ajuste(s) gerado(s).`);
+    setInvCounts({}); setInvNote('');
+    loadBaseData(false);
+    refreshMovements();
   };
 
   if (loading) {
@@ -834,11 +1048,49 @@ export default function WarehouseModule() {
             </div>
           )}
 
+          {/* Valor por categoria + mais movimentados */}
+          {(summary?.valueByCategory?.length > 0 || summary?.topMovimentados?.length > 0) && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+              {summary?.valueByCategory?.length > 0 && (
+                <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', padding: '1.1rem 1.35rem' }}>
+                  <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#243b9d', marginBottom: 12 }}>Valor em Estoque por Categoria</h3>
+                  {summary.valueByCategory.map(c => {
+                    const pct = summary.totalValue > 0 ? (c.value / summary.totalValue) * 100 : 0;
+                    return (
+                      <div key={c.category} style={{ marginBottom: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#475569', marginBottom: 3 }}>
+                          <span>{c.category}</span><strong>{fmt(c.value)}</strong>
+                        </div>
+                        <div style={{ background: '#f1f5f9', borderRadius: 99, height: 6 }}>
+                          <div style={{ width: `${pct}%`, background: '#243b9d', height: 6, borderRadius: 99 }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {summary?.topMovimentados?.length > 0 && (
+                <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', padding: '1.1rem 1.35rem' }}>
+                  <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#243b9d', marginBottom: 12 }}>Mais Movimentados (30 dias)</h3>
+                  {summary.topMovimentados.map(p => (
+                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', padding: '5px 0', borderBottom: '1px solid #f1f5f9' }}>
+                      <span style={{ color: '#1e293b', fontWeight: 600 }}>{p.name} <span style={{ color: '#94a3b8', fontWeight: 400 }}>({p.code})</span></span>
+                      <span style={{ color: '#ef4444', fontWeight: 700, whiteSpace: 'nowrap' }}>{fmtQty(p.qty, p.unit)} {p.unit}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Alertas de estoque baixo */}
           {summary?.lowStockItems?.length > 0 && (
             <div style={{ background: 'white', borderRadius: 12, border: '1px solid #fecaca', padding: '1.25rem 1.5rem' }}>
-              <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ef4444', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#ef4444', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <AlertTriangle size={18} /> Alertas: Estoque Abaixo do Mínimo
+                <button onClick={exportPurchaseList} style={{ marginLeft: 'auto', padding: '0.35rem 0.75rem', background: 'white', color: '#243b9d', borderRadius: 8, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.78rem', border: '1px solid #e2e8f0' }}>
+                  <ShoppingCart size={13} /> Lista de compras (CSV)
+                </button>
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {summary.lowStockItems.map(p => (
@@ -880,6 +1132,14 @@ export default function WarehouseModule() {
               <option value="">Todas as categorias</option>
               {uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
+            <select value={prodStatus} onChange={e => { setProdStatus(e.target.value); setProductPage(1); }} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white' }}>
+              <option value="active">Ativos</option>
+              <option value="inactive">Inativos</option>
+              <option value="all">Todos</option>
+            </select>
+            <button onClick={exportStockCSV} title="Exportar posição de estoque (CSV)" style={{ padding: '0.55rem 0.9rem', background: 'white', color: '#243b9d', borderRadius: 9, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', border: '1px solid #e2e8f0' }}>
+              <Download size={15} /> CSV
+            </button>
             <button onClick={() => { setEditProduct(null); setShowProductModal(true); }} style={{ padding: '0.55rem 1.1rem', background: 'linear-gradient(135deg, #243b9d, #1d3080)', color: 'white', borderRadius: 9, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', border: 'none' }}>
               <Plus size={16} /> Novo Produto
             </button>
@@ -923,13 +1183,17 @@ export default function WarehouseModule() {
                             </div>
                           </td>
                           <td style={{ padding: '10px 14px' }}>
-                            <div style={{ fontWeight: 700, fontSize: '0.875rem', color: '#1e293b' }}>{p.name}</div>
+                            <div style={{ fontWeight: 700, fontSize: '0.875rem', color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {p.name}
+                              {!p.active && <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b', background: '#e2e8f0', padding: '1px 6px', borderRadius: 5, textTransform: 'uppercase' }}>Inativo</span>}
+                            </div>
                             {p.description && <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 1 }}>{p.description.slice(0, 40)}{p.description.length > 40 ? '...' : ''}</div>}
                           </td>
                           <td style={{ padding: '10px 14px' }}>
                             <div style={{ fontSize: '0.75rem' }}>
                               <span style={{ background: '#eef1f8', color: '#243b9d', padding: '2px 7px', borderRadius: 5, fontWeight: 700, display: 'inline-block' }}>{p.code}</span>
                               {p.manufacturerCode && <div style={{ color: '#94a3b8', marginTop: 2 }}>{p.manufacturerCode}</div>}
+                              {p.barcode && <div style={{ color: '#94a3b8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}><Barcode size={10} /> {p.barcode}</div>}
                             </div>
                           </td>
                           <td style={{ padding: '10px 14px' }}>
@@ -944,7 +1208,7 @@ export default function WarehouseModule() {
                           </td>
                           <td style={{ padding: '10px 14px' }}>
                             <div style={{ fontWeight: 800, fontSize: '0.9rem', color: lowStock ? '#ef4444' : '#1e293b' }}>
-                              {fmtNum(p.currentStock)} {p.unit}
+                              {fmtQty(p.currentStock, p.unit)} {p.unit}
                             </div>
                             {p.minStock > 0 && (
                               <div style={{ marginTop: 3, width: 80 }}><StockBar current={p.currentStock} min={p.minStock} /></div>
@@ -957,7 +1221,8 @@ export default function WarehouseModule() {
                             <div style={{ display: 'flex', gap: 4 }}>
                               <button onClick={() => setViewProduct(p)} title="Ver ficha" style={{ padding: 6, background: '#eef1f8', border: 'none', borderRadius: 7, cursor: 'pointer', color: '#243b9d' }}><Eye size={14} /></button>
                               <button onClick={() => { setEditProduct(p); setShowProductModal(true); }} title="Editar" style={{ padding: 6, background: '#eef1f8', border: 'none', borderRadius: 7, cursor: 'pointer', color: '#243b9d' }}><Edit2 size={14} /></button>
-                              <button onClick={() => handleDeleteProduct(p.id)} title="Excluir" style={{ padding: 6, background: '#fee2e2', border: 'none', borderRadius: 7, cursor: 'pointer', color: '#ef4444' }}><Trash2 size={14} /></button>
+                              <button onClick={() => handleToggleActive(p)} title={p.active ? 'Desativar' : 'Reativar'} style={{ padding: 6, background: p.active ? '#fef3c7' : '#dcfce7', border: 'none', borderRadius: 7, cursor: 'pointer', color: p.active ? '#b45309' : '#15803d' }}><Power size={14} /></button>
+                              <button onClick={() => handleDeleteProduct(p)} title="Excluir" style={{ padding: 6, background: '#fee2e2', border: 'none', borderRadius: 7, cursor: 'pointer', color: '#ef4444' }}><Trash2 size={14} /></button>
                             </div>
                           </td>
                         </tr>
@@ -995,7 +1260,10 @@ export default function WarehouseModule() {
             </select>
             <input type="date" value={movFilter.from} onChange={e => setMovFilter(p => ({ ...p, from: e.target.value }))} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white' }} />
             <input type="date" value={movFilter.to} onChange={e => setMovFilter(p => ({ ...p, to: e.target.value }))} style={{ padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white' }} />
-            <button onClick={() => { setMovDefaultType('ENTRY'); setShowMovModal(true); }} style={{ marginLeft: 'auto', padding: '0.55rem 1.1rem', background: 'linear-gradient(135deg, #243b9d, #1d3080)', color: 'white', borderRadius: 9, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', border: 'none' }}>
+            <button onClick={exportMovementsCSV} title="Exportar lançamentos (CSV)" style={{ marginLeft: 'auto', padding: '0.55rem 0.9rem', background: 'white', color: '#243b9d', borderRadius: 9, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', border: '1px solid #e2e8f0' }}>
+              <Download size={15} /> CSV
+            </button>
+            <button onClick={() => { setMovDefaultType('ENTRY'); setShowMovModal(true); }} style={{ padding: '0.55rem 1.1rem', background: 'linear-gradient(135deg, #243b9d, #1d3080)', color: 'white', borderRadius: 9, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', border: 'none' }}>
               <Plus size={16} /> Novo Lançamento
             </button>
           </div>
@@ -1012,26 +1280,35 @@ export default function WarehouseModule() {
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc' }}>
-                        {['Data/Hora', 'Tipo', 'Produto', 'Qtd', 'Preço Unit.', 'Total', 'Documento', 'Motivo', 'Por'].map(h => (
-                          <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                        {['Data/Hora', 'Tipo', 'Produto', 'Qtd', 'Preço Unit.', 'Total', 'Saldo', 'Documento', 'Motivo', 'Por', ''].map((h, i) => (
+                          <th key={i} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {filteredMovements.filter(Boolean).map(m => (
-                        <tr key={m.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                        <tr key={m.id} style={{ borderTop: '1px solid #f1f5f9', opacity: m.reversedAt ? 0.55 : 1 }}>
                           <td style={{ padding: '9px 14px', fontSize: '0.78rem', color: '#64748b', whiteSpace: 'nowrap' }}>{fmtDateTime(m.date)}</td>
-                          <td style={{ padding: '9px 14px' }}><Badge type={m.type} /></td>
                           <td style={{ padding: '9px 14px' }}>
-                            <div style={{ fontWeight: 600, fontSize: '0.82rem', color: '#1e293b' }}>{m.productName}</div>
+                            <Badge type={m.type} />
+                            {m.reversedAt && <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#b91c1c', marginTop: 2 }} title={m.reversalReason || ''}>ESTORNADO</div>}
+                          </td>
+                          <td style={{ padding: '9px 14px' }}>
+                            <div style={{ fontWeight: 600, fontSize: '0.82rem', color: '#1e293b', textDecoration: m.reversedAt ? 'line-through' : 'none' }}>{m.productName}</div>
                             <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{m.productCode}</div>
                           </td>
-                          <td style={{ padding: '9px 14px', fontWeight: 700, fontSize: '0.85rem' }}>{fmtNum(m.quantity)} {m.productUnit}</td>
-                          <td style={{ padding: '9px 14px', fontSize: '0.82rem' }}>{fmt(m.unitPrice)}</td>
-                          <td style={{ padding: '9px 14px', fontWeight: 700, fontSize: '0.85rem', color: m.type === 'ENTRY' || m.type === 'RETURN' ? '#10b981' : '#ef4444' }}>{fmt(m.totalPrice)}</td>
+                          <td style={{ padding: '9px 14px', fontWeight: 700, fontSize: '0.85rem' }}>{m.type === 'ADJUSTMENT' ? '=' : ''}{fmtQty(m.quantity, m.productUnit)} {m.productUnit}</td>
+                          <td style={{ padding: '9px 14px', fontSize: '0.82rem' }}>{m.type === 'ADJUSTMENT' ? '—' : fmt(m.unitPrice)}</td>
+                          <td style={{ padding: '9px 14px', fontWeight: 700, fontSize: '0.85rem', color: m.type === 'ENTRY' || m.type === 'RETURN' ? '#10b981' : m.type === 'ADJUSTMENT' ? '#94a3b8' : '#ef4444' }}>{m.type === 'ADJUSTMENT' ? '—' : fmt(m.totalPrice)}</td>
+                          <td style={{ padding: '9px 14px', fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>{m.reversedAt || m.balanceAfter == null ? '—' : fmtQty(m.balanceAfter, m.productUnit)}</td>
                           <td style={{ padding: '9px 14px', fontSize: '0.78rem', color: '#64748b' }}>{m.document || '—'}</td>
-                          <td style={{ padding: '9px 14px', fontSize: '0.78rem', color: '#64748b', maxWidth: 150 }}><span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.reason || '—'}</span></td>
+                          <td style={{ padding: '9px 14px', fontSize: '0.78rem', color: '#64748b', maxWidth: 150 }}><span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.reason || ''}>{m.reason || '—'}</span></td>
                           <td style={{ padding: '9px 14px', fontSize: '0.75rem', color: '#94a3b8' }}>{m.createdBy || '—'}</td>
+                          <td style={{ padding: '9px 14px' }}>
+                            {!m.reversedAt && (
+                              <button onClick={() => handleReverseMovement(m)} title="Estornar lançamento" style={{ padding: 5, background: '#fef2f2', border: 'none', borderRadius: 6, cursor: 'pointer', color: '#b91c1c' }}><Undo2 size={13} /></button>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1039,7 +1316,7 @@ export default function WarehouseModule() {
                 </div>
                 <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid #f1f5f9', fontSize: '0.75rem', color: '#94a3b8', display: 'flex', justifyContent: 'space-between' }}>
                   <span>{filteredMovements.length} lançamento(s)</span>
-                  <span>Total: <strong style={{ color: '#1e293b' }}>{fmt(filteredMovements.reduce((s, m) => s + (m.totalPrice || 0), 0))}</strong></span>
+                  <span>Total (exceto estornos): <strong style={{ color: '#1e293b' }}>{fmt(filteredMovements.reduce((s, m) => s + (m.reversedAt ? 0 : (m.totalPrice || 0)), 0))}</strong></span>
                 </div>
               </>
             )}
@@ -1075,8 +1352,8 @@ export default function WarehouseModule() {
           {/* Resumo de vendas */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '0.85rem', marginBottom: '1.25rem' }}>
             <StatCard icon={ShoppingCart} label="Total Baixas (Filtro)" value={salesData.total} sub="saídas e vendas filtradas" color="#3b82f6" bg="#dbeafe" />
-            <StatCard icon={TrendingDown} label="Qtd. Total Saída" value={fmtNum(sales.reduce((s, m) => s + m.quantity, 0), 0) + ' (Pág)'} sub="unidades baixadas" color="#ef4444" bg="#fee2e2" />
-            <StatCard icon={DollarSign} label="Valor Total" value={fmt(sales.reduce((s, m) => s + (m.totalPrice || 0), 0)) + ' (Pág)'} sub="valor baixas/vendas" color="#10b981" bg="#d1fae5" />
+            <StatCard icon={TrendingDown} label="Qtd. Total Saída" value={fmtNum(sales.reduce((s, m) => s + (m.reversedAt ? 0 : m.quantity), 0), 0) + ' (Pág)'} sub="unidades baixadas" color="#ef4444" bg="#fee2e2" />
+            <StatCard icon={DollarSign} label="Valor Total" value={fmt(sales.reduce((s, m) => s + (m.reversedAt ? 0 : (m.totalPrice || 0)), 0)) + ' (Pág)'} sub="valor baixas/vendas" color="#10b981" bg="#d1fae5" />
           </div>
 
           <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
@@ -1097,12 +1374,12 @@ export default function WarehouseModule() {
                   </thead>
                   <tbody>
                     {sales.filter(Boolean).map(m => (
-                      <tr key={m.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                      <tr key={m.id} style={{ borderTop: '1px solid #f1f5f9', opacity: m.reversedAt ? 0.55 : 1 }}>
                         <td style={{ padding: '9px 14px', fontSize: '0.78rem', color: '#64748b' }}>{fmtDate(m.date)}</td>
-                        <td style={{ padding: '9px 14px' }}><Badge type={m.type} /></td>
-                        <td style={{ padding: '9px 14px', fontWeight: 600, fontSize: '0.82rem', color: '#1e293b' }}>{m.productName}</td>
+                        <td style={{ padding: '9px 14px' }}><Badge type={m.type} />{m.reversedAt && <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#b91c1c', marginTop: 2 }}>ESTORNADO</div>}</td>
+                        <td style={{ padding: '9px 14px', fontWeight: 600, fontSize: '0.82rem', color: '#1e293b', textDecoration: m.reversedAt ? 'line-through' : 'none' }}>{m.productName}</td>
                         <td style={{ padding: '9px 14px' }}><span style={{ background: '#eef1f8', color: '#243b9d', padding: '2px 7px', borderRadius: 5, fontSize: '0.72rem', fontWeight: 700 }}>{m.productCode}</span></td>
-                        <td style={{ padding: '9px 14px', fontWeight: 700 }}>{fmtNum(m.quantity)} {m.productUnit}</td>
+                        <td style={{ padding: '9px 14px', fontWeight: 700 }}>{fmtQty(m.quantity, m.productUnit)} {m.productUnit}</td>
                         <td style={{ padding: '9px 14px', fontSize: '0.82rem' }}>{fmt(m.unitPrice)}</td>
                         <td style={{ padding: '9px 14px', fontWeight: 800, color: '#ef4444' }}>{fmt(m.totalPrice)}</td>
                         <td style={{ padding: '9px 14px', fontSize: '0.78rem', color: '#64748b' }}>{m.document || '—'}</td>
@@ -1114,9 +1391,9 @@ export default function WarehouseModule() {
                   <tfoot>
                     <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
                       <td colSpan={4} style={{ padding: '10px 14px', fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>TOTAL</td>
-                      <td style={{ padding: '10px 14px', fontWeight: 800 }}>{fmtNum(sales.reduce((s, m) => s + m.quantity, 0), 0)}</td>
+                      <td style={{ padding: '10px 14px', fontWeight: 800 }}>{fmtNum(sales.reduce((s, m) => s + (m.reversedAt ? 0 : m.quantity), 0), 0)}</td>
                       <td />
-                      <td style={{ padding: '10px 14px', fontWeight: 800, color: '#ef4444', fontSize: '0.95rem' }}>{fmt(sales.reduce((s, m) => s + (m.totalPrice || 0), 0))}</td>
+                      <td style={{ padding: '10px 14px', fontWeight: 800, color: '#ef4444', fontSize: '0.95rem' }}>{fmt(sales.reduce((s, m) => s + (m.reversedAt ? 0 : (m.totalPrice || 0)), 0))}</td>
                       <td colSpan={3} />
                     </tr>
                   </tfoot>
@@ -1131,6 +1408,71 @@ export default function WarehouseModule() {
               <button disabled={salesPage === salesData.totalPages} onClick={() => setSalesPage(p => p + 1)} style={{ padding: '0.3rem 0.6rem', border: '1px solid #e2e8f0', borderRadius: 6, background: salesPage === salesData.totalPages ? '#f8fafc' : 'white', cursor: salesPage === salesData.totalPages ? 'not-allowed' : 'pointer', fontWeight: 600 }}>Próxima</button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ─── TAB: INVENTÁRIO ─────────────────────────────────────────────── */}
+      {tab === 'inventory' && (
+        <div>
+          <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', padding: '1.25rem 1.5rem', marginBottom: '1rem' }}>
+            <h3 style={{ fontWeight: 700, color: '#243b9d', fontSize: '1rem', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ClipboardList size={18} /> Contagem de Inventário
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 12px' }}>
+              Informe a quantidade física contada de cada produto. O sistema gera os ajustes apenas onde a contagem
+              difere do saldo atual, registrando tudo na auditoria.
+            </p>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              <input value={invNote} onChange={e => setInvNote(e.target.value)} placeholder="Identificação (ex: Balanço Set/2026)" style={{ flex: 1, minWidth: 200, padding: '0.55rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem' }} />
+              <button onClick={printCountSheet} style={{ padding: '0.55rem 0.9rem', background: 'white', color: '#243b9d', borderRadius: 9, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', border: '1px solid #e2e8f0' }}>
+                <FileText size={15} /> Folha de contagem (PDF)
+              </button>
+              <button onClick={submitInventory} disabled={invSaving || !invPending.length} style={{ padding: '0.55rem 1.1rem', background: invPending.length ? 'linear-gradient(135deg, #243b9d, #1d3080)' : '#cbd5e1', color: 'white', borderRadius: 9, fontWeight: 700, cursor: invPending.length ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', border: 'none' }}>
+                <Check size={16} /> Gerar {invPending.length || ''} ajuste(s)
+              </button>
+            </div>
+          </div>
+
+          <div style={{ position: 'relative', marginBottom: '1rem', maxWidth: 360 }}>
+            <Search size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+            <input value={invSearch} onChange={e => setInvSearch(e.target.value)} placeholder="Filtrar produtos..." style={{ width: '100%', padding: '0.55rem 0.75rem 0.55rem 2rem', border: '1px solid #e2e8f0', borderRadius: 9, fontSize: '0.875rem', background: 'white' }} />
+          </div>
+
+          <div style={{ background: 'white', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto', maxHeight: '60vh' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', position: 'sticky', top: 0 }}>
+                    {['Código', 'Produto', 'Local', 'Un.', 'Saldo sistema', 'Contagem física', 'Diferença'].map(h => (
+                      <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {invItems.map(p => {
+                    const raw = invCounts[p.id];
+                    const counted = raw === '' || raw == null ? null : Number(raw);
+                    const diff = counted == null ? null : Math.round((counted - Number(p.currentStock)) * 1000) / 1000;
+                    return (
+                      <tr key={p.id} style={{ borderTop: '1px solid #f1f5f9', background: diff ? '#fffbeb' : 'white' }}>
+                        <td style={{ padding: '8px 14px', fontSize: '0.78rem' }}><span style={{ background: '#eef1f8', color: '#243b9d', padding: '2px 7px', borderRadius: 5, fontWeight: 700 }}>{p.code}</span></td>
+                        <td style={{ padding: '8px 14px', fontSize: '0.82rem', fontWeight: 600 }}>{p.name}</td>
+                        <td style={{ padding: '8px 14px', fontSize: '0.78rem', color: '#64748b' }}>{p.locationLabel || '—'}</td>
+                        <td style={{ padding: '8px 14px', fontSize: '0.78rem', color: '#64748b' }}>{p.unit}</td>
+                        <td style={{ padding: '8px 14px', fontSize: '0.82rem', fontWeight: 700 }}>{fmtQty(p.currentStock, p.unit)}</td>
+                        <td style={{ padding: '8px 14px' }}>
+                          <input type="number" step="0.001" min="0" value={raw ?? ''} onChange={e => setInvCounts(c => ({ ...c, [p.id]: e.target.value }))} placeholder="—" style={{ width: 110, padding: '0.4rem 0.5rem', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: '0.85rem' }} />
+                        </td>
+                        <td style={{ padding: '8px 14px', fontSize: '0.82rem', fontWeight: 700, color: diff == null || diff === 0 ? '#94a3b8' : diff > 0 ? '#10b981' : '#ef4444' }}>
+                          {diff == null ? '—' : diff === 0 ? 'OK' : `${diff > 0 ? '+' : ''}${diff}`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1192,11 +1534,7 @@ export default function WarehouseModule() {
                           <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '1.1rem' }}>{l.label}</div>
                           <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Corredor {l.aisle} · Prat. {l.shelf}</div>
                         </div>
-                        <button onClick={() => {
-                          if(confirm('Excluir?')) {
-                            api.del(`/api/warehouse/locations/${l.id}`).then(() => loadBaseData(false));
-                          }
-                        }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 }}><Trash2 size={16} /></button>
+                        <button onClick={() => handleDeleteLocation(l.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 }}><Trash2 size={16} /></button>
                       </div>
                     ))}
                   </div>
@@ -1329,7 +1667,6 @@ export default function WarehouseModule() {
       {viewProduct && (
         <ProductDetailModal
           product={viewProduct}
-          movements={movData.data || []}
           onClose={() => setViewProduct(null)}
         />
       )}
@@ -1345,11 +1682,20 @@ export default function WarehouseModule() {
 }
 
 // Thumbnail lazy-loader para a tabela (evita carregar todas as imagens de uma vez)
+// Cache de imagens por sessão — evita rebuscar a mesma foto ao paginar/reabrir.
+const imageCache = new Map();
+function fetchProductImage(id) {
+  if (imageCache.has(id)) return Promise.resolve(imageCache.get(id));
+  return api.get(`/api/warehouse/products/${id}/image`).then(d => {
+    const url = d?.imageUrl || null;
+    imageCache.set(id, url);
+    return url;
+  });
+}
+
 function ProductThumb({ id }) {
-  const [src, setSrc] = useState(null);
-  useEffect(() => {
-    api.get(`/api/warehouse/products/${id}/image`).then(d => { if (d.imageUrl) setSrc(d.imageUrl); });
-  }, [id]);
+  const [src, setSrc] = useState(imageCache.get(id) || null);
+  useEffect(() => { fetchProductImage(id).then(setSrc); }, [id]);
   if (!src) return <Package size={18} color="#cbd5e1" />;
   return <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />;
 }

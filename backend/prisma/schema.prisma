@@ -174,12 +174,13 @@ model Product {
   description      String?
   code             String   @unique // Código interno
   manufacturerCode String?  // Código do fabricante
+  barcode          String?  // Código de barras EAN/GTIN
   imageUrl         String?  // Foto em Base64
   unit             String   @default("UN") // UN, KG, CX, MT, LT...
   category         String   @default("Geral")
   minStock         Float    @default(0)
   currentStock     Float    @default(0)
-  costPrice        Float    @default(0)
+  costPrice        Float    @default(0) // Custo médio ponderado (recalculado pelo razão de movimentações)
   salePrice        Float    @default(0)
   active           Boolean  @default(true)
 
@@ -195,13 +196,14 @@ model Product {
   updatedAt DateTime @updatedAt
 
   @@index([code])
+  @@index([barcode])
   @@index([category])
   @@index([active])
 }
 
 model StockMovement {
   id          String   @id @default(uuid())
-  type        String   // 'ENTRY', 'EXIT', 'SALE', 'ADJUSTMENT', 'RETURN'
+  type        String   // 'ENTRY', 'EXIT', 'SALE', 'ADJUSTMENT', 'RETURN', 'LOSS'
   quantity    Float
   unitPrice   Float    @default(0)
   totalPrice  Float    @default(0)
@@ -209,6 +211,13 @@ model StockMovement {
   document    String?  // NF, pedido, etc.
   date        DateTime @default(now())
   createdBy   String?  // Nome do usuário
+
+  balanceAfter   Float?    // Saldo do produto após este lançamento (razão reconstruível)
+  unitCostAfter  Float?    // Custo médio do produto após este lançamento
+  batchRef       String?   // Referência de lote (sessão de inventário)
+  reversedAt     DateTime? // Estorno (soft): quando o lançamento foi anulado
+  reversedBy     String?   // Quem estornou
+  reversalReason String?   // Motivo do estorno
 
   productId   String
   product     Product  @relation(fields: [productId], references: [id])
@@ -218,6 +227,7 @@ model StockMovement {
   @@index([productId])
   @@index([type])
   @@index([date])
+  @@index([batchRef])
 }
 
 model WarehouseCategory {
