@@ -180,8 +180,16 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [], th
       const res = await authFetch(`/api/transactions/${id}/attachment`);
       const data = await res.json();
       if (data.attachmentUrl) {
-        const newTab = window.open();
-        newTab.document.write(`<iframe src="${data.attachmentUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+        // Validação de segurança: só abre URLs HTTPS ou data: de PDF — nunca javascript:
+        const url = String(data.attachmentUrl);
+        const isHttps = url.startsWith('https://');
+        const isPdfData = url.startsWith('data:application/pdf;base64,');
+        if (!isHttps && !isPdfData) {
+          alert('URL do anexo inválida ou não segura.');
+          return;
+        }
+        // Abre a URL diretamente — nunca usa document.write
+        window.open(url, '_blank', 'noopener,noreferrer');
       } else {
         alert('Anexo não encontrado.');
       }

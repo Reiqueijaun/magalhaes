@@ -1011,4 +1011,238 @@ input:focus, select:focus, textarea:focus {
   }
 }
 
+/* ==========================================================================
+   MODERN FINTECH OVERVIEW & CHART SUITE
+   ========================================================================== */
+
+/* Segmented Control / Chart View Switcher */
+.chart-toggle-group {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-body);
+  padding: 3px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  gap: 2px;
+}
+
+.chart-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 7px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.chart-toggle-btn:hover {
+  color: var(--text-main);
+}
+
+.chart-toggle-btn.active {
+  background: var(--bg-card);
+  color: var(--brand-blue);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--border-subtle);
+}
+
+[data-theme="dark"] .chart-toggle-btn.active {
+  background: #1e293b;
+  color: #93c5fd;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Premium Custom Chart Tooltip */
+.fintech-tooltip {
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 10px 14px;
+  color: #ffffff;
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.45);
+  font-size: 0.8rem;
+  min-width: 170px;
+  z-index: 100;
+  pointer-events: none;
+}
+
+[data-theme="light"] .fintech-tooltip {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  color: #0f172a;
+  box-shadow: 0 12px 30px -4px rgba(15, 23, 42, 0.15);
+}
+
+.fintech-tooltip-header {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 5px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+[data-theme="light"] .fintech-tooltip-header {
+  color: #64748b;
+  border-bottom-color: #f1f5f9;
+}
+
+.fintech-tooltip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 5px;
+  font-size: 0.8rem;
+}
+
+.fintech-tooltip-row:last-child {
+  margin-bottom: 0;
+}
+
+.fintech-tooltip-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+[data-theme="light"] .fintech-tooltip-label {
+  color: #475569;
+}
+
+.fintech-tooltip-val {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #ffffff;
+}
+
+[data-theme="light"] .fintech-tooltip-val {
+  color: #0f172a;
+}
+
+/* KPI Cards Premium */
+.kpi-card-v2 {
+  background-color: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  padding: 1.25rem 1.35rem;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--shadow-xs);
+}
+
+.kpi-card-v2:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.kpi-card-v2::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: transparent;
+  transition: background 0.2s ease;
+}
+
+.kpi-card-v2.accent-blue::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.kpi-card-v2.accent-green::before { background: linear-gradient(90deg, #10b981, #34d399); }
+.kpi-card-v2.accent-rose::before { background: linear-gradient(90deg, #f43f5e, #fb7185); }
+.kpi-card-v2.accent-amber::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+
+/* Supplier Ranking Medals */
+.rank-badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+
+.rank-badge-1 {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4);
+}
+
+.rank-badge-2 {
+  background: linear-gradient(135deg, #94a3b8, #64748b);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(100, 116, 139, 0.3);
+}
+
+.rank-badge-3 {
+  background: linear-gradient(135deg, #d97706, #b45309);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.3);
+}
+
+.rank-badge-default {
+  background: var(--bg-body);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+}
+
+/* Insight Quick Pills */
+.smart-insight-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0.85rem 1.25rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  font-size: 0.82rem;
+  transition: all 0.15s ease;
+}
+
+.smart-insight-card:hover {
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: pulseAnimation 2s infinite;
+  display: inline-block;
+}
+
+@keyframes pulseAnimation {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+
 

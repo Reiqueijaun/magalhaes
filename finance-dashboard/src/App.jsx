@@ -17,7 +17,7 @@ import Login from './components/Login';
 import Notifications from './components/Notifications';
 import Tutorial from './components/Tutorial';
 import WarehouseModule from './components/Warehouse';
-import { authFetch } from './config';
+import { authFetch, apiLogout } from './config';
 
 function App() {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -88,9 +88,8 @@ function App() {
     if (tutorialPref !== 'false') setShowTutorial(true);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    await apiLogout();
     setUser(null);
     setCurrentView('dashboard');
     setMobileMenuOpen(false);

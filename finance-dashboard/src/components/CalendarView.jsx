@@ -28,7 +28,7 @@ export default function CalendarView({ selectedCompanyId = 'all', companies = []
   const diasDaSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
   // User greeting
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const user = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; } })();
   const userName = user.name ? user.name.split(' ')[0] : 'Empresário';
   const hour = now.getHours();
   const greeting = hour < 12 ? '☀️ Bom dia' : hour < 18 ? '⛅ Boa tarde' : '🌙 Boa noite';

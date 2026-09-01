@@ -13,6 +13,12 @@ export default function WarehouseLogin({ onLogin }) {
     e.preventDefault();
     setLoading(true);
     setError('');
+    // Validação de senha mínima no cliente
+    if (password.length < 8) {
+      setError('Senha deve ter no mínimo 8 caracteres.');
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',

@@ -19,8 +19,14 @@ export default function Login({ onLogin }) {
     setLoading(true);
     setError('');
     setSuccess('');
-    
+
     if (isResetting) {
+      // Validação de senha mínima no cliente
+      if (password.length < 8) {
+        setError('A nova senha deve ter no mínimo 8 caracteres.');
+        setLoading(false);
+        return;
+      }
       try {
         const res = await fetch(`${API_URL}/api/auth/reset`, {
           method: 'POST',

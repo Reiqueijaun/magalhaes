@@ -1,32 +1,48 @@
-const { Pool } = require('pg');
+﻿const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const dotenv = require('dotenv');
 dotenv.config();
 
+// VULN-07: Senha nao pode ser hardcoded. Passe via argumento CLI:
+//   node createVendedor.js <email> <senha>
+const email = process.argv[2];
+const password = process.argv[3];
+
+if (!email || !password) {
+  console.error('Uso: node createVendedor.js <email> <senha>');
+  console.error('Exemplo: node createVendedor.js vendedor@empresa.com MinhaSenh@123');
+  process.exit(1);
+}
+
+if (password.length < 8) {
+  console.error('A senha deve ter pelo menos 8 caracteres.');
+  process.exit(1);
+}
+
 const p = new Pool({ connectionString: process.env.DATABASE_URL });
 
-async function createVendedor() {
+async function createUser() {
   try {
-    const email = 'vendedor@magalhaes.com';
-    const hash = await bcrypt.hash('123456', 10);
+    const hash = await bcrypt.hash(password, 12); // bcrypt custo 12 (igual ao servidor)
     const id = require('crypto').randomUUID();
-    
-    // Check if exists
+
     const res = await p.query('SELECT id FROM "User" WHERE email = $1', [email]);
     if (res.rows.length > 0) {
-      console.log('User already exists');
+      console.log('Usuário já existe:', email);
     } else {
-      await p.query(`
-        INSERT INTO "User" (id, name, email, password, role, module, "updatedAt")
-        VALUES ($1, 'Vendedor Almoxarifado', $2, $3, 'USER', 'WAREHOUSE', NOW())
-      `, [id, email, hash]);
-      console.log('Vendedor created!');
+      await p.query(
+        `INSERT INTO "User" (id, name, email, password, role, module, "updatedAt")
+         VALUES ($1, $2, $3, $4, 'USER', 'WAREHOUSE', NOW())`,
+        [id, 'Vendedor Almoxarifado', email, hash]
+      );
+      console.log('Usuário criado com sucesso:', email);
     }
   } catch (e) {
-    console.error(e);
+    console.error('Erro:', e.message);
+    process.exit(1);
   } finally {
     p.end();
   }
 }
 
-createVendedor();
+createUser();
