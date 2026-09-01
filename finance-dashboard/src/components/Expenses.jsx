@@ -514,12 +514,23 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [], th
                 </div>
               </div>
 
-              <div className="form-group">
-                <label>Conta / Caixa Utilizado</label>
-                <select value={bankAccountId} onChange={e => setBankAccountId(e.target.value)}>
-                  <option value="">Selecione...</option>
-                  {bankAccounts.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1rem' }}>
+                <div className="form-group">
+                  <label>Conta / Caixa Utilizado</label>
+                  <select value={bankAccountId} onChange={e => setBankAccountId(e.target.value)}>
+                    <option value="">Selecione...</option>
+                    {bankAccounts.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Building2 size={14} color="var(--brand-blue)" /> Unidade / Empresa *
+                  </label>
+                  <select value={companyId} onChange={e => setCompanyId(e.target.value)} required>
+                    <option value="">— Selecione a empresa —</option>
+                    {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
               </div>
 
               <button 
