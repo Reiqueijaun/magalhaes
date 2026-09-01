@@ -4,6 +4,7 @@ import {
   TrendingDown, TrendingUp, Wallet, X, Building2, Tag, Filter, CheckCircle2
 } from 'lucide-react';
 import { authFetch } from '../config';
+import { formatDateBR } from '../utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -49,7 +50,34 @@ export default function Reports({ selectedCompanyId = 'all', companies = [], the
   const [entities, setEntities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generated, setGenerated] = useState(false);
-  const [activeTab, setActiveTab] = useState('geral'); // 'geral' | 'futuras'
+  const [activeTab, setActiveTab] = useState('geral'); // 'geral' | 'futuras' | 'lixeira'
+
+  // Lixeira (registros excluídos, restauráveis)
+  const [trash, setTrash] = useState([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [trashMsg, setTrashMsg] = useState('');
+
+  const loadTrash = async () => {
+    setTrashLoading(true);
+    try {
+      const res = await authFetch('/api/transactions/trash');
+      setTrash(res.ok ? await res.json() : []);
+    } catch { setTrash([]); }
+    finally { setTrashLoading(false); }
+  };
+
+  const restoreItem = async (id) => {
+    setTrashMsg('');
+    try {
+      const res = await authFetch(`/api/transactions/${id}/restore`, { method: 'PATCH' });
+      if (res.ok) { setTrashMsg('Registro restaurado com sucesso.'); loadTrash(); }
+      else setTrashMsg('Não foi possível restaurar o registro.');
+    } catch { setTrashMsg('Erro de conexão ao restaurar.'); }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'lixeira') loadTrash();
+  }, [activeTab]);
 
   // Filtro da aba Provisões
   const [provisaoFilter, setProvisaoFilter] = useState('all'); // 'all' | '7' | '15' | '30' | '60' | 'month'
@@ -101,6 +129,8 @@ export default function Reports({ selectedCompanyId = 'all', companies = [], the
     }
 
     return transactions.filter(t => {
+      // Nunca inclui finanças pessoais (PF) no relatório da empresa.
+      if (t.context && t.context !== 'PJ') return false;
       const refDate = new Date(t.status === 'PAID' && t.paymentDate ? t.paymentDate : t.dueDate);
       if (refDate < dates.from || refDate > dates.to) return false;
       if (filterCompany !== 'all' && t.companyId !== filterCompany) return false;
@@ -122,7 +152,7 @@ export default function Reports({ selectedCompanyId = 'all', companies = [], the
   }, [filteredData]);
 
   const fmt = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-  const fmtDate = (d) => new Date(d).toLocaleDateString('pt-BR');
+  const fmtDate = (d) => formatDateBR(d);
 
   const statusLabel = (s) => ({ PAID: 'Pago', PENDING: 'Pendente', OVERDUE: 'Vencido' }[s] || s);
   const typeLabel = (t) => t === 'IN' ? 'Receita' : 'Despesa';
@@ -301,12 +331,19 @@ export default function Reports({ selectedCompanyId = 'all', companies = [], the
           >
             Relatório Geral
           </button>
-          <button 
-            className={`btn ${activeTab === 'futuras' ? 'btn-primary' : 'btn-secondary'}`} 
+          <button
+            className={`btn ${activeTab === 'futuras' ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setActiveTab('futuras')}
             style={{ fontWeight: 800 }}
           >
             Provisões / Contas Futuras
+          </button>
+          <button
+            className={`btn ${activeTab === 'lixeira' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveTab('lixeira')}
+            style={{ fontWeight: 800 }}
+          >
+            Lixeira
           </button>
         </div>
       </div>
@@ -614,6 +651,66 @@ export default function Reports({ selectedCompanyId = 'all', companies = [], the
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'lixeira' && (
+        <div className="fin-card">
+          <div style={{ marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>Lixeira</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0' }}>
+              Registros excluídos (empresa). Nada é apagado do banco — você pode restaurar a qualquer momento.
+            </p>
+          </div>
+
+          {trashMsg && (
+            <div className="badge-pill badge-pill-success" style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: 10, fontSize: '0.85rem', marginBottom: '1rem' }}>
+              {trashMsg}
+            </div>
+          )}
+
+          {trashLoading ? (
+            <p style={{ color: 'var(--text-muted)' }}>Carregando lixeira...</p>
+          ) : trash.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)' }}>A lixeira está vazia.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="fin-table">
+                <thead>
+                  <tr>
+                    <th>Excluído em</th>
+                    <th>Descrição</th>
+                    <th>Tipo</th>
+                    <th>Vencimento</th>
+                    <th style={{ textAlign: 'right' }}>Valor</th>
+                    <th style={{ textAlign: 'center' }}>Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trash.map(t => (
+                    <tr key={t.id}>
+                      <td className="tabular-nums" style={{ whiteSpace: 'nowrap', color: 'var(--text-muted)', fontSize: '0.82rem' }}>{fmtDate(t.deletedAt)}</td>
+                      <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{t.description}</td>
+                      <td>
+                        <span className={`badge-pill ${t.type === 'IN' ? 'badge-pill-success' : 'badge-pill-danger'}`}>
+                          {t.type === 'IN' ? '▲ Receita' : '▼ Despesa'}
+                        </span>
+                      </td>
+                      <td className="tabular-nums" style={{ color: 'var(--text-muted)', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>{fmtDate(t.dueDate)}</td>
+                      <td className="tabular-nums" style={{ textAlign: 'right', fontWeight: 900, color: t.type === 'IN' ? 'var(--success)' : 'var(--danger)' }}>
+                        {fmt(t.amount)}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button className="btn btn-secondary" style={{ padding: '4px 12px', fontSize: '0.8rem', minHeight: 32 }} onClick={() => restoreItem(t.id)}>
+                          Restaurar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

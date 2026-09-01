@@ -32,15 +32,88 @@ if (!_jwtRaw || _jwtRaw.length < 32) {
 }
 const JWT_SECRET = _jwtRaw || 'dev-only-unsafe-key-NOT-for-production';
 
-// VULN-02: Blacklist de tokens revogados (em memória — limpa a cada restart)
-// Para producao com multiplas instancias, usar Redis.
+// VULN-02: Blacklist de tokens revogados.
+// Cache em memória (L1, consultado a cada request) espelhado na tabela RevokedToken
+// (persistente, sobrevive a restart e é compartilhado entre instâncias).
 const revokedTokens = new Set<string>();
 
-// Valida e limpa valores monet�rios � previne Infinity, NaN e valores absurdos
+// Carrega da tabela os tokens revogados ainda não expirados e agenda a limpeza.
+async function initRevokedTokens(): Promise<void> {
+  try {
+    const rows: Array<{ jti: string }> = await (prisma as any).revokedToken.findMany({
+      where: { expiresAt: { gt: new Date() } },
+      select: { jti: true },
+    });
+    for (const r of rows) revokedTokens.add(r.jti);
+    console.log(`🔐 ${rows.length} token(s) revogado(s) carregado(s) da base.`);
+  } catch (e) {
+    console.error('⚠️ Falha ao carregar tokens revogados:', e);
+  }
+}
+
+async function purgeExpiredRevokedTokens(): Promise<void> {
+  try {
+    const now = new Date();
+    const stale: Array<{ jti: string }> = await (prisma as any).revokedToken.findMany({
+      where: { expiresAt: { lte: now } },
+      select: { jti: true },
+    });
+    for (const r of stale) revokedTokens.delete(r.jti);
+    await (prisma as any).revokedToken.deleteMany({ where: { expiresAt: { lte: now } } });
+  } catch (e) {
+    console.error('⚠️ Falha ao limpar tokens revogados expirados:', e);
+  }
+}
+
+// Valida e limpa valores monet�rios � previne Infinity, NaN e valores absurdos.
+// Sempre arredonda para centavos exatos, evitando "drift" de ponto flutuante em
+// gravacoes e somas sucessivas.
 function sanitizeAmount(value: any, max: number = 999_999_999.99): number {
   const n = Number(value);
   if (!isFinite(n) || isNaN(n)) return 0;
-  return Math.min(Math.abs(n), max);
+  return Math.round(Math.min(Math.abs(n), max) * 100) / 100;
+}
+
+// Igual a sanitizeAmount, mas rejeita valores ausentes, invalidos ou <= 0
+// retornando null. Endpoints de criacao usam isso para responder 400 em vez de
+// gravar 0 silenciosamente (o que faria "dinheiro sumir" dos relatorios).
+function parseRequiredAmount(value: any, max: number = 999_999_999.99): number | null {
+  const n = Number(value);
+  if (value == null || value === '' || !isFinite(n) || isNaN(n) || n <= 0) return null;
+  return Math.round(Math.min(n, max) * 100) / 100;
+}
+
+// Soma uma lista de valores monetarios com precisao de centavos (inteiro).
+function sumAmounts(values: Array<number | null | undefined>): number {
+  return values.reduce((acc: number, v) => acc + Math.round((Number(v) || 0) * 100), 0) / 100;
+}
+
+// Avanca uma data em N meses preservando o "meio-dia UTC" e sem transbordar o mes
+// (ex.: 31/jan + 1 mes = 28/29 de fev, nunca 03 de marco).
+function addMonthsUTC(date: Date, months: number): Date {
+  const d = new Date(date);
+  const targetMonth = d.getUTCMonth() + months;
+  const targetYear = d.getUTCFullYear() + Math.floor(targetMonth / 12);
+  const normMonth = ((targetMonth % 12) + 12) % 12;
+  const lastDay = new Date(Date.UTC(targetYear, normMonth + 1, 0)).getUTCDate();
+  d.setUTCFullYear(targetYear, normMonth, Math.min(d.getUTCDate(), lastDay));
+  return d;
+}
+
+// Converte uma data recebida do frontend ('yyyy-mm-dd') em Date ancorada ao
+// meio-dia UTC. Isso evita que o fuso horario do Brasil (UTC-3) empurre a data
+// para o dia anterior quando ela e exibida ou reeditada. Retorna null se a data
+// for ausente ou invalida.
+function parseDateInput(value: any): Date | null {
+  if (value == null || value === '') return null;
+  const s = String(value).trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    const d = new Date(`${s}T12:00:00.000Z`);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 // PIN Mestre para Recuperação de Senha (Sem valor padrão inseguro)
@@ -310,6 +383,37 @@ function isValidPassword(pass: string): boolean {
   return true;
 }
 
+// ─── TRILHA DE AUDITORIA ──────────────────────────────────────────────────────
+// Registra toda operacao sensivel (criar / baixar / alterar valor / excluir /
+// restaurar) com autor, data e o estado antes/depois. Nunca lanca excecao para
+// nao bloquear a operacao financeira em si; falhas sao apenas logadas.
+async function writeAudit(req: Request, entry: {
+  entityType: string;
+  entityId?: string | null;
+  action: string;
+  context?: string | null;
+  before?: any;
+  after?: any;
+}): Promise<void> {
+  try {
+    const user = (req as any).user;
+    await (prisma as any).auditLog.create({
+      data: {
+        entityType: entry.entityType,
+        entityId: entry.entityId ?? null,
+        action: entry.action,
+        userId: user?.id ?? null,
+        userName: user?.name ?? null,
+        context: entry.context ?? null,
+        before: entry.before === undefined ? undefined : JSON.parse(JSON.stringify(entry.before)),
+        after: entry.after === undefined ? undefined : JSON.parse(JSON.stringify(entry.after)),
+      },
+    });
+  } catch (e) {
+    console.error('⚠️ [AUDIT] Falha ao registrar log de auditoria:', e);
+  }
+}
+
 // ─── HEALTH CHECK ──────────────────────────────────────────────────────────────
 const healthLimiter = rateLimit({ windowMs: 60000, max: 20, standardHeaders: true, legacyHeaders: false });
 // VULN-10: Health check protegido por token secreto
@@ -326,12 +430,21 @@ app.get('/api/health', healthLimiter, (req: Request, res: Response) => {
 });
 
 // VULN-02: Endpoint de logout — revoga o token imediatamente
-app.post('/api/auth/logout', authMiddleware, (req: Request, res: Response) => {
+app.post('/api/auth/logout', authMiddleware, async (req: Request, res: Response) => {
   const user = (req as any).user;
   if (user?.jti) {
     revokedTokens.add(user.jti);
-    // Limpar tokens expirados: o Set crescerá indefinidamente sem limpeza periódica
-    // Em produção com alta escala, usar Redis com TTL
+    // Persiste a revogação para sobreviver a restart / valer em todas as instâncias.
+    const expiresAt = user.exp ? new Date(user.exp * 1000) : new Date(Date.now() + 2 * 60 * 60 * 1000);
+    try {
+      await (prisma as any).revokedToken.upsert({
+        where: { jti: user.jti },
+        create: { jti: user.jti, expiresAt },
+        update: { expiresAt },
+      });
+    } catch (e) {
+      console.error('⚠️ Falha ao persistir token revogado:', e);
+    }
   }
   res.json({ message: 'Logout realizado com sucesso.' });
 });
@@ -347,6 +460,37 @@ async function runMigrations() {
   try {
     await pool.query(`ALTER TABLE "Transaction" ADD COLUMN IF NOT EXISTS context TEXT NOT NULL DEFAULT 'PJ';`);
     await pool.query(`ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS context TEXT NOT NULL DEFAULT 'PJ';`);
+    // Exclusao reversivel (soft delete) — o registro nunca some do banco.
+    await pool.query(`ALTER TABLE "Transaction" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);`);
+    await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_transaction_deletedAt" ON "Transaction"("deletedAt");`).catch(() => {});
+    // Normaliza valores legados para centavos exatos (corrige drift de ponto flutuante).
+    await pool.query(`UPDATE "Transaction" SET amount = ROUND(amount::numeric, 2) WHERE amount <> ROUND(amount::numeric, 2);`).catch(() => {});
+    // Trilha de auditoria.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "AuditLog" (
+        id TEXT NOT NULL PRIMARY KEY,
+        "entityType" TEXT NOT NULL,
+        "entityId" TEXT,
+        action TEXT NOT NULL,
+        "userId" TEXT,
+        "userName" TEXT,
+        context TEXT,
+        "before" JSONB,
+        "after" JSONB,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_auditlog_entity" ON "AuditLog"("entityType","entityId");`).catch(() => {});
+    await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_auditlog_createdAt" ON "AuditLog"("createdAt");`).catch(() => {});
+    // Tokens revogados (logout) — persistente entre restarts e instâncias.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "RevokedToken" (
+        jti TEXT NOT NULL PRIMARY KEY,
+        "expiresAt" TIMESTAMP(3) NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await pool.query(`DELETE FROM "RevokedToken" WHERE "expiresAt" < NOW();`).catch(() => {});
     await pool.query(`
       CREATE TABLE IF NOT EXISTS "Budget" (
         id TEXT NOT NULL PRIMARY KEY,
@@ -670,6 +814,7 @@ app.get('/api/transactions', authMiddleware, financeMiddleware, async (_req: Req
   try {
     const [transactions, withAttachments] = await Promise.all([
       prisma.transaction.findMany({
+        where: { context: 'PJ', deletedAt: null },
         select: {
           id: true,
           description: true,
@@ -694,7 +839,7 @@ app.get('/api/transactions', authMiddleware, financeMiddleware, async (_req: Req
         orderBy: { dueDate: 'asc' },
       }),
       prisma.transaction.findMany({
-        where: { attachmentUrl: { not: null } },
+        where: { context: 'PJ', deletedAt: null, attachmentUrl: { not: null } },
         select: { id: true },
       }),
     ]);
@@ -711,8 +856,8 @@ app.get('/api/transactions', authMiddleware, financeMiddleware, async (_req: Req
 app.get('/api/transactions/:id/attachment', authMiddleware, financeMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   const id = String(req.params.id);
   try {
-    const t = await prisma.transaction.findUnique({
-      where: { id },
+    const t = await prisma.transaction.findFirst({
+      where: { id, deletedAt: null },
       select: { attachmentUrl: true },
     });
     if (!t || !t.attachmentUrl) return res.status(404).json({ error: 'Anexo não encontrado' });
@@ -728,15 +873,25 @@ app.post('/api/transactions', authMiddleware, financeMiddleware, async (req: Req
     res.status(400).json({ error: 'Descrição, valor e data de vencimento são obrigatórios.' });
     return;
   }
+  const parsedDueDate = parseDateInput(dueDate);
+  if (!parsedDueDate) {
+    res.status(400).json({ error: 'Data de vencimento inválida.' });
+    return;
+  }
+  const safeAmount = parseRequiredAmount(amount);
+  if (safeAmount == null) {
+    res.status(400).json({ error: 'Valor inválido. Informe um número maior que zero.' });
+    return;
+  }
   try {
     const transaction = await prisma.transaction.create({
       data: {
         description: String(description).trim(),
-        amount: sanitizeAmount(amount),
+        amount: safeAmount,
         type: type === 'IN' ? 'IN' : 'OUT',
         status: status || 'PENDING',
-        dueDate: new Date(dueDate),
-        paymentDate: paymentDate ? new Date(paymentDate) : null,
+        dueDate: parsedDueDate,
+        paymentDate: parseDateInput(paymentDate),
         isRecurring: Boolean(isRecurring),
         categoryId: categoryId || null,
         entityId: entityId || null,
@@ -745,6 +900,7 @@ app.post('/api/transactions', authMiddleware, financeMiddleware, async (req: Req
         context: 'PJ',
       },
     });
+    await writeAudit(req, { entityType: 'Transaction', entityId: transaction.id, action: 'CREATE', context: 'PJ', after: transaction });
     res.status(201).json(transaction);
   } catch (e) {
     res.status(500).json({ error: 'Erro ao criar transação.' });
@@ -756,38 +912,50 @@ app.patch('/api/transactions/:id/attach', authMiddleware, financeMiddleware, val
   const { attachmentUrl } = req.body;
   const safeUrl = (attachmentUrl && isSecureUrl(String(attachmentUrl))) ? String(attachmentUrl) : null;
   try {
+    const existing = await prisma.transaction.findFirst({ where: { id, deletedAt: null } });
+    if (!existing) { res.status(404).json({ error: 'Transação não encontrada.' }); return; }
     const t = await prisma.transaction.update({ where: { id }, data: { attachmentUrl: safeUrl } });
+    await writeAudit(req, { entityType: 'Transaction', entityId: id, action: 'ATTACH', context: existing.context, before: existing, after: t });
     res.json(t);
   } catch (e) {
     res.status(500).json({ error: 'Erro ao anexar comprovante.' });
   }
 });
 
-app.patch('/api/transactions/:id/pay', authMiddleware, financeMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
+async function payTransaction(req: Request, res: Response, expectedContext: 'PJ' | 'PF') {
   const id = String(req.params.id);
   const { paymentDate, bankAccountId, amount } = req.body;
   try {
-    const payDate = paymentDate ? new Date(paymentDate) : new Date();
+    const payDate = parseDateInput(paymentDate) ?? new Date();
+
+    // Verifica estado atual ANTES de alterar (previne baixa dupla / race condition).
+    const existing = await prisma.transaction.findFirst({ where: { id, deletedAt: null } });
+    if (!existing) { res.status(404).json({ error: 'Transação não encontrada.' }); return; }
+    if (existing.context !== expectedContext) { res.status(404).json({ error: 'Transação não encontrada.' }); return; }
+    if (existing.status === 'PAID') { res.status(409).json({ error: 'Esta transação já foi baixada.' }); return; }
+
     const updateData: any = { status: 'PAID', paymentDate: payDate };
     if (bankAccountId) updateData.bankAccountId = bankAccountId;
-    if (amount != null) updateData.amount = sanitizeAmount(amount);
-
-    // Atomic check: verifica se j� foi paga antes de atualizar (previne race condition)
-    const existing = await prisma.transaction.findUnique({ where: { id }, select: { status: true, isRecurring: true } });
-    if (!existing) { res.status(404).json({ error: 'Transa��o n�o encontrada.' }); return; }
-    if (existing.status === 'PAID') { res.status(409).json({ error: 'Esta transa��o j� foi baixada.' }); return; }
+    // Só altera o valor gravado se um valor válido e explícito foi enviado.
+    const adjusted = parseRequiredAmount(amount);
+    const amountChanged = amount != null && adjusted != null && adjusted !== existing.amount;
+    if (adjusted != null && amount != null) updateData.amount = adjusted;
 
     const t = await prisma.transaction.update({ where: { id }, data: updateData });
 
+    await writeAudit(req, { entityType: 'Transaction', entityId: id, action: 'PAY', context: existing.context, before: existing, after: t });
+    if (amountChanged) {
+      await writeAudit(req, { entityType: 'Transaction', entityId: id, action: 'UPDATE_AMOUNT', context: existing.context, before: { amount: existing.amount }, after: { amount: adjusted } });
+    }
+
     if (t.isRecurring) {
-      const nextDueDate = new Date(t.dueDate);
-      nextDueDate.setMonth(nextDueDate.getMonth() + 1);
-      // Cria recorrente apenas se n�o existir uma com mesma desc+dueDate (previne duplicatas)
+      const nextDueDate = addMonthsUTC(t.dueDate, 1);
+      // Cria a próxima recorrência apenas se ainda não existir (previne duplicatas em clique duplo).
       const dupCheck = await prisma.transaction.findFirst({
-        where: { description: t.description, dueDate: nextDueDate, status: 'PENDING', isRecurring: true },
+        where: { description: t.description, dueDate: nextDueDate, status: 'PENDING', isRecurring: true, context: t.context, deletedAt: null },
       });
       if (!dupCheck) {
-        await prisma.transaction.create({
+        const recur = await prisma.transaction.create({
           data: {
             description: t.description,
             amount: t.amount,
@@ -801,6 +969,7 @@ app.patch('/api/transactions/:id/pay', authMiddleware, financeMiddleware, valida
             context: t.context,
           },
         });
+        await writeAudit(req, { entityType: 'Transaction', entityId: recur.id, action: 'CREATE', context: recur.context, after: recur });
       }
     }
 
@@ -808,16 +977,70 @@ app.patch('/api/transactions/:id/pay', authMiddleware, financeMiddleware, valida
   } catch (e) {
     res.status(500).json({ error: 'Erro ao dar baixa.' });
   }
+}
+
+app.patch('/api/transactions/:id/pay', authMiddleware, financeMiddleware, validateUuidParam('id'), (req: Request, res: Response) => {
+  payTransaction(req, res, 'PJ');
 });
 
-app.delete('/api/transactions/:id', authMiddleware, financeMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
+async function softDeleteTransaction(req: Request, res: Response, expectedContext: 'PJ' | 'PF') {
   const id = String(req.params.id);
   try {
-    await prisma.transaction.delete({ where: { id: String(id) } });
-    res.json({ message: 'Excluído.' });
+    const existing = await prisma.transaction.findFirst({ where: { id, deletedAt: null } });
+    if (!existing || existing.context !== expectedContext) { res.status(404).json({ error: 'Transação não encontrada.' }); return; }
+    await prisma.transaction.update({ where: { id }, data: { deletedAt: new Date() } });
+    await writeAudit(req, { entityType: 'Transaction', entityId: id, action: 'DELETE', context: existing.context, before: existing });
+    res.json({ message: 'Registro movido para a lixeira. Pode ser restaurado.' });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao excluir.' });
   }
+}
+
+async function restoreTransaction(req: Request, res: Response, expectedContext: 'PJ' | 'PF') {
+  const id = String(req.params.id);
+  try {
+    const existing = await prisma.transaction.findFirst({ where: { id, deletedAt: { not: null } } });
+    if (!existing || existing.context !== expectedContext) { res.status(404).json({ error: 'Registro não encontrado na lixeira.' }); return; }
+    const t = await prisma.transaction.update({ where: { id }, data: { deletedAt: null } });
+    await writeAudit(req, { entityType: 'Transaction', entityId: id, action: 'RESTORE', context: existing.context, after: t });
+    res.json(t);
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao restaurar.' });
+  }
+}
+
+app.get('/api/transactions/trash', authMiddleware, financeMiddleware, async (_req: Request, res: Response) => {
+  try {
+    const rows = await prisma.transaction.findMany({
+      where: { context: 'PJ', deletedAt: { not: null } },
+      include: { category: true, entity: true, company: true },
+      orderBy: { deletedAt: 'desc' },
+      take: 200,
+    });
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao buscar lixeira.' });
+  }
+});
+
+app.patch('/api/transactions/:id/restore', authMiddleware, financeMiddleware, validateUuidParam('id'), (req: Request, res: Response) => {
+  restoreTransaction(req, res, 'PJ');
+});
+
+app.get('/api/transactions/:id/history', authMiddleware, financeMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
+  try {
+    const rows = await (prisma as any).auditLog.findMany({
+      where: { entityType: 'Transaction', entityId: String(req.params.id) },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: 'Erro ao buscar histórico.' });
+  }
+});
+
+app.delete('/api/transactions/:id', authMiddleware, financeMiddleware, validateUuidParam('id'), (req: Request, res: Response) => {
+  softDeleteTransaction(req, res, 'PJ');
 });
 
 // ─── LEITURA DE BOLETO (OCR SEGURO) ───────────────────────────────────────────
@@ -871,29 +1094,32 @@ app.get('/api/summary', authMiddleware, financeMiddleware, async (req: Request, 
     const rawCompanyId = req.query.companyId;
     const companyId = rawCompanyId && rawCompanyId !== 'all' && UUID_V4_REGEX.test(String(rawCompanyId))
       ? String(rawCompanyId) : undefined;
-    const filterCompany = companyId ? { companyId } : {};
+    // Somente empresa (PJ) e registros não excluídos — nunca mistura com finanças pessoais (PF).
+    const baseFilter = { ...(companyId ? { companyId } : {}), context: 'PJ', deletedAt: null };
 
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
     const [receitaMes, despesasMes, contasHoje, aReceberHoje] = await Promise.all([
-      prisma.transaction.aggregate({ where: { ...filterCompany, type: 'IN', status: 'PAID', paymentDate: { gte: startOfMonth, lte: endOfMonth } }, _sum: { amount: true } }),
-      prisma.transaction.aggregate({ where: { ...filterCompany, type: 'OUT', status: 'PAID', paymentDate: { gte: startOfMonth, lte: endOfMonth } }, _sum: { amount: true } }),
-      prisma.transaction.aggregate({ where: { ...filterCompany, type: 'OUT', status: 'PENDING', dueDate: { lte: now } }, _sum: { amount: true }, _count: true }),
-      prisma.transaction.aggregate({ where: { ...filterCompany, type: 'IN', status: 'PENDING', dueDate: { lte: now } }, _sum: { amount: true } }),
+      prisma.transaction.aggregate({ where: { ...baseFilter, type: 'IN', status: 'PAID', paymentDate: { gte: startOfMonth, lte: endOfMonth } }, _sum: { amount: true } }),
+      prisma.transaction.aggregate({ where: { ...baseFilter, type: 'OUT', status: 'PAID', paymentDate: { gte: startOfMonth, lte: endOfMonth } }, _sum: { amount: true } }),
+      prisma.transaction.aggregate({ where: { ...baseFilter, type: 'OUT', status: 'PENDING', dueDate: { lte: now } }, _sum: { amount: true }, _count: true }),
+      prisma.transaction.aggregate({ where: { ...baseFilter, type: 'IN', status: 'PENDING', dueDate: { lte: now } }, _sum: { amount: true } }),
     ]);
 
-    const receita = receitaMes._sum.amount || 0;
-    const despesas = despesasMes._sum.amount || 0;
-    const rentabilidade = receita > 0 ? (((receita - despesas) / receita) * 100).toFixed(1) : '0';
+    const receita = sanitizeAmount(receitaMes._sum.amount || 0);
+    const despesas = sanitizeAmount(despesasMes._sum.amount || 0);
+    const rentabilidade = receita > 0
+      ? (((receita - despesas) / receita) * 100).toFixed(1)
+      : (despesas > 0 ? '-100.0' : '0');
 
     res.json({
       receitaMes: receita,
       despesasMes: despesas,
       rentabilidade,
-      contasVencidasHoje: { total: contasHoje._sum.amount || 0, count: contasHoje._count },
-      aReceberHoje: aReceberHoje._sum.amount || 0,
+      contasVencidasHoje: { total: sanitizeAmount(contasHoje._sum.amount || 0), count: contasHoje._count },
+      aReceberHoje: sanitizeAmount(aReceberHoje._sum.amount || 0),
     });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao calcular resumo.' });
@@ -1075,7 +1301,7 @@ app.delete('/api/pf/categories/:id', authMiddleware, financeMiddleware, validate
 app.get('/api/pf/transactions', authMiddleware, financeMiddleware, async (_req: Request, res: Response) => {
   try {
     const transactions = await (prisma as any).transaction.findMany({
-      where: { context: 'PF' },
+      where: { context: 'PF', deletedAt: null },
       select: {
         id: true, description: true, amount: true, type: true,
         status: true, dueDate: true, paymentDate: true, isRecurring: true,
@@ -1085,7 +1311,7 @@ app.get('/api/pf/transactions', authMiddleware, financeMiddleware, async (_req: 
       orderBy: { dueDate: 'desc' },
     });
     const withAtt = await (prisma as any).transaction.findMany({
-      where: { context: 'PF', attachmentUrl: { not: null } }, select: { id: true },
+      where: { context: 'PF', deletedAt: null, attachmentUrl: { not: null } }, select: { id: true },
     });
     const attSet = new Set(withAtt.map((t: any) => t.id));
     res.json(transactions.map((t: any) => ({ ...t, hasAttachment: attSet.has(t.id) })));
@@ -1100,15 +1326,25 @@ app.post('/api/pf/transactions', authMiddleware, financeMiddleware, async (req: 
     res.status(400).json({ error: 'Descrição, valor e vencimento são obrigatórios.' });
     return;
   }
+  const parsedDueDate = parseDateInput(dueDate);
+  if (!parsedDueDate) {
+    res.status(400).json({ error: 'Data de vencimento inválida.' });
+    return;
+  }
+  const safeAmount = parseRequiredAmount(amount);
+  if (safeAmount == null) {
+    res.status(400).json({ error: 'Valor inválido. Informe um número maior que zero.' });
+    return;
+  }
   try {
     const t = await (prisma as any).transaction.create({
       data: {
         description: String(description).trim(),
-        amount: sanitizeAmount(amount),
+        amount: safeAmount,
         type: type === 'IN' ? 'IN' : 'OUT',
         status: status || 'PENDING',
-        dueDate: new Date(dueDate),
-        paymentDate: paymentDate ? new Date(paymentDate) : null,
+        dueDate: parsedDueDate,
+        paymentDate: parseDateInput(paymentDate),
         isRecurring: Boolean(isRecurring),
         categoryId: categoryId || null,
         entityId: entityId || null,
@@ -1117,44 +1353,37 @@ app.post('/api/pf/transactions', authMiddleware, financeMiddleware, async (req: 
         context: 'PF',
       },
     });
+    await writeAudit(req, { entityType: 'Transaction', entityId: t.id, action: 'CREATE', context: 'PF', after: t });
     res.status(201).json(t);
   } catch (e) {
     res.status(500).json({ error: 'Erro ao criar transação PF.' });
   }
 });
 
-app.patch('/api/pf/transactions/:id/pay', authMiddleware, financeMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
-  const id = String(req.params.id);
-  const { paymentDate, bankAccountId, amount } = req.body;
-  try {
-    const payDate = paymentDate ? new Date(paymentDate) : new Date();
-    const updateData: any = { status: 'PAID', paymentDate: payDate };
-    if (bankAccountId) updateData.bankAccountId = bankAccountId;
-    if (amount != null) updateData.amount = sanitizeAmount(amount);
+app.patch('/api/pf/transactions/:id/pay', authMiddleware, financeMiddleware, validateUuidParam('id'), (req: Request, res: Response) => {
+  payTransaction(req, res, 'PF');
+});
 
-    const t = await (prisma as any).transaction.update({
-      where: { id }, data: updateData,
+app.get('/api/pf/transactions/trash', authMiddleware, financeMiddleware, async (_req: Request, res: Response) => {
+  try {
+    const rows = await prisma.transaction.findMany({
+      where: { context: 'PF', deletedAt: { not: null } },
+      include: { category: true, entity: true },
+      orderBy: { deletedAt: 'desc' },
+      take: 200,
     });
-    if (t.isRecurring) {
-      const nextDue = new Date(t.dueDate);
-      nextDue.setMonth(nextDue.getMonth() + 1);
-      await (prisma as any).transaction.create({
-        data: { description: t.description, amount: t.amount, type: t.type, categoryId: t.categoryId, entityId: t.entityId, companyId: t.companyId, dueDate: nextDue, status: 'PENDING', isRecurring: true, context: 'PF' },
-      });
-    }
-    res.json(t);
+    res.json(rows);
   } catch (e) {
-    res.status(500).json({ error: 'Erro ao dar baixa.' });
+    res.status(500).json({ error: 'Erro ao buscar lixeira.' });
   }
 });
 
-app.delete('/api/pf/transactions/:id', authMiddleware, financeMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
-  try {
-    await (prisma as any).transaction.delete({ where: { id: String(req.params.id) } });
-    res.json({ message: 'Excluído.' });
-  } catch {
-    res.status(500).json({ error: 'Erro ao excluir.' });
-  }
+app.patch('/api/pf/transactions/:id/restore', authMiddleware, financeMiddleware, validateUuidParam('id'), (req: Request, res: Response) => {
+  restoreTransaction(req, res, 'PF');
+});
+
+app.delete('/api/pf/transactions/:id', authMiddleware, financeMiddleware, validateUuidParam('id'), (req: Request, res: Response) => {
+  softDeleteTransaction(req, res, 'PF');
 });
 
 // Orçamentos (Budget)
@@ -1240,14 +1469,19 @@ app.post('/api/pf/goals', authMiddleware, financeMiddleware, async (req: Request
 app.patch('/api/pf/goals/:id/deposit', authMiddleware, financeMiddleware, validateUuidParam('id'), async (req: Request, res: Response) => {
   const id = String(req.params.id);
   const { amount } = req.body;
+  const dep = parseRequiredAmount(amount);
+  if (dep == null) { res.status(400).json({ error: 'Valor de depósito inválido.' }); return; }
   try {
     const g = await (prisma as any).goal.findUnique({ where: { id: String(id) } });
     if (!g) { res.status(404).json({ error: 'Meta não encontrada.' }); return; }
+    const novoTotal = sanitizeAmount(g.currentAmount + dep);
+    const capped = novoTotal > g.targetAmount;
     const updated = await (prisma as any).goal.update({
       where: { id },
-      data: { currentAmount: Math.min(g.currentAmount + Math.abs(Number(amount) || 0), g.targetAmount) },
+      data: { currentAmount: capped ? g.targetAmount : novoTotal },
     });
-    res.json(updated);
+    await writeAudit(req, { entityType: 'Goal', entityId: id, action: 'DEPOSIT', context: 'PF', before: { currentAmount: g.currentAmount }, after: { currentAmount: updated.currentAmount, depositoSolicitado: dep } });
+    res.json({ ...updated, capped, excedente: capped ? sanitizeAmount(novoTotal - g.targetAmount) : 0 });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao depositar.' });
   }
@@ -1632,40 +1866,68 @@ app.post('/api/warehouse/movements', authMiddleware, warehouseMiddleware, async 
     res.status(400).json({ error: 'Tipo de movimentacao invalido.' });
     return;
   }
+  const qtyInput = Math.abs(Number(quantity));
+  if (!isFinite(qtyInput) || qtyInput <= 0) {
+    res.status(400).json({ error: 'Quantidade inválida.' });
+    return;
+  }
   try {
     const prod = await prisma.product.findUnique({ where: { id: productId } });
     if (!prod) return res.status(404).json({ error: 'Produto não encontrado.' });
-    
-    const qty = Math.abs(Number(quantity));
-    const price = Number(unitPrice) || prod.costPrice;
-    const total = qty * price;
-    const movDate = date ? new Date(date) : new Date();
-    
-    let newStock = prod.currentStock;
-    if (type === 'ENTRY' || type === 'RETURN') newStock += qty;
-    else if (type === 'EXIT' || type === 'SALE' || type === 'ADJUSTMENT') newStock = Math.max(0, newStock - qty);
-    
-    const [movement] = await prisma.$transaction([
-      prisma.stockMovement.create({
+
+    const price = Math.max(0, Number(unitPrice) || prod.costPrice || 0);
+    const movDate = parseDateInput(date) ?? new Date();
+
+    // Transação interativa: lê o estoque atual e grava movimento + saldo de forma
+    // consistente, evitando "lost update" quando duas movimentações ocorrem juntas.
+    const result = await prisma.$transaction(async (tx) => {
+      const fresh = await tx.product.findUnique({ where: { id: productId }, select: { currentStock: true } });
+      const current = fresh?.currentStock ?? prod.currentStock;
+
+      let newStock: number;
+      let recordedQty = qtyInput;      // quantidade registrada no histórico
+      let autoReason: string | null = reason || null;
+      let warning: string | undefined;
+
+      if (type === 'ENTRY' || type === 'RETURN') {
+        newStock = current + qtyInput;
+      } else if (type === 'EXIT' || type === 'SALE' || type === 'LOSS') {
+        newStock = current - qtyInput;
+        if (newStock < 0) {
+          warning = `Estoque insuficiente (${current}). Saldo ajustado para 0 — confira a contagem física.`;
+          recordedQty = current;       // só saiu o que havia
+          newStock = 0;
+        }
+      } else { // ADJUSTMENT: a quantidade informada é a CONTAGEM FÍSICA (novo saldo absoluto)
+        const delta = qtyInput - current;
+        recordedQty = Math.abs(delta);
+        newStock = qtyInput;
+        autoReason = `${reason ? reason + ' — ' : ''}Ajuste de inventário: ${current} → ${qtyInput} (${delta >= 0 ? '+' : ''}${Math.round(delta * 1000) / 1000})`;
+      }
+
+      const total = Math.round(recordedQty * price * 100) / 100;
+
+      const movement = await tx.stockMovement.create({
         data: {
           productId,
           type,
-          quantity: qty,
+          quantity: recordedQty,
           unitPrice: price,
           totalPrice: total,
-          reason: reason || null,
+          reason: autoReason,
           document: document || null,
           date: movDate,
           createdBy: user?.name || null,
         },
-      }),
-      prisma.product.update({
+      });
+      const updated = await tx.product.update({
         where: { id: productId },
         data: { currentStock: newStock },
-      }),
-    ]);
-    
-    res.json({ ...movement, newStock });
+      });
+      return { movement, newStock: updated.currentStock, warning };
+    });
+
+    res.json({ ...result.movement, newStock: result.newStock, warning: result.warning });
   } catch (e) {
     res.status(500).json({ error: 'Erro ao registrar movimentação.' });
   }
@@ -1780,8 +2042,13 @@ app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
 // ─── INICIALIZAÇÃO DO SERVIDOR COM PROTEÇÃO SLOWLORIS ─────────────────────────
 const server = app.listen(port, () => {
   console.log(`🚀 Servidor Magalhães seguro e operacional na porta ${port}`);
-  runMigrations();
+  runMigrations()
+    .then(() => initRevokedTokens())
+    .catch((e) => console.error('⚠️ Erro na inicialização pós-listen:', e));
 });
+
+// Limpa tokens revogados expirados a cada hora (memória + base).
+setInterval(() => { purgeExpiredRevokedTokens(); }, 60 * 60 * 1000).unref();
 
 // Timeouts defensivos contra ataques Slowloris e conexões zumbis
 server.headersTimeout = 20000;

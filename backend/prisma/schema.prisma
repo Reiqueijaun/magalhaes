@@ -76,6 +76,7 @@ model Transaction {
   isRecurring Boolean   @default(false)
   attachmentUrl String?
   context     String    @default("PJ") // 'PJ' (Empresa) ou 'PF' (Pessoal)
+  deletedAt   DateTime? // Exclusão reversível: registro nunca é apagado do banco
   
   // Relacionamentos
   categoryId  String?
@@ -98,6 +99,31 @@ model Transaction {
   @@index([type])
   @@index([context])
   @@index([companyId])
+  @@index([deletedAt])
+}
+
+model RevokedToken {
+  jti       String   @id
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  entityType String   // ex: 'Transaction'
+  entityId   String?
+  action     String   // 'CREATE', 'PAY', 'UPDATE_AMOUNT', 'DELETE', 'RESTORE'
+  userId     String?
+  userName   String?
+  context    String?  // 'PJ' ou 'PF'
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }
 
 model Budget {

@@ -4,7 +4,7 @@ import {
   Building2, Tag, UserCheck, CreditCard, Filter, Loader, Eye, ArrowDownRight
 } from 'lucide-react';
 import { authFetch } from '../config';
-import { formatCurrency, parseCurrency } from '../utils';
+import { formatCurrency, parseCurrency, todayInput, formatDateBR } from '../utils';
 import ConfirmModal from './ConfirmModal';
 
 const fmt = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
@@ -38,7 +38,7 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [], th
   // Formulário
   const [desc, setDesc] = useState('');
   const [valor, setValor] = useState('');
-  const [dataVenc, setDataVenc] = useState(new Date().toISOString().split('T')[0]);
+  const [dataVenc, setDataVenc] = useState(todayInput());
   const [categoryId, setCategoryId] = useState('');
   const [entityId, setEntityId] = useState('');
   const [companyId, setCompanyId] = useState('');
@@ -142,7 +142,7 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [], th
         setIsModalOpen(false);
         fetchData();
         setDesc(''); setValor(''); setCategoryId(''); setEntityId(''); setCompanyId(''); setBankAccountId('');
-        setDataVenc(new Date().toISOString().split('T')[0]);
+        setDataVenc(todayInput());
       }
     } catch (err) {
       alert('Erro ao salvar. Verifique a conexão com o servidor.');
@@ -406,7 +406,7 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [], th
                 {filteredExpenses.map(expense => (
                   <tr key={expense.id}>
                     <td className="tabular-nums" style={{ fontWeight: 700, color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
-                      {new Date(expense.paymentDate || expense.dueDate).toLocaleDateString('pt-BR')}
+                      {formatDateBR(expense.paymentDate || expense.dueDate)}
                     </td>
                     <td>
                       <div style={{ fontWeight: 800, color: 'var(--text-main)' }}>{expense.description}</div>
@@ -546,7 +546,7 @@ export default function Expenses({ selectedCompanyId = 'all', companies = [], th
         onClose={() => setDeleteItem(null)}
         onConfirm={handleDeleteConfirm}
         title="Excluir Pagamento do Extrato"
-        message="Atenção: Tem certeza que deseja excluir este pagamento do seu extrato histórico? Isso afetará os relatórios e totalizadores."
+        message="Mover este pagamento para a lixeira? Ele sai do extrato e dos totalizadores, mas pode ser restaurado depois."
         itemName={deleteItem?.description}
         itemValue={deleteItem ? fmt(deleteItem.amount) : ''}
         loading={deleting}

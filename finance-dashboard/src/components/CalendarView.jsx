@@ -57,13 +57,19 @@ export default function CalendarView({ selectedCompanyId = 'all', companies = []
     fetchTransactions();
   }, []);
 
+  // Somente empresa (PJ) e não excluídos — o briefing diário nunca conta contas pessoais.
+  const pjTransactions = useMemo(
+    () => transactions.filter(t => (!t.context || t.context === 'PJ') && !t.deletedAt),
+    [transactions]
+  );
+
   // Transações filtradas pela unidade selecionada
   const filteredTransactions = useMemo(() => {
     if (!selectedCompanyId || selectedCompanyId === 'all') {
-      return transactions;
+      return pjTransactions;
     }
-    return transactions.filter(t => t.companyId === selectedCompanyId);
-  }, [transactions, selectedCompanyId]);
+    return pjTransactions.filter(t => t.companyId === selectedCompanyId);
+  }, [pjTransactions, selectedCompanyId]);
 
   // Cálculos do Briefing Diário
   const todayStr = now.toDateString();
@@ -511,7 +517,7 @@ export default function CalendarView({ selectedCompanyId = 'all', companies = []
         onClose={() => setDeleteItem(null)}
         onConfirm={handleDeleteConfirm}
         title="Excluir Movimentação do Calendário"
-        message="Atenção: Tem certeza que deseja excluir este registro financeiro?"
+        message="Mover este registro para a lixeira? Ele pode ser restaurado depois."
         itemName={deleteItem?.description}
         itemValue={deleteItem ? fmt(deleteItem.amount) : ''}
         loading={deleting}

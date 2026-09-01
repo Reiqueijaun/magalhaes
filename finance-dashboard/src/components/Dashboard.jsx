@@ -143,26 +143,37 @@ export default function Dashboard({ selectedCompanyId = 'all', companies = [], t
     fetchAll();
   }, [selectedCompanyId]);
 
+  // Apenas transações da empresa (PJ) e não excluídas — nunca mistura com finanças pessoais.
+  const pjTransactions = useMemo(
+    () => transactions.filter(t => (!t.context || t.context === 'PJ') && !t.deletedAt),
+    [transactions]
+  );
+
   // Transações filtradas pela unidade selecionada
   const filteredTransactions = useMemo(() => {
     if (!selectedCompanyId || selectedCompanyId === 'all') {
-      return transactions;
+      return pjTransactions;
     }
-    return transactions.filter(t => t.companyId === selectedCompanyId);
-  }, [transactions, selectedCompanyId]);
+    return pjTransactions.filter(t => t.companyId === selectedCompanyId);
+  }, [pjTransactions, selectedCompanyId]);
 
   // ─── 1. DADOS DE EVOLUÇÃO MENSAL (12 MESES) ──────────────────────────────
   const mesesNomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const chartYear = new Date().getFullYear();
   const chartData = useMemo(() => {
+    const inYearMonth = (v, idx) => {
+      const d = new Date(v);
+      return d.getFullYear() === chartYear && d.getMonth() === idx;
+    };
     return mesesNomes.map((name, idx) => {
       const receitas = filteredTransactions
-        .filter(t => t.type === 'IN' && t.status === 'PAID' && new Date(t.paymentDate || t.dueDate).getMonth() === idx)
+        .filter(t => t.type === 'IN' && t.status === 'PAID' && inYearMonth(t.paymentDate || t.dueDate, idx))
         .reduce((acc, t) => acc + t.amount, 0);
       const despesas = filteredTransactions
-        .filter(t => t.type === 'OUT' && t.status === 'PAID' && new Date(t.paymentDate || t.dueDate).getMonth() === idx)
+        .filter(t => t.type === 'OUT' && t.status === 'PAID' && inYearMonth(t.paymentDate || t.dueDate, idx))
         .reduce((acc, t) => acc + t.amount, 0);
       const boletosPendentes = filteredTransactions
-        .filter(t => t.type === 'OUT' && t.status === 'PENDING' && new Date(t.dueDate).getMonth() === idx)
+        .filter(t => t.type === 'OUT' && t.status === 'PENDING' && inYearMonth(t.dueDate, idx))
         .reduce((acc, t) => acc + t.amount, 0);
       const saldoLiquido = receitas - despesas;
       return { 
@@ -208,10 +219,10 @@ export default function Dashboard({ selectedCompanyId = 'all', companies = [], t
   const comparativoUnidades = useMemo(() => {
     if (companies.length === 0) return [];
     return companies.map(comp => {
-      const rec = transactions
+      const rec = pjTransactions
         .filter(t => t.companyId === comp.id && t.type === 'IN' && t.status === 'PAID')
         .reduce((acc, t) => acc + t.amount, 0);
-      const desp = transactions
+      const desp = pjTransactions
         .filter(t => t.companyId === comp.id && t.type === 'OUT' && t.status === 'PAID')
         .reduce((acc, t) => acc + t.amount, 0);
       const saldo = rec - desp;
@@ -224,7 +235,7 @@ export default function Dashboard({ selectedCompanyId = 'all', companies = [], t
         Margem: Number(margem)
       };
     }).sort((a, b) => b.Receitas - a.Receitas);
-  }, [transactions, companies]);
+  }, [pjTransactions, companies]);
 
   // ─── 4. DESPESAS POR CATEGORIA (DONUT CHART INTERATIVO) ────────────────────
   const despesasPorCategoria = useMemo(() => {

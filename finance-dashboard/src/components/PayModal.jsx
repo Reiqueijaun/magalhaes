@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { authFetch } from '../config';
-import { formatCurrency, parseCurrency } from '../utils';
+import { formatCurrency, parseCurrency, todayInput } from '../utils';
 
 export default function PayModal({ isOpen, onClose, transaction, onPaySuccess }) {
-  const [dataVenc, setDataVenc] = useState(new Date().toISOString().split('T')[0]);
+  const [dataVenc, setDataVenc] = useState(todayInput());
   const [bankAccountId, setBankAccountId] = useState('');
   const [valor, setValor] = useState('');
   const [bankAccounts, setBankAccounts] = useState([]);
@@ -25,7 +25,7 @@ export default function PayModal({ isOpen, onClose, transaction, onPaySuccess })
       // Reset form with transaction data
       if (transaction) {
         setValor(transaction.amount.toFixed(2).replace('.', ','));
-        setDataVenc(new Date().toISOString().split('T')[0]);
+        setDataVenc(todayInput());
         setBankAccountId(transaction.bankAccountId || '');
       }
     }

@@ -254,12 +254,19 @@ function MovementModal({ products, onSave, onClose, defaultType }) {
     if (selectedProduct) f('unitPrice', selectedProduct.costPrice || 0);
   }, [form.productId]);
 
+  const isAdjustment = form.type === 'ADJUSTMENT';
+  const adjustDelta = isAdjustment && selectedProduct
+    ? Number(form.quantity) - Number(selectedProduct.currentStock || 0)
+    : null;
+
   const handleSave = async () => {
     if (!form.productId) { setErr('Selecione um produto.'); return; }
-    if (!form.quantity || Number(form.quantity) <= 0) { setErr('Quantidade deve ser maior que zero.'); return; }
+    if (form.quantity === '' || !isFinite(Number(form.quantity)) || Number(form.quantity) < 0) { setErr('Informe uma quantidade válida.'); return; }
+    if (!isAdjustment && Number(form.quantity) <= 0) { setErr('Quantidade deve ser maior que zero.'); return; }
     setSaving(true); setErr('');
     const res = await api.post('/api/warehouse/movements', { ...form, quantity: Number(form.quantity), unitPrice: Number(form.unitPrice) });
     if (res.error) { setErr(res.error); setSaving(false); return; }
+    if (res.warning) alert('⚠️ ' + res.warning);
     onSave(res);
   };
 
@@ -309,8 +316,15 @@ function MovementModal({ products, onSave, onClose, defaultType }) {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: '0.75rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Quantidade *</label>
-              <input type="number" value={form.quantity} onChange={e => f('quantity', e.target.value)} min="0.001" step="0.001" style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem' }} />
+              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>
+                {isAdjustment ? 'Contagem física (novo saldo) *' : 'Quantidade *'}
+              </label>
+              <input type="number" value={form.quantity} onChange={e => f('quantity', e.target.value)} min={isAdjustment ? '0' : '0.001'} step="0.001" style={{ padding: '0.5rem 0.75rem', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.875rem' }} />
+              {isAdjustment && adjustDelta != null && (
+                <span style={{ fontSize: '0.72rem', color: adjustDelta === 0 ? '#64748b' : adjustDelta > 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>
+                  {adjustDelta === 0 ? 'Sem alteração de saldo' : `Ajuste de ${adjustDelta > 0 ? '+' : ''}${adjustDelta} ${selectedProduct?.unit || ''}`}
+                </span>
+              )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>Preço Unitário (R$)</label>
@@ -470,6 +484,47 @@ function ProductDetailModal({ product, movements, onClose }) {
   );
 }
 
+// ─── MODAL: Foto do Produto ───────────────────────────────────────────────────
+function ProductPhotoModal({ product, onClose }) {
+  const [imageUrl, setImageUrl] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    api.get(`/api/warehouse/products/${product.id}/image`)
+      .then(d => { if (alive) { setImageUrl(d?.imageUrl || null); setLoading(false); } })
+      .catch(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [product]);
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, backdropFilter: 'blur(4px)', padding: '2rem' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 16, maxWidth: 'min(92vw, 640px)', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.35)', animation: 'modalIn 0.2s ease' }}>
+        <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: '1rem', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</div>
+            <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{product.code}</div>
+          </div>
+          <button onClick={onClose} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: 6, color: '#475569', cursor: 'pointer', flexShrink: 0 }}><X size={18} /></button>
+        </div>
+        <div style={{ padding: '1.25rem', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 240 }}>
+          {loading ? (
+            <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Carregando imagem...</span>
+          ) : imageUrl ? (
+            <img src={imageUrl} alt={product.name} style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 8 }} />
+          ) : (
+            <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+              <Package size={48} style={{ opacity: 0.4, marginBottom: 8 }} />
+              <p style={{ fontSize: '0.85rem' }}>Este produto não possui foto.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── TABS ─────────────────────────────────────────────────────────────────────
 const TABS = [
   { id: 'dashboard', label: 'Dashboard',    icon: BarChart2 },
@@ -501,6 +556,7 @@ export default function WarehouseModule() {
   const [showMovModal, setShowMovModal] = useState(false);
   const [movDefaultType, setMovDefaultType] = useState('ENTRY');
   const [viewProduct, setViewProduct] = useState(null);
+  const [photoProduct, setPhotoProduct] = useState(null);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -647,21 +703,21 @@ export default function WarehouseModule() {
     if (!newLoc.aisle || !newLoc.shelf || !newLoc.position) return alert('Preencha corredor, prateleira e posição.');
     await api.post('/api/warehouse/locations', newLoc);
     setNewLoc({ aisle: '', shelf: '', position: '' });
-    loadAll(false);
+    loadBaseData(false);
   };
 
   const handleAddSupplier = async () => {
     if (!newSup.name) return alert('Nome do fornecedor é obrigatório.');
     await api.post('/api/warehouse/suppliers', newSup);
     setNewSup({ name: '', document: '', contact: '', email: '', phone: '' });
-    loadAll(false);
+    loadBaseData(false);
   };
 
   const handleAddCategory = async () => {
     if (!newCat.name) return alert('Nome da categoria é obrigatório.');
     await api.post('/api/warehouse/categories', newCat);
     setNewCat({ name: '', color: '#64748b' });
-    loadAll(false);
+    loadBaseData(false);
   };
 
   const handleDeleteCategory = async (id) => {
@@ -854,7 +910,11 @@ export default function WarehouseModule() {
                           onMouseLeave={e => e.currentTarget.style.background = ''}
                         >
                           <td style={{ padding: '10px 14px' }}>
-                            <div style={{ width: 44, height: 44, borderRadius: 8, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                            <div
+                              onClick={p.hasImage ? () => setPhotoProduct(p) : undefined}
+                              title={p.hasImage ? 'Ver foto do produto' : undefined}
+                              style={{ width: 44, height: 44, borderRadius: 8, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #e2e8f0', cursor: p.hasImage ? 'zoom-in' : 'default' }}
+                            >
                               {p.hasImage ? (
                                 <ProductThumb id={p.id} />
                               ) : (
@@ -1134,7 +1194,7 @@ export default function WarehouseModule() {
                         </div>
                         <button onClick={() => {
                           if(confirm('Excluir?')) {
-                            api.del(`/api/warehouse/locations/${l.id}`).then(loadAll);
+                            api.del(`/api/warehouse/locations/${l.id}`).then(() => loadBaseData(false));
                           }
                         }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 }}><Trash2 size={16} /></button>
                       </div>
@@ -1252,16 +1312,16 @@ export default function WarehouseModule() {
           locations={locations}
           suppliers={suppliers}
           categories={categories}
-          onSave={() => { setShowProductModal(false); setEditProduct(null); loadAll(false); }}
+          onSave={() => { setEditProduct(null); onSaveProduct(); }}
           onClose={() => { setShowProductModal(false); setEditProduct(null); }}
         />
       )}
 
       {showMovModal && (
         <MovementModal
-          products={products}
+          products={simpleProducts}
           defaultType={movDefaultType}
-          onSave={() => { setShowMovModal(false); loadAll(false); }}
+          onSave={onSaveMovement}
           onClose={() => setShowMovModal(false)}
         />
       )}
@@ -1269,8 +1329,15 @@ export default function WarehouseModule() {
       {viewProduct && (
         <ProductDetailModal
           product={viewProduct}
-          movements={movements}
+          movements={movData.data || []}
           onClose={() => setViewProduct(null)}
+        />
+      )}
+
+      {photoProduct && (
+        <ProductPhotoModal
+          product={photoProduct}
+          onClose={() => setPhotoProduct(null)}
         />
       )}
     </div>

@@ -1,23 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import {
   LayoutDashboard, Receipt, Clock, Wallet,
   Settings as SettingsIcon, LogOut, ArrowRightLeft,
   CalendarDays, FileBarChart2, User, Package, Building2,
   Sun, Moon, Menu, X, MoreHorizontal
 } from 'lucide-react';
-import Reports from './components/Reports';
-import PersonalFinance from './components/PersonalFinance';
-import Dashboard from './components/Dashboard';
-import Expenses from './components/Expenses';
-import Pending from './components/Pending';
-import Receivable from './components/Receivable';
-import CalendarView from './components/CalendarView';
-import Settings from './components/Settings';
 import Login from './components/Login';
 import Notifications from './components/Notifications';
 import Tutorial from './components/Tutorial';
-import WarehouseModule from './components/Warehouse';
 import { authFetch, apiLogout } from './config';
+
+// Telas carregadas sob demanda — reduz o bundle inicial (recharts, jsPDF, etc.
+// só chegam ao navegador quando a tela correspondente é aberta).
+const Reports = lazy(() => import('./components/Reports'));
+const PersonalFinance = lazy(() => import('./components/PersonalFinance'));
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const Expenses = lazy(() => import('./components/Expenses'));
+const Pending = lazy(() => import('./components/Pending'));
+const Receivable = lazy(() => import('./components/Receivable'));
+const CalendarView = lazy(() => import('./components/CalendarView'));
+const Settings = lazy(() => import('./components/Settings'));
+const WarehouseModule = lazy(() => import('./components/Warehouse'));
 
 function App() {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -314,7 +317,9 @@ function App() {
         </header>
 
         <div className="page-content">
-          {renderView()}
+          <Suspense fallback={<div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600 }}>Carregando módulo…</div>}>
+            {renderView()}
+          </Suspense>
         </div>
       </main>
 

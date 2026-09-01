@@ -5,7 +5,7 @@ import {
   ArrowUpRight, Sparkles, User, Loader
 } from 'lucide-react';
 import { authFetch } from '../config';
-import { formatCurrency, parseCurrency } from '../utils';
+import { formatCurrency, parseCurrency, todayInput, formatDateBR, daysUntil } from '../utils';
 import PayModal from './PayModal';
 import ConfirmModal from './ConfirmModal';
 
@@ -40,7 +40,7 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
 
   const [desc, setDesc] = useState('');
   const [valor, setValor] = useState('');
-  const [dataVenc, setDataVenc] = useState(new Date().toISOString().split('T')[0]);
+  const [dataVenc, setDataVenc] = useState(todayInput());
   const [categoryId, setCategoryId] = useState('');
   const [entityId, setEntityId] = useState('');
   const [companyId, setCompanyId] = useState('');
@@ -128,7 +128,7 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
       if (response.ok) {
         setSuccess('✅ Cobrança / Venda registrada com sucesso!');
         setDesc(''); setValor(''); setCategoryId(''); setEntityId(''); setCompanyId(''); setBankAccountId(''); setRecorrente(false);
-        setDataVenc(new Date().toISOString().split('T')[0]);
+        setDataVenc(todayInput());
         fetchTransactions();
         setTimeout(() => setSuccess(''), 3500);
       } else { 
@@ -175,11 +175,9 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
   const totalPendente = filtered.reduce((a,b) => a+b.amount, 0);
 
   const renderCard = (item) => {
-    const dueDate = new Date(item.dueDate);
-    const nowDay = new Date(); nowDay.setHours(0,0,0,0);
-    const diffDays = Math.ceil((dueDate - nowDay) / (1000*60*60*24));
-    const isOverdue = dueDate < nowDay;
-    const isToday = dueDate.toDateString() === new Date().toDateString();
+    const diffDays = daysUntil(item.dueDate);
+    const isOverdue = diffDays < 0;
+    const isToday = diffDays === 0;
 
     return (
       <div 
@@ -235,7 +233,7 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
                 color: isOverdue ? 'var(--warning-text)' : isToday ? 'var(--success-text)' : 'var(--text-muted)', 
                 fontWeight: 700 
               }}>
-                {isOverdue ? `⚠️ Atrasado ${Math.abs(diffDays)}d` : isToday ? '✨ Entra hoje' : `📅 Previsão: ${dueDate.toLocaleDateString('pt-BR')} (${diffDays}d)`}
+                {isOverdue ? `⚠️ Atrasado ${Math.abs(diffDays)}d` : isToday ? '✨ Entra hoje' : `📅 Previsão: ${formatDateBR(item.dueDate)} (${diffDays}d)`}
               </span>
               {item.isRecurring && (
                 <span className="badge-pill" style={{ background: 'rgba(124,58,237,0.12)', color: 'var(--brand-purple)', border: '1px solid rgba(124,58,237,0.25)' }}>
@@ -610,7 +608,7 @@ export default function Receivable({ selectedCompanyId = 'all', companies = [], 
         onClose={() => setDeleteItem(null)}
         onConfirm={handleDeleteConfirm}
         title="Excluir Cobrança a Receber"
-        message="Atenção: Tem certeza que deseja excluir esta previsão de recebimento do sistema?"
+        message="Mover esta cobrança para a lixeira? Ela sai dos relatórios, mas pode ser restaurada depois."
         itemName={deleteItem?.description}
         itemValue={deleteItem ? fmt(deleteItem.amount) : ''}
         loading={deleting}

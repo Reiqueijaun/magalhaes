@@ -1,6 +1,6 @@
 import { AlertTriangle, X } from 'lucide-react';
 
-export default function ConfirmModal({ isOpen, onClose, onConfirm, title, message, itemName, itemValue, confirmText = 'Excluir Definitivamente', loading = false }) {
+export default function ConfirmModal({ isOpen, onClose, onConfirm, title, message, itemName, itemValue, confirmText = 'Mover para a Lixeira', loading = false }) {
   if (!isOpen) return null;
 
   return (
@@ -41,7 +41,7 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, title, messag
               {title || 'Confirmar Exclusão'}
             </h3>
             <p style={{ margin: '2px 0 0', color: '#b91c1c', fontSize: '0.8rem' }}>
-              Ação irreversível no fluxo financeiro
+              O registro vai para a lixeira e pode ser restaurado
             </p>
           </div>
           <button 
@@ -55,7 +55,7 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, title, messag
         {/* Content Body */}
         <div style={{ padding: '1.5rem' }}>
           <p style={{ margin: 0, color: '#4b5563', fontSize: '0.92rem', lineHeight: '1.5' }}>
-            {message || 'Você tem certeza que deseja excluir este registro? Essa ação não poderá ser desfeita.'}
+            {message || 'Deseja mover este registro para a lixeira? Ele deixa de aparecer nos relatórios, mas pode ser restaurado depois.'}
           </p>
 
           {(itemName || itemValue) && (

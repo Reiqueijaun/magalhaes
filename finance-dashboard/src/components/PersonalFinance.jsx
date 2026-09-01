@@ -5,10 +5,11 @@ import {
   Sparkles, DollarSign, Calendar
 } from 'lucide-react';
 import { authFetch } from '../config';
+import { formatDateBR, todayInput } from '../utils';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const fmt = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-const fmtDate = (d) => new Date(d).toLocaleDateString('pt-BR');
+const fmtDate = (d) => formatDateBR(d);
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const EMOJIS = ['🎯','🏠','✈️','🚗','📚','💊','🏋️','💍','🎓','🌴','📱','💻','🎸','🐶','👶'];
 
@@ -27,6 +28,9 @@ export default function PersonalFinance({ theme = 'light' }) {
   const [budgets, setBudgets] = useState([]);
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   // Modais
   const [txModal, setTxModal] = useState(false);
@@ -38,7 +42,7 @@ export default function PersonalFinance({ theme = 'light' }) {
   const [txDesc, setTxDesc] = useState('');
   const [txAmount, setTxAmount] = useState('');
   const [txType, setTxType] = useState('OUT');
-  const [txDate, setTxDate] = useState(new Date().toISOString().slice(0, 10));
+  const [txDate, setTxDate] = useState(todayInput());
   const [txCategory, setTxCategory] = useState('');
   const [txRecurring, setTxRecurring] = useState(false);
   const [txStatus, setTxStatus] = useState('PAID');
@@ -90,14 +94,23 @@ export default function PersonalFinance({ theme = 'light' }) {
     });
   }, [transactions]);
 
-  const totalIn  = thisMonth.filter(t => t.type === 'IN').reduce((a, b) => a + b.amount, 0);
-  const totalOut = thisMonth.filter(t => t.type === 'OUT').reduce((a, b) => a + b.amount, 0);
-  const saldo = totalIn - totalOut;
+  const sum = (arr) => Math.round(arr.reduce((a, b) => a + (Number(b.amount) || 0), 0) * 100) / 100;
 
-  // Gasto por categoria no mês
+  // "Realizado" = somente lançamentos já pagos/recebidos. É o que define o Saldo Atual.
+  const totalIn  = sum(thisMonth.filter(t => t.type === 'IN'  && t.status === 'PAID'));
+  const totalOut = sum(thisMonth.filter(t => t.type === 'OUT' && t.status === 'PAID'));
+  const saldo = Math.round((totalIn - totalOut) * 100) / 100;
+
+  // "Previsto" = lançamentos pendentes do mês (ainda não movimentaram dinheiro).
+  const previstoIn  = sum(thisMonth.filter(t => t.type === 'IN'  && t.status === 'PENDING'));
+  const previstoOut = sum(thisMonth.filter(t => t.type === 'OUT' && t.status === 'PENDING'));
+  const saldoProjetado = Math.round((saldo + previstoIn - previstoOut) * 100) / 100;
+  const temPrevisto = previstoIn > 0 || previstoOut > 0;
+
+  // Gasto por categoria no mês (somente despesas realizadas)
   const spendByCategory = useMemo(() => {
     const map = {};
-    thisMonth.filter(t => t.type === 'OUT').forEach(t => {
+    thisMonth.filter(t => t.type === 'OUT' && t.status === 'PAID').forEach(t => {
       const key = t.category?.name || 'Outros';
       const color = t.category?.color || '#3b82f6';
       if (!map[key]) map[key] = { name: key, value: 0, color };
@@ -109,84 +122,121 @@ export default function PersonalFinance({ theme = 'light' }) {
   // Progresso dos orçamentos (gastos reais vs limite)
   const budgetsWithProgress = useMemo(() => {
     return budgets.map(b => {
-      const spent = thisMonth
-        .filter(t => t.type === 'OUT' && (b.categoryId ? t.categoryId === b.categoryId : t.category?.name === b.name))
-        .reduce((a, t) => a + t.amount, 0);
-      const pct = Math.min((spent / b.limitAmount) * 100, 100);
+      const spent = sum(thisMonth
+        .filter(t => t.type === 'OUT' && t.status === 'PAID' && (b.categoryId ? t.categoryId === b.categoryId : t.category?.name === b.name)));
+      const pct = b.limitAmount > 0 ? Math.min((spent / b.limitAmount) * 100, 100) : 0;
       return { ...b, spent, pct };
     });
   }, [budgets, thisMonth]);
 
   // ── Ações ──
+  // Converte o texto mascarado ("1.234,56") em número. Retorna NaN se inválido.
+  const brToNumber = (s) => Number(String(s || '').replace(/\./g, '').replace(',', '.'));
+
+  const flash = (msg) => { setNotice(msg); setTimeout(() => setNotice(''), 3500); };
+
+  // Executa uma chamada que grava dados, tratando erro de rede e resposta não-OK.
+  // Só roda onSuccess (fechar modal, limpar form) se o servidor confirmou.
+  const runMutation = async (fn, onSuccess, successMsg) => {
+    if (saving) return;
+    setSaving(true); setError('');
+    try {
+      const res = await fn();
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(data?.error || 'O servidor recusou a operação. Nada foi salvo.');
+        return;
+      }
+      if (onSuccess) onSuccess(await res.json().catch(() => null));
+      if (successMsg) flash(successMsg);
+      await load();
+    } catch {
+      setError('Falha de conexão. A operação NÃO foi salva — verifique a internet e tente de novo.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveTx = async (e) => {
     e.preventDefault();
-    const amount = parseFloat(txAmount.replace(/\./g, '').replace(',', '.'));
-    await authFetch('/api/pf/transactions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        description: txDesc, amount, type: txType, status: txStatus,
-        dueDate: txDate, isRecurring: txRecurring, categoryId: txCategory || null,
+    const amount = brToNumber(txAmount);
+    if (!isFinite(amount) || amount <= 0) { setError('Informe um valor válido maior que zero.'); return; }
+    await runMutation(
+      () => authFetch('/api/pf/transactions', {
+        method: 'POST',
+        body: JSON.stringify({
+          description: txDesc, amount, type: txType, status: txStatus,
+          dueDate: txDate, isRecurring: txRecurring, categoryId: txCategory || null,
+        }),
       }),
-    });
-    setTxModal(false); setTxDesc(''); setTxAmount(''); setTxCategory(''); setTxRecurring(false);
-    load();
+      () => { setTxModal(false); setTxDesc(''); setTxAmount(''); setTxCategory(''); setTxRecurring(false); },
+      'Lançamento salvo.'
+    );
   };
 
-  const payTx = async (id) => {
-    await authFetch(`/api/pf/transactions/${id}/pay`, { method: 'PATCH' });
-    load();
-  };
+  const payTx = (id) => runMutation(
+    () => authFetch(`/api/pf/transactions/${id}/pay`, { method: 'PATCH', body: JSON.stringify({}) }),
+    null,
+    'Lançamento marcado como pago.'
+  );
 
-  const deleteTx = async (id) => {
-    if (!confirm('Excluir este lançamento?')) return;
-    await authFetch(`/api/pf/transactions/${id}`, { method: 'DELETE' });
-    load();
+  const deleteTx = (id) => {
+    if (!confirm('Mover este lançamento para a lixeira? Ele pode ser restaurado depois.')) return;
+    return runMutation(() => authFetch(`/api/pf/transactions/${id}`, { method: 'DELETE' }), null, 'Movido para a lixeira.');
   };
 
   const saveBudget = async (e) => {
     e.preventDefault();
-    const limitAmount = parseFloat(bdLimit.replace(/\./g, '').replace(',', '.'));
+    const limitAmount = brToNumber(bdLimit);
+    if (!isFinite(limitAmount) || limitAmount <= 0) { setError('Informe um limite válido maior que zero.'); return; }
     const cat = categories.find(c => c.id === bdCategory);
-    await authFetch('/api/pf/budgets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: cat?.name || bdName, categoryId: bdCategory || null, limitAmount, month: bdMonth, year: bdYear }),
-    });
-    setBudgetModal(false); setBdName(''); setBdCategory(''); setBdLimit(''); load();
+    await runMutation(
+      () => authFetch('/api/pf/budgets', {
+        method: 'POST',
+        body: JSON.stringify({ name: cat?.name || bdName, categoryId: bdCategory || null, limitAmount, month: bdMonth, year: bdYear }),
+      }),
+      () => { setBudgetModal(false); setBdName(''); setBdCategory(''); setBdLimit(''); },
+      'Orçamento salvo.'
+    );
   };
 
-  const deleteBudget = async (id) => {
+  const deleteBudget = (id) => {
     if (!confirm('Excluir este orçamento?')) return;
-    await authFetch(`/api/pf/budgets/${id}`, { method: 'DELETE' });
-    load();
+    return runMutation(() => authFetch(`/api/pf/budgets/${id}`, { method: 'DELETE' }));
   };
 
   const saveGoal = async (e) => {
     e.preventDefault();
-    const targetAmount = parseFloat(glTarget.replace(/\./g, '').replace(',', '.'));
-    await authFetch('/api/pf/goals', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: glName, emoji: glEmoji, targetAmount, deadline: glDeadline || null }),
-    });
-    setGoalModal(false); setGlName(''); setGlTarget(''); setGlDeadline(''); load();
+    const targetAmount = brToNumber(glTarget);
+    if (!isFinite(targetAmount) || targetAmount <= 0) { setError('Informe um valor-alvo válido maior que zero.'); return; }
+    await runMutation(
+      () => authFetch('/api/pf/goals', {
+        method: 'POST',
+        body: JSON.stringify({ name: glName, emoji: glEmoji, targetAmount, deadline: glDeadline || null }),
+      }),
+      () => { setGoalModal(false); setGlName(''); setGlTarget(''); setGlDeadline(''); },
+      'Meta criada.'
+    );
   };
 
   const doDeposit = async () => {
-    const amount = parseFloat(depositAmt.replace(/\./g, '').replace(',', '.'));
-    await authFetch(`/api/pf/goals/${depositModal}/deposit`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount }),
-    });
-    setDepositModal(null); setDepositAmt(''); load();
+    const amount = brToNumber(depositAmt);
+    if (!isFinite(amount) || amount <= 0) { setError('Informe um valor de depósito válido.'); return; }
+    await runMutation(
+      () => authFetch(`/api/pf/goals/${depositModal}/deposit`, { method: 'PATCH', body: JSON.stringify({ amount }) }),
+      (data) => {
+        setDepositModal(null); setDepositAmt('');
+        flash(data?.capped
+          ? `Depósito registrado. A meta já foi atingida; R$ ${Number(data.excedente || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} não foram aplicados.`
+          : 'Depósito registrado.');
+      },
+      null
+    );
   };
 
-  const deleteGoal = async (id) => {
+  const deleteGoal = (id) => {
     if (!confirm('Excluir esta meta?')) return;
-    await authFetch(`/api/pf/goals/${id}`, { method: 'DELETE' });
-    load();
+    return runMutation(() => authFetch(`/api/pf/goals/${id}`, { method: 'DELETE' }));
   };
 
   const tab = (key, label, icon) => (
@@ -239,6 +289,17 @@ export default function PersonalFinance({ theme = 'light' }) {
         {tab('metas', 'Metas (Cofrinho)', <Target size={16} />)}
       </div>
 
+      {error && (
+        <div className="badge-pill badge-pill-danger" style={{ width: '100%', padding: '0.85rem 1.15rem', borderRadius: 10, fontSize: '0.875rem' }}>
+          ⚠️ {error}
+        </div>
+      )}
+      {notice && (
+        <div className="badge-pill badge-pill-success" style={{ width: '100%', padding: '0.85rem 1.15rem', borderRadius: 10, fontSize: '0.875rem' }}>
+          {notice}
+        </div>
+      )}
+
       {loading ? (
         <div style={{ textAlign: 'center', padding: '3rem' }}>
           <p style={{ color: 'var(--text-muted)' }}>Carregando dados pessoais...</p>
@@ -252,9 +313,9 @@ export default function PersonalFinance({ theme = 'light' }) {
               {/* Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '1rem' }}>
                 {[
-                  { label: 'Receitas do Mês', value: fmt(totalIn), icon: TrendingUp, color: 'var(--success)', bg: 'var(--success-bg)' },
-                  { label: 'Despesas do Mês', value: fmt(totalOut), icon: TrendingDown, color: 'var(--danger)', bg: 'var(--danger-bg)' },
-                  { label: 'Saldo Atual', value: fmt(saldo), icon: Wallet, color: saldo >= 0 ? 'var(--brand-purple)' : 'var(--danger)', bg: saldo >= 0 ? 'rgba(124,58,237,0.12)' : 'var(--danger-bg)' },
+                  { label: 'Receitas do Mês (recebidas)', value: fmt(totalIn), icon: TrendingUp, color: 'var(--success)', bg: 'var(--success-bg)', sub: previstoIn > 0 ? `+ ${fmt(previstoIn)} a receber` : null },
+                  { label: 'Despesas do Mês (pagas)', value: fmt(totalOut), icon: TrendingDown, color: 'var(--danger)', bg: 'var(--danger-bg)', sub: previstoOut > 0 ? `+ ${fmt(previstoOut)} a pagar` : null },
+                  { label: 'Saldo Atual', value: fmt(saldo), icon: Wallet, color: saldo >= 0 ? 'var(--brand-purple)' : 'var(--danger)', bg: saldo >= 0 ? 'rgba(124,58,237,0.12)' : 'var(--danger-bg)', sub: temPrevisto ? `Projetado c/ pendentes: ${fmt(saldoProjetado)}` : null },
                 ].map(c => {
                   const Icon = c.icon;
                   return (
@@ -266,6 +327,7 @@ export default function PersonalFinance({ theme = 'light' }) {
                         </div>
                       </div>
                       <div className="tabular-nums" style={{ fontSize: '1.55rem', fontWeight: 900, color: c.color }}>{c.value}</div>
+                      {c.sub && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4, fontWeight: 600 }}>{c.sub}</div>}
                     </div>
                   );
                 })}
@@ -334,7 +396,7 @@ export default function PersonalFinance({ theme = 'light' }) {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                           <span className="tabular-nums" style={{ fontWeight: 900, color: t.type === 'IN' ? 'var(--success)' : 'var(--danger)' }}>{fmt(t.amount)}</span>
-                          <button className="btn btn-success" style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', minHeight: 34 }} onClick={() => payTx(t.id)}>
+                          <button disabled={saving} className="btn btn-success" style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', minHeight: 34 }} onClick={() => payTx(t.id)}>
                             <CheckCircle2 size={13} /> Pago
                           </button>
                         </div>
@@ -392,7 +454,7 @@ export default function PersonalFinance({ theme = 'light' }) {
                           </td>
                           <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                             {t.status === 'PENDING' && (
-                              <button onClick={() => payTx(t.id)} className="btn btn-secondary" style={{ padding: '0.35rem 0.5rem', color: 'var(--success)', marginRight: 6, minHeight: 34 }} title="Marcar como Pago">
+                              <button disabled={saving} onClick={() => payTx(t.id)} className="btn btn-secondary" style={{ padding: '0.35rem 0.5rem', color: 'var(--success)', marginRight: 6, minHeight: 34 }} title="Marcar como Pago">
                                 <CheckCircle2 size={15} />
                               </button>
                             )}
@@ -549,7 +611,7 @@ export default function PersonalFinance({ theme = 'light' }) {
                 <input type="checkbox" id="pf_recorrente" checked={txRecurring} onChange={e => setTxRecurring(e.target.checked)} style={{ width: 18, height: 18 }} />
                 <label htmlFor="pf_recorrente" style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)' }}>Repetir todo mês <Repeat size={13} style={{ verticalAlign: 'middle' }} /></label>
               </div>
-              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: 'var(--brand-purple)', padding: '0.85rem', fontWeight: 800 }}>Salvar Lançamento</button>
+              <button type="submit" disabled={saving} className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: 'var(--brand-purple)', padding: '0.85rem', fontWeight: 800 }}>{saving ? 'Salvando…' : 'Salvar Lançamento'}</button>
             </form>
           </div>
         </div>
@@ -584,7 +646,7 @@ export default function PersonalFinance({ theme = 'light' }) {
                 </div>
                 <div className="form-group"><label>Ano</label><input type="number" value={bdYear} onChange={e => setBdYear(Number(e.target.value))} /></div>
               </div>
-              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: 'var(--brand-purple)', padding: '0.85rem', fontWeight: 800 }}>Salvar Orçamento</button>
+              <button type="submit" disabled={saving} className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: 'var(--brand-purple)', padding: '0.85rem', fontWeight: 800 }}>{saving ? 'Salvando…' : 'Salvar Orçamento'}</button>
             </form>
           </div>
         </div>
@@ -610,7 +672,7 @@ export default function PersonalFinance({ theme = 'light' }) {
               <div className="form-group"><label>Nome da Meta</label><input placeholder="Ex: Viagem para Europa" value={glName} onChange={e => setGlName(e.target.value)} required /></div>
               <div className="form-group"><label>Valor Alvo (R$)</label><input placeholder="0,00" value={glTarget} onChange={e => setGlTarget(formatCurrency(e.target.value))} required style={{ fontWeight: 700 }} /></div>
               <div className="form-group"><label>Prazo (opcional)</label><input type="date" value={glDeadline} onChange={e => setGlDeadline(e.target.value)} /></div>
-              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: 'var(--brand-purple)', padding: '0.85rem', fontWeight: 800 }}>Criar Meta</button>
+              <button type="submit" disabled={saving} className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: 'var(--brand-purple)', padding: '0.85rem', fontWeight: 800 }}>{saving ? 'Salvando…' : 'Criar Meta'}</button>
             </form>
           </div>
         </div>
@@ -629,8 +691,8 @@ export default function PersonalFinance({ theme = 'light' }) {
                 <label>Valor a depositar (R$)</label>
                 <input placeholder="0,00" value={depositAmt} onChange={e => setDepositAmt(formatCurrency(e.target.value))} autoFocus style={{ fontWeight: 700 }} />
               </div>
-              <button className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: 'var(--brand-purple)', padding: '0.85rem', fontWeight: 800 }} onClick={doDeposit}>
-                Confirmar Depósito
+              <button disabled={saving} className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem', background: 'var(--brand-purple)', padding: '0.85rem', fontWeight: 800 }} onClick={doDeposit}>
+                {saving ? 'Processando…' : 'Confirmar Depósito'}
               </button>
             </div>
           </div>

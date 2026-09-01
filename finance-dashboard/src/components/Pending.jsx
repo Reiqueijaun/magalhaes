@@ -5,7 +5,7 @@ import {
   Filter, ArrowDownRight, AlertTriangle, Sparkles, Truck
 } from 'lucide-react';
 import { authFetch } from '../config';
-import { formatCurrency, parseCurrency } from '../utils';
+import { formatCurrency, parseCurrency, todayInput, formatDateBR, daysUntil } from '../utils';
 import PayModal from './PayModal';
 import ConfirmModal from './ConfirmModal';
 
@@ -43,7 +43,7 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
   // Form fields
   const [desc, setDesc] = useState('');
   const [valor, setValor] = useState('');
-  const [dataVenc, setDataVenc] = useState(new Date().toISOString().split('T')[0]);
+  const [dataVenc, setDataVenc] = useState(todayInput());
   const [categoryId, setCategoryId] = useState('');
   const [entityId, setEntityId] = useState('');
   const [companyId, setCompanyId] = useState('');
@@ -145,11 +145,12 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
       if (response.ok) {
         setSuccess('✅ Boleto cadastrado com sucesso no Contas a Pagar!');
         setDesc(''); setValor(''); setCategoryId(''); setEntityId(''); setCompanyId(''); setBankAccountId(''); setRecorrente(false);
-        setDataVenc(new Date().toISOString().split('T')[0]);
+        setDataVenc(todayInput());
         fetchTransactions();
         setTimeout(() => setSuccess(''), 3500);
-      } else { 
-        setError('Erro ao salvar no servidor. Tente novamente.'); 
+      } else {
+        const data = await response.json().catch(() => null);
+        setError(data?.error || 'Erro ao salvar no servidor. Tente novamente.');
       }
     } catch { 
       setError('Erro de conexão com o servidor.'); 
@@ -180,13 +181,26 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
 
   const handleBoletoUpload = async (e) => {
     const file = e.target.files[0]; if (!file) return;
+    if (file.size > 6 * 1024 * 1024) {
+      alert('O arquivo do boleto é muito grande (máximo 6MB). Preencha os dados manualmente.');
+      e.target.value = null;
+      return;
+    }
     setOcrLoading(true);
     const reader = new FileReader();
     reader.onload = async (ev) => {
       try {
         const response = await authFetch('/api/ocr/boleto', { method: 'POST', body: JSON.stringify({ fileBase64: ev.target.result }) });
         const data = await response.json();
-        if (data.amount) setValor(data.amount);
+        // O OCR devolve o valor com ponto decimal ("1234.56"). O campo usa máscara
+        // brasileira ("1.234,56"), então convertemos antes de preencher — caso
+        // contrário parseCurrency multiplicaria o valor por 100 ao salvar.
+        if (data.amount != null && data.amount !== '') {
+          const num = Number(String(data.amount).replace(',', '.'));
+          if (isFinite(num) && num > 0) {
+            setValor(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+          }
+        }
         if (data.dueDate) setDataVenc(data.dueDate);
         setTab('lancamento');
       } catch { 
@@ -216,11 +230,9 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
   ];
 
   const renderCard = (item) => {
-    const dueDate = new Date(item.dueDate);
-    const now = new Date(); now.setHours(0,0,0,0);
-    const overdue = dueDate < now;
-    const isToday = dueDate.toDateString() === new Date().toDateString();
-    const diffDays = Math.ceil((dueDate - now) / (1000*60*60*24));
+    const diffDays = daysUntil(item.dueDate);
+    const overdue = diffDays < 0;
+    const isToday = diffDays === 0;
 
     return (
       <div 
@@ -276,7 +288,7 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
                 color: overdue ? 'var(--danger)' : isToday ? 'var(--warning-text)' : 'var(--text-muted)', 
                 fontWeight: 700 
               }}>
-                {overdue ? `⚠️ Atrasado há ${Math.abs(diffDays)}d` : isToday ? '⏰ Vence hoje' : `📅 Vence em ${diffDays}d (${dueDate.toLocaleDateString('pt-BR')})`}
+                {overdue ? `⚠️ Atrasado há ${Math.abs(diffDays)}d` : isToday ? '⏰ Vence hoje' : `📅 Vence em ${diffDays}d (${formatDateBR(item.dueDate)})`}
               </span>
               {item.isRecurring && (
                 <span className="badge-pill" style={{ background: 'rgba(124,58,237,0.12)', color: 'var(--brand-purple)', border: '1px solid rgba(124,58,237,0.25)' }}>
@@ -685,7 +697,7 @@ export default function Pending({ selectedCompanyId = 'all', companies = [], the
         onClose={() => setDeleteItem(null)}
         onConfirm={handleDeleteConfirm}
         title="Excluir Boleto / Conta a Pagar"
-        message="Atenção: Tem certeza que deseja excluir permanentemente este boleto do contas a pagar?"
+        message="Mover este boleto para a lixeira? Ele sai do Contas a Pagar e dos relatórios, mas pode ser restaurado."
         itemName={deleteItem?.description}
         itemValue={deleteItem ? fmt(deleteItem.amount) : ''}
         loading={deleting}
